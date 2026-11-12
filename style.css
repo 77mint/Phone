@@ -93,8 +93,15 @@ body {
   align-items: center;
 }
 
-.liquid-glass {
-  background: rgba(255, 255, 255, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15), inset 0 1px 1px rgba(255, 255, 255, 0.5);
+.glass {
+  background: rgba(255, 255, 255, 0.25);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  backdrop-filter: blur(24px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.3);
 }
+
+.bg-1 { background: linear-gradient(160deg, #ff9a9e, #fad0c4); }
+.bg-2 { background: linear-gradient(160deg, #5ee27a, #2bb84f); }
+.bg-3 { background: linear-gradient(160deg, #ffffff, #e8ecf3); }
+.bg-4 { background: linear-gradient(160deg, #ff6b81, #ff2d55); }
+.bg-5 { background: linear-gradient(160deg, #b0b6c1, #7d8490); }
