@@ -9,10 +9,12 @@
 <meta name="apple-mobile-web-app-title" content="小手机">
 <title>小手机</title>
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="apps/appearance.css">
 </head>
 <body>
 <div class="phone" id="phone">
   <div class="wallpaper" id="wallpaper"></div>
+  
   <div class="home" id="home">
     <div class="grid">
       <div class="app" data-app="appearance">
@@ -20,7 +22,7 @@
         <div class="app-name">外观</div>
       </div>
     </div>
-    <div class="dock glass">
+    <div class="dock liquid-glass">
       <div class="app" data-app="chat">
         <div class="app-icon bg-2">💬</div>
       </div>
@@ -35,7 +37,87 @@
       </div>
     </div>
   </div>
+  
+  <div class="app-appearance" id="appAppearance">
+    <div class="app-bar">
+      <div class="back-btn" id="backBtn">‹</div>
+    </div>
+    <div class="app-content">
+      <div class="tab-bar">
+        <div class="tab active" id="tabTheme">主题</div>
+        <div class="tab" id="tabIcon">图标</div>
+      </div>
+      
+      <div class="tab-content active" id="contentTheme">
+        <div class="setting-group">
+          <div class="setting-item">
+            <span class="setting-label">开启锁屏</span>
+            <div class="toggle" id="toggleLock"></div>
+          </div>
+          <div class="setting-item sub-item" id="lockWallSection" style="display:none;">
+            <span class="setting-label">锁屏壁纸</span>
+            <div class="btn" id="btnLockWall">选择图片</div>
+            <input type="file" id="inputLockWall" accept="image/*">
+          </div>
+        </div>
+        
+        <div class="setting-group">
+          <div class="setting-item">
+            <span class="setting-label">桌面壁纸</span>
+            <div class="btn" id="btnDeskWall">选择图片</div>
+            <input type="file" id="inputDeskWall" accept="image/*">
+          </div>
+        </div>
+        
+        <div class="setting-group">
+          <div class="setting-item">
+            <span class="setting-label">字体大小</span>
+            <div class="slider-row">
+              <div class="slider" id="sliderFontSize">
+                <div class="slider-track" style="width:50%;">
+                  <div class="slider-thumb"></div>
+                </div>
+              </div>
+              <span class="slider-value" id="fontSizeValue">16</span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="setting-group">
+          <div class="setting-item">
+            <span class="setting-label">自定义字体</span>
+            <div class="btn" id="btnFont">上传字体</div>
+            <input type="file" id="inputFont" accept=".ttf,.otf,.woff,.woff2">
+          </div>
+        </div>
+      </div>
+      
+      <div class="tab-content" id="contentIcon">
+        <div class="setting-group">
+          <div class="setting-label" style="text-align:center;padding:20px 0;opacity:0.6;">图标设置待开发</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
 </div>
 <script src="app.js"></script>
+<script src="apps/appearance.js"></script>
+<script>
+document.querySelectorAll('.app[data-app]').forEach(function(app) {
+  app.addEventListener('click', function() {
+    var name = this.getAttribute('data-app');
+    if (name === 'appearance') {
+      document.getElementById('home').style.display = 'none';
+      document.getElementById('appAppearance').classList.add('active');
+    }
+  });
+});
+
+document.getElementById('backBtn').addEventListener('click', function() {
+  document.getElementById('appAppearance').classList.remove('active');
+  document.getElementById('home').style.display = 'flex';
+});
+</script>
 </body>
 </html>
