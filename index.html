@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="小手机">
+<title>小手机</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { height: 100%; background: #ff0000; }
+body { height: 100%; overflow: hidden; }
+.phone {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background: linear-gradient(160deg, #7aa7ff, #c59bff, #ffb3d1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.line-top {
+  position: absolute; top: 0; left: 0; width: 100%; height: 6px;
+  background: #ffe600;
+}
+.line-bottom {
+  position: absolute; bottom: 0; left: 0; width: 100%; height: 6px;
+  background: #00e676;
+}
+.info {
+  color: #fff; font-size: 16px; line-height: 1.8; text-align: center;
+  font-family: -apple-system, sans-serif; padding: 0 24px;
+}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="line-top"></div>
+  <div class="info">
+    <div>全屏测试页</div>
+    <div id="diag"></div>
+  </div>
+  <div class="line-bottom"></div>
+</div>
+<script>
+function showDiag() {
+  var phone = document.querySelector('.phone');
+  var h = Math.round(phone.getBoundingClientRect().height);
+  document.getElementById('diag').innerHTML =
+    '从桌面图标打开：' + (window.navigator.standalone ? '是' : '否') + '<br>' +
+    '屏幕高度：' + screen.height + '<br>' +
+    '窗口高度：' + window.innerHeight + '<br>' +
+    '外壳高度：' + h;
+}
+showDiag();
+window.addEventListener('resize', showDiag);
+</script>
+</body>
+</html>
