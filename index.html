@@ -10,7 +10,12 @@
 <title>小手机</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html { height: 100%; background: #ff0000; }
+html {
+  height: 100%;
+  min-height: calc(100% + env(safe-area-inset-top));
+  overflow: hidden;
+  background: #ff0000;
+}
 body { height: 100%; overflow: hidden; }
 .phone {
   position: fixed;
@@ -34,32 +39,67 @@ body { height: 100%; overflow: hidden; }
   background: #00e676;
 }
 .info {
-  color: #fff; font-size: 16px; line-height: 1.8; text-align: center;
+  color: #fff; font-size: 15px; line-height: 1.7; text-align: center;
   font-family: -apple-system, sans-serif; padding: 0 24px;
 }
+.probe {
+  position: fixed; top: 0; left: -10px; width: 1px;
+  visibility: hidden; pointer-events: none;
+}
+.probe-vh { height: 100vh; }
+.probe-dvh { height: 100dvh; }
+.probe-top { height: env(safe-area-inset-top); }
+.probe-bottom { height: env(safe-area-inset-bottom); }
 </style>
 </head>
 <body>
 <div class="phone">
   <div class="line-top"></div>
   <div class="info">
-    <div>全屏测试页</div>
+    <div>全屏测试页 第2版</div>
     <div id="diag"></div>
   </div>
   <div class="line-bottom"></div>
 </div>
+<div class="probe probe-vh" id="probeVh"></div>
+<div class="probe probe-dvh" id="probeDvh"></div>
+<div class="probe probe-top" id="probeTop"></div>
+<div class="probe probe-bottom" id="probeBottom"></div>
 <script>
+var phone = document.querySelector('.phone');
+
+function fitPhone() {
+  var isStandalone = window.navigator.standalone === true;
+  var isPortrait = window.matchMedia('(orientation: portrait)').matches;
+  if (isStandalone && isPortrait) {
+    var h = Math.max(window.innerHeight, screen.height);
+    phone.style.height = h + 'px';
+  } else if (isStandalone) {
+    var h2 = Math.max(window.innerHeight, screen.width);
+    phone.style.height = h2 + 'px';
+  } else {
+    phone.style.height = '';
+  }
+}
+
 function showDiag() {
-  var phone = document.querySelector('.phone');
-  var h = Math.round(phone.getBoundingClientRect().height);
+  fitPhone();
   document.getElementById('diag').innerHTML =
     '从桌面图标打开：' + (window.navigator.standalone ? '是' : '否') + '<br>' +
     '屏幕高度：' + screen.height + '<br>' +
     '窗口高度：' + window.innerHeight + '<br>' +
-    '外壳高度：' + h;
+    '文档高度：' + document.documentElement.clientHeight + '<br>' +
+    'vh高度：' + document.getElementById('probeVh').offsetHeight + '<br>' +
+    'dvh高度：' + document.getElementById('probeDvh').offsetHeight + '<br>' +
+    '外壳高度：' + Math.round(phone.getBoundingClientRect().height) + '<br>' +
+    '顶部安全区：' + document.getElementById('probeTop').offsetHeight + '<br>' +
+    '底部安全区：' + document.getElementById('probeBottom').offsetHeight;
 }
+
 showDiag();
 window.addEventListener('resize', showDiag);
+window.addEventListener('orientationchange', showDiag);
+setInterval(showDiag, 500);
 </script>
 </body>
 </html>
