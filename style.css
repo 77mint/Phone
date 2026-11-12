@@ -11,7 +11,8 @@ body {
   height: 100%;
   overflow: hidden;
   overscroll-behavior: none;
-  font-family: -apple-system, "PingFang SC", sans-serif;
+  font-family: var(--app-font, -apple-system, "PingFang SC", sans-serif);
+  font-size: var(--app-font-size, 15px);
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
@@ -34,7 +35,7 @@ body {
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(160deg, #7aa7ff, #c59bff, #ffb3d1);
+  background: #ffffff;
   background-size: cover;
   background-position: center;
 }
@@ -74,14 +75,13 @@ body {
   align-items: center;
   justify-content: center;
   font-size: 30px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
 }
 
 .app-name {
   margin-top: 6px;
-  font-size: 12px;
-  color: #fff;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  font-size: calc(var(--app-font-size, 15px) - 3px);
+  color: #111111;
 }
 
 .dock {
@@ -94,14 +94,15 @@ body {
 }
 
 .glass {
-  background: rgba(255, 255, 255, 0.14);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0.10) 50%, rgba(255, 255, 255, 0.22) 100%);
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
-  border: 1px solid rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.85);
   box-shadow:
-    0 10px 28px rgba(0, 0, 0, 0.22),
-    inset 0 1.5px 1px rgba(255, 255, 255, 0.7),
-    inset 0 -1.5px 2px rgba(0, 0, 0, 0.12);
+    0 10px 28px rgba(0, 0, 0, 0.14),
+    0 2px 6px rgba(0, 0, 0, 0.06),
+    inset 0 2px 3px rgba(255, 255, 255, 0.95),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.08);
 }
 
 .bg-1 { background: linear-gradient(160deg, #ff9a9e, #fad0c4); }
@@ -109,15 +110,6 @@ body {
 .bg-3 { background: linear-gradient(160deg, #ffffff, #e8ecf3); }
 .bg-4 { background: linear-gradient(160deg, #ff6b81, #ff2d55); }
 .bg-5 { background: linear-gradient(160deg, #b0b6c1, #7d8490); }
-
-body {
-  font-family: var(--app-font, -apple-system, "PingFang SC", sans-serif);
-  font-size: var(--app-font-size, 15px);
-}
-
-.app-name {
-  font-size: calc(var(--app-font-size, 15px) - 3px);
-}
 
 .app-screen {
   position: absolute;
@@ -164,7 +156,7 @@ body {
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(160deg, #7aa7ff, #c59bff, #ffb3d1);
+  background: #ffffff;
   background-size: cover;
   background-position: center;
   z-index: -1;
@@ -172,8 +164,8 @@ body {
 
 .lock-clock {
   text-align: center;
-  color: #ffffff;
-  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.35);
+  color: #111111;
+  text-shadow: 0 2px 12px rgba(255, 255, 255, 0.65);
 }
 
 .lock-date {
@@ -198,13 +190,12 @@ body {
 
 .lock-hint {
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.9);
-  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.4);
+  color: rgba(17, 17, 17, 0.7);
 }
 
 .lock-bar {
   width: 134px;
   height: 5px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.85);
+  background: rgba(17, 17, 17, 0.25);
 }
