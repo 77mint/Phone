@@ -9,6 +9,7 @@
 <meta name="apple-mobile-web-app-title" content="小手机">
 <title>小手机</title>
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="apps/appearance.css">
 </head>
 <body>
 <div class="phone" id="phone">
@@ -35,7 +36,20 @@
       </div>
     </div>
   </div>
+  <div class="app-screen" id="app-appearance"></div>
+  <div class="lock-screen" id="lockScreen">
+    <div class="lock-wallpaper" id="lockWallpaper"></div>
+    <div class="lock-clock">
+      <div class="lock-date" id="lockDate"></div>
+      <div class="lock-time" id="lockTime"></div>
+    </div>
+    <div class="lock-bottom">
+      <div class="lock-hint">向上轻扫解锁</div>
+      <div class="lock-bar"></div>
+    </div>
+  </div>
 </div>
 <script src="app.js"></script>
+<script src="apps/appearance.js"></script>
 </body>
 </html>
