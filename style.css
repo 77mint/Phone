@@ -94,10 +94,14 @@ body {
 }
 
 .glass {
-  background: rgba(255, 255, 255, 0.25);
-  -webkit-backdrop-filter: blur(24px) saturate(160%);
-  backdrop-filter: blur(24px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.14);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.22),
+    inset 0 1.5px 1px rgba(255, 255, 255, 0.7),
+    inset 0 -1.5px 2px rgba(0, 0, 0, 0.12);
 }
 
 .bg-1 { background: linear-gradient(160deg, #ff9a9e, #fad0c4); }
@@ -105,3 +109,102 @@ body {
 .bg-3 { background: linear-gradient(160deg, #ffffff, #e8ecf3); }
 .bg-4 { background: linear-gradient(160deg, #ff6b81, #ff2d55); }
 .bg-5 { background: linear-gradient(160deg, #b0b6c1, #7d8490); }
+
+body {
+  font-family: var(--app-font, -apple-system, "PingFang SC", sans-serif);
+  font-size: var(--app-font-size, 15px);
+}
+
+.app-name {
+  font-size: calc(var(--app-font-size, 15px) - 3px);
+}
+
+.app-screen {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 20;
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(0.96);
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+.app-screen.open {
+  opacity: 1;
+  pointer-events: auto;
+  transform: scale(1);
+}
+
+.lock-screen {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 50;
+  display: none;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: calc(env(safe-area-inset-top) + 46px);
+  padding-bottom: max(22px, env(safe-area-inset-bottom));
+  transition: transform 0.28s ease;
+}
+
+.lock-screen.active {
+  display: flex;
+}
+
+.lock-wallpaper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(160deg, #7aa7ff, #c59bff, #ffb3d1);
+  background-size: cover;
+  background-position: center;
+  z-index: -1;
+}
+
+.lock-clock {
+  text-align: center;
+  color: #ffffff;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.35);
+}
+
+.lock-date {
+  font-size: 18px;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.lock-time {
+  font-size: 74px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -1px;
+}
+
+.lock-bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.lock-hint {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.9);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.4);
+}
+
+.lock-bar {
+  width: 134px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.85);
+}
