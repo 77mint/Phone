@@ -8,12 +8,6 @@
         '<svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg>' +
       '</div>' +
     '</div>' +
-    '<div class="lg-capsule-wrap">' +
-      '<div class="lg-capsule">' +
-        '<div class="lg-tab active" data-tab="theme">主题</div>' +
-        '<div class="lg-tab" data-tab="icons">图标</div>' +
-      '</div>' +
-    '</div>' +
     '<div class="app-body">' +
       '<div class="tab-panel active" id="panel-theme">' +
         '<div class="lg-card">' +
@@ -30,7 +24,7 @@
           '<div class="lg-row hidden" id="rowLockWall">' +
             '<div class="lg-row-main">' +
               '<div class="lg-label">锁屏壁纸</div>' +
-              '<div class="lg-sub" id="lockWallSub">默认壁纸（点击上传）</div>' +
+              '<div class="lg-sub" id="lockWallSub">默认纯白（点击上传）</div>' +
             '</div>' +
             '<div class="lg-row-right">' +
               '<div class="mini-btn" id="resetLockWall" style="display:none;">恢复默认</div>' +
@@ -42,7 +36,7 @@
           '<div class="lg-row" id="rowHomeWall">' +
             '<div class="lg-row-main">' +
               '<div class="lg-label">桌面壁纸</div>' +
-              '<div class="lg-sub" id="homeWallSub">默认壁纸（点击上传）</div>' +
+              '<div class="lg-sub" id="homeWallSub">默认纯白（点击上传）</div>' +
             '</div>' +
             '<div class="lg-row-right">' +
               '<div class="mini-btn" id="resetHomeWall" style="display:none;">恢复默认</div>' +
@@ -53,9 +47,10 @@
             '<div class="lg-row-main">' +
               '<div class="lg-label">字体大小</div>' +
             '</div>' +
-            '<div class="lg-slider-wrap">' +
-              '<input type="range" class="lg-slider" id="fontSizeSlider" min="12" max="20" step="1" value="15">' +
-              '<div class="font-val" id="fontSizeVal">15px</div>' +
+            '<div class="font-seg" id="fontSeg">' +
+              '<div class="font-seg-btn" data-size="13">小</div>' +
+              '<div class="font-seg-btn" data-size="15">中</div>' +
+              '<div class="font-seg-btn" data-size="18">大</div>' +
             '</div>' +
           '</div>' +
           '<div class="lg-row" id="rowFontFile">' +
@@ -72,6 +67,10 @@
       '<div class="tab-panel" id="panel-icons">' +
         '<div class="lg-card"><div class="empty-tip">图标样式暂未设置</div></div>' +
       '</div>' +
+    '</div>' +
+    '<div class="lg-bottom-bar">' +
+      '<div class="lg-tab active" data-tab="theme">主题</div>' +
+      '<div class="lg-tab" data-tab="icons">图标</div>' +
     '</div>' +
     '<input type="file" id="inputLockWall" accept="image/*" style="display:none;">' +
     '<input type="file" id="inputHomeWall" accept="image/*" style="display:none;">' +
@@ -133,7 +132,7 @@
     } else {
       thumb.style.backgroundImage = '';
       resetBtn.style.display = 'none';
-      subEl.textContent = '默认壁纸（点击上传）';
+      subEl.textContent = '默认纯白（点击上传）';
     }
   }
 
@@ -195,17 +194,24 @@
     updateWallThumb(thumbHomeWall, resetHomeWall, homeWallSub, '');
   });
 
-  var fontSizeSlider = document.getElementById('fontSizeSlider');
-  var fontSizeVal = document.getElementById('fontSizeVal');
+  var fontBtns = root.querySelectorAll('.font-seg-btn');
   var savedSize = localStorage.getItem('phone_font_size') || '15';
-  fontSizeSlider.value = savedSize;
-  fontSizeVal.textContent = savedSize + 'px';
+  if (savedSize !== '13' && savedSize !== '15' && savedSize !== '18') savedSize = '15';
 
-  fontSizeSlider.addEventListener('input', function () {
-    var v = this.value;
-    fontSizeVal.textContent = v + 'px';
-    localStorage.setItem('phone_font_size', v);
-    document.documentElement.style.setProperty('--app-font-size', v + 'px');
+  function syncFontSize(sz) {
+    fontBtns.forEach(function (b) {
+      b.classList.toggle('active', b.getAttribute('data-size') === sz);
+    });
+    document.documentElement.style.setProperty('--app-font-size', sz + 'px');
+  }
+  syncFontSize(savedSize);
+
+  fontBtns.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var sz = btn.getAttribute('data-size');
+      localStorage.setItem('phone_font_size', sz);
+      syncFontSize(sz);
+    });
   });
 
   var rowFontFile = document.getElementById('rowFontFile');
