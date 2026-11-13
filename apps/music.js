@@ -13,28 +13,27 @@
   var SVG_NEXT = '<svg viewBox="0 0 24 24"><polygon points="5 4 15 12 5 20 5 4"></polygon><rect x="17" y="4" width="2.5" height="16" rx="1"></rect></svg>';
   var SVG_PREV = '<svg viewBox="0 0 24 24"><polygon points="19 4 9 12 19 20 19 4"></polygon><rect x="4.5" y="4" width="2.5" height="16" rx="1"></rect></svg>';
 
-  /* 对照你发的三张图：列表循环 / 单曲循环(1在内) / 平滑S形随机 */
   var SVG_MODE_LOOP =
     '<svg viewBox="0 0 24 24">' +
       '<path d="M17 4l3 3-3 3"></path>' +
-      '<path d="M4 12V9a4 4 0 0 1 4-4h12"></path>' +
+      '<path d="M4 12V10a3 3 0 0 1 3-3h13"></path>' +
       '<path d="M7 20l-3-3 3-3"></path>' +
-      '<path d="M20 12v3a4 4 0 0 1-4 4H4"></path>' +
+      '<path d="M20 12v2a3 3 0 0 1-3 3H4"></path>' +
     '</svg>';
   var SVG_MODE_ONE =
     '<svg viewBox="0 0 24 24">' +
       '<path d="M17 4l3 3-3 3"></path>' +
-      '<path d="M4 12V9a4 4 0 0 1 4-4h12"></path>' +
+      '<path d="M4 12V10a3 3 0 0 1 3-3h13"></path>' +
       '<path d="M7 20l-3-3 3-3"></path>' +
-      '<path d="M20 12v3a4 4 0 0 1-4 4H4"></path>' +
-      '<path d="M11.5 10l1.2-1v6"></path>' +
+      '<path d="M20 12v2a3 3 0 0 1-3 3H4"></path>' +
+      '<path d="M11 10.4l1.3-0.9v5"></path>' +
     '</svg>';
   var SVG_MODE_SHUFFLE =
     '<svg viewBox="0 0 24 24">' +
-      '<path d="M3 7h3.2c2.5 0 3.8 10 7.6 10H20"></path>' +
-      '<path d="M3 17h3.2c2.5 0 3.8-10 7.6-10H20"></path>' +
-      '<polyline points="17.5 4.5 20.5 7 17.5 9.5"></polyline>' +
-      '<polyline points="17.5 14.5 20.5 17 17.5 19.5"></polyline>' +
+      '<path d="M3 7h3.5c2.4 0 4.2 10 7 10H20"></path>' +
+      '<path d="M3 17h3.5c2.4 0 4.2-10 7-10H20"></path>' +
+      '<path d="M17 4l3 3-3 3"></path>' +
+      '<path d="M17 14l3 3-3 3"></path>' +
     '</svg>';
 
   var START_SONGS = [
