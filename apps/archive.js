@@ -86,6 +86,8 @@
   var SVG_USER = '<svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>';
   var SVG_CLOSE = '<svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
   var SVG_CHEVRON = '<svg class="ar-chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></svg>';
+  var SVG_EXPORT = '<svg viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><polyline points="16 6 12 2 8 6"></polyline><line x1="12" y1="2" x2="12" y2="15"></line></svg>';
+  var SVG_IMPORT = '<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>';
 
   root.innerHTML =
     '<div class="ar-shell" id="arShell">' +
@@ -96,9 +98,12 @@
           '</div>' +
           '<div class="ar-title" id="arHomeTitle">Char</div>' +
         '</div>' +
-        '<div class="ar-add-btn" id="arAddCharBtn">' +
-          '<svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>' +
-          '<span>新建</span>' +
+        '<div class="ar-header-actions">' +
+          '<div class="ar-add-btn" id="arImportBtn">' + SVG_IMPORT + '<span>导入</span></div>' +
+          '<div class="ar-add-btn" id="arAddCharBtn">' +
+            '<svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>' +
+            '<span>新建</span>' +
+          '</div>' +
         '</div>' +
       '</div>' +
 
@@ -126,7 +131,10 @@
             '<div class="ar-top-tab" data-ar-page="mask">面具</div>' +
             '<div class="ar-top-tab" data-ar-page="social">交际</div>' +
           '</div>' +
-          '<div class="ar-close-circle" id="arCloseEditor">' + SVG_CLOSE + '</div>' +
+          '<div class="ar-editor-actions">' +
+            '<div class="ar-icon-circle" id="arExportBtn" title="导出">' + SVG_EXPORT + '</div>' +
+            '<div class="ar-icon-circle" id="arCloseEditor">' + SVG_CLOSE + '</div>' +
+          '</div>' +
         '</div>' +
 
         '<div class="ar-editor-viewport">' +
@@ -211,9 +219,31 @@
         '</div>' +
       '</div>' +
 
+      '<div class="ar-modal" id="arExportModal">' +
+        '<div class="ar-dialog">' +
+          '<div class="ar-dialog-close" id="arCloseExportModal">' + SVG_CLOSE + '</div>' +
+          '<div class="ar-dialog-title">选择导出格式</div>' +
+          '<div class="ar-export-list">' +
+            '<div class="ar-export-opt" data-export-fmt="json">' +
+              '<div class="ar-export-name">JSON 完整备份</div>' +
+              '<div class="ar-export-desc">含全部资料、人设、NPC 及所有头像图片</div>' +
+            '</div>' +
+            '<div class="ar-export-opt" data-export-fmt="png">' +
+              '<div class="ar-export-name">PNG 角色卡图</div>' +
+              '<div class="ar-export-desc">可存相册/进酒馆，含完整扩展数据与 NPC</div>' +
+            '</div>' +
+            '<div class="ar-export-opt" data-export-fmt="md">' +
+              '<div class="ar-export-name">Markdown 文本版</div>' +
+              '<div class="ar-export-desc">排版整齐的纯文字设定，适合备忘录阅读</div>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+
       '<div class="ar-toast" id="arToast"></div>' +
       '<input type="file" id="arInputCharAvatar" accept="image/*" style="display:none;">' +
       '<input type="file" id="arInputNpcAvatar" accept="image/*" style="display:none;">' +
+      '<input type="file" id="arInputImport" accept=".json,.png,application/json,image/png" style="display:none;">' +
     '</div>';
 
   var toastTimer = null;
@@ -225,6 +255,339 @@
     toastTimer = setTimeout(function () {
       el.classList.remove('show');
     }, 1800);
+  }
+
+  /* ====== PNG tEXt 元数据读写 + CRC32 ====== */
+  var CRC_TABLE = (function () {
+    var table = new Uint32Array(256);
+    for (var n = 0; n < 256; n++) {
+      var c = n;
+      for (var k = 0; k < 8; k++) {
+        c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+      }
+      table[n] = c >>> 0;
+    }
+    return table;
+  })();
+
+  function crc32(bytes) {
+    var c = 0xffffffff;
+    for (var i = 0; i < bytes.length; i++) {
+      c = CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+    }
+    return (c ^ 0xffffffff) >>> 0;
+  }
+
+  function utf8ToB64(str) {
+    return btoa(unescape(encodeURIComponent(str)));
+  }
+
+  function b64ToUtf8(b64) {
+    return decodeURIComponent(escape(atob(b64)));
+  }
+
+  function buildPngWithChara(pngBuf, jsonStr) {
+    var src = new Uint8Array(pngBuf);
+    var b64 = utf8ToB64(jsonStr);
+    var keyBytes = [99, 104, 97, 114, 97, 0]; // "chara\0"
+    var textBytes = new Uint8Array(keyBytes.length + b64.length);
+    for (var i = 0; i < keyBytes.length; i++) textBytes[i] = keyBytes[i];
+    for (var j = 0; j < b64.length; j++) textBytes[keyBytes.length + j] = b64.charCodeAt(j);
+
+    var typeAndData = new Uint8Array(4 + textBytes.length);
+    typeAndData[0] = 116; typeAndData[1] = 69; typeAndData[2] = 88; typeAndData[3] = 116; // tEXt
+    typeAndData.set(textBytes, 4);
+
+    var chunk = new Uint8Array(12 + textBytes.length);
+    var dv = new DataView(chunk.buffer);
+    dv.setUint32(0, textBytes.length);
+    chunk.set(typeAndData, 4);
+    dv.setUint32(8 + textBytes.length, crc32(typeAndData));
+
+    // 找到 IEND 位置并在其前面插入 tEXt 块
+    var pos = 8;
+    while (pos + 12 <= src.length) {
+      var len = (src[pos] << 24) | (src[pos + 1] << 16) | (src[pos + 2] << 8) | src[pos + 3];
+      var type = String.fromCharCode(src[pos + 4], src[pos + 5], src[pos + 6], src[pos + 7]);
+      if (type === 'IEND') break;
+      pos += 12 + len;
+    }
+
+    var out = new Uint8Array(src.length + chunk.length);
+    out.set(src.slice(0, pos), 0);
+    out.set(chunk, pos);
+    out.set(src.slice(pos), pos + chunk.length);
+    return new Blob([out], { type: 'image/png' });
+  }
+
+  function extractCharaFromPng(buf) {
+    var bytes = new Uint8Array(buf);
+    var pos = 8;
+    while (pos + 12 <= bytes.length) {
+      var dv = new DataView(bytes.buffer, pos, 8);
+      var len = dv.getUint32(0);
+      var type = String.fromCharCode(bytes[pos + 4], bytes[pos + 5], bytes[pos + 6], bytes[pos + 7]);
+      if (type === 'tEXt') {
+        var data = bytes.slice(pos + 8, pos + 8 + len);
+        var nul = data.indexOf(0);
+        if (nul > 0) {
+          var kw = String.fromCharCode.apply(null, data.slice(0, nul));
+          if (kw === 'chara') {
+            var b64 = '';
+            for (var i = nul + 1; i < data.length; i++) b64 += String.fromCharCode(data[i]);
+            return JSON.parse(b64ToUtf8(b64));
+          }
+        }
+      }
+      if (type === 'IEND') break;
+      pos += 12 + len;
+    }
+    return null;
+  }
+
+  function createCardPngBuffer(avatarDataUrl, titleText) {
+    return new Promise(function (resolve) {
+      var canvas = document.createElement('canvas');
+      canvas.width = 600;
+      canvas.height = 800;
+      var ctx = canvas.getContext('2d');
+
+      function finishCanvas() {
+        canvas.toBlob(function (blob) {
+          blob.arrayBuffer().then(resolve);
+        }, 'image/png');
+      }
+
+      if (avatarDataUrl) {
+        var img = new Image();
+        img.onload = function () {
+          var scale = Math.max(600 / img.width, 800 / img.height);
+          var w = img.width * scale;
+          var h = img.height * scale;
+          ctx.drawImage(img, (600 - w) / 2, (800 - h) / 2, w, h);
+          finishCanvas();
+        };
+        img.onerror = function () {
+          drawFallback();
+        };
+        img.src = avatarDataUrl;
+      } else {
+        drawFallback();
+      }
+
+      function drawFallback() {
+        ctx.fillStyle = '#111111';
+        ctx.fillRect(0, 0, 600, 800);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 54px -apple-system, PingFang SC, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(titleText || 'Char', 300, 380);
+        ctx.fillStyle = 'rgba(255,255,255,0.55)';
+        ctx.font = '24px -apple-system, PingFang SC, sans-serif';
+        ctx.fillText('CHARACTER ARCHIVE', 300, 450);
+        finishCanvas();
+      }
+    });
+  }
+
+  function downloadBlob(blob, filename) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 3000);
+  }
+
+  function gatherEditorBundle() {
+    syncNpcInputs();
+    var npcsWithAvatars = tempNpcs.map(function (n) {
+      var copy = JSON.parse(JSON.stringify(n));
+      if (copy.hasSocial && npcAvatarCache[copy.id]) {
+        copy.avatar = npcAvatarCache[copy.id];
+      }
+      return copy;
+    });
+    return {
+      format: 'xiaoshouji_archive_v1',
+      exportedAt: new Date().toISOString(),
+      char: {
+        id: editingCharId || ('char_' + Date.now()),
+        avatar: tempCharAvatar || '',
+        nickname: document.getElementById('arCharNickname').value.trim(),
+        bio: document.getElementById('arCharBio').value.trim(),
+        handle: document.getElementById('arCharHandle').value.trim(),
+        password: document.getElementById('arCharPassword').value.trim(),
+        group: tempGroup || 'Default',
+        name: document.getElementById('arCharName').value.trim(),
+        age: document.getElementById('arCharAge').value.trim(),
+        gender: tempGender,
+        persona: document.getElementById('arCharPersona').value.trim(),
+        npcs: npcsWithAvatars
+      }
+    };
+  }
+
+  function exportAsJson(bundle, safeName) {
+    var blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json;charset=utf-8' });
+    downloadBlob(blob, safeName + '.json');
+    showToast('已导出 JSON 完整备份');
+  }
+
+  function exportAsMd(bundle, safeName) {
+    var c = bundle.char;
+    var lines = [
+      '# ' + (c.name || c.nickname || '未命名角色'),
+      '',
+      '## 资料',
+      '- **网名**：' + (c.nickname || '未填写'),
+      '- **签名**：' + (c.bio || '未填写'),
+      '- **账号**：' + (c.handle || '未填写'),
+      '- **密码**：' + (c.password || '未填写'),
+      '- **分组**：' + (c.group || 'Default'),
+      '',
+      '## 面具',
+      '- **姓名**：' + (c.name || '未填写'),
+      '- **年龄**：' + (c.age || '未填写'),
+      '- **性别**：' + (c.gender || '未填写'),
+      '',
+      '### 人设',
+      c.persona || '（暂无）',
+      '',
+      '## 交际（NPC）'
+    ];
+    if (!c.npcs.length) {
+      lines.push('（暂无关联 NPC）');
+    } else {
+      c.npcs.forEach(function (n, idx) {
+        lines.push('### ' + (idx + 1) + '. ' + (n.name || '未命名 NPC') + (n.relation ? '（' + n.relation + '）' : ''));
+        lines.push(n.desc || '（暂无描述）');
+        if (n.hasSocial) {
+          lines.push('- **社交账号**：' + (n.handle || '未填') + (n.bio ? '｜签名：' + n.bio : ''));
+        } else {
+          lines.push('- **社交账号**：未设置');
+        }
+        lines.push('');
+      });
+    }
+    var blob = new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' });
+    downloadBlob(blob, safeName + '.md');
+    showToast('已导出 Markdown 文本');
+  }
+
+  function exportAsPng(bundle, safeName) {
+    var c = bundle.char;
+    var tavernV2 = {
+      spec: 'chara_card_v2',
+      spec_version: '2.0',
+      data: {
+        name: c.name || c.nickname || '未命名角色',
+        description: c.persona || '',
+        personality: c.bio || '',
+        scenario: '',
+        first_mes: '',
+        mes_example: '',
+        creator_notes: 'Exported from 小手机档案',
+        tags: [c.group || 'Default'],
+        extensions: {
+          xiaoshouji_archive: bundle
+        }
+      }
+    };
+    showToast('正在生成角色卡图...');
+    createCardPngBuffer(c.avatar, c.name || c.nickname).then(function (buf) {
+      var pngBlob = buildPngWithChara(buf, JSON.stringify(tavernV2));
+      downloadBlob(pngBlob, safeName + '.png');
+      showToast('已导出 PNG 角色卡');
+    });
+  }
+
+  function importParsedData(parsed, fallbackAvatarUrl) {
+    var cData = null;
+    if (parsed && parsed.format === 'xiaoshouji_archive_v1' && parsed.char) {
+      cData = parsed.char;
+    } else if (parsed && parsed.data && parsed.data.extensions && parsed.data.extensions.xiaoshouji_archive && parsed.data.extensions.xiaoshouji_archive.char) {
+      cData = parsed.data.extensions.xiaoshouji_archive.char;
+    } else if (parsed && (parsed.data || parsed.name)) {
+      var d = parsed.data || parsed;
+      cData = {
+        avatar: fallbackAvatarUrl || '',
+        nickname: d.name || '导入角色',
+        bio: d.personality || '',
+        handle: genHandle(),
+        password: genPassword(),
+        group: (Array.isArray(d.tags) && d.tags[0]) ? d.tags[0] : 'Default',
+        name: d.name || '',
+        age: '',
+        gender: '女',
+        persona: [d.description, d.scenario].filter(Boolean).join('\n\n'),
+        npcs: []
+      };
+    }
+
+    if (!cData) {
+      showToast('无法识别该文件格式');
+      return;
+    }
+
+    var newId = 'char_' + Date.now();
+    var targetGroup = cData.group || 'Default';
+    var groups = getGroups();
+    if (groups.indexOf(targetGroup) === -1) {
+      groups.push(targetGroup);
+      saveGroups(groups);
+    }
+
+    var cleanNpcs = (Array.isArray(cData.npcs) ? cData.npcs : []).map(function (n, idx) {
+      var nid = 'npc_' + Date.now() + '_' + idx;
+      if (n.avatar) {
+        npcAvatarCache[nid] = n.avatar;
+        PhoneDB.set('archive_npc_avatar_' + nid, n.avatar);
+      }
+      return {
+        id: nid,
+        name: n.name || 'NPC',
+        relation: n.relation || '',
+        desc: n.desc || '',
+        hasSocial: !!n.hasSocial,
+        handle: n.handle || '',
+        bio: n.bio || ''
+      };
+    });
+
+    var newChar = {
+      id: newId,
+      nickname: cData.nickname || cData.name || '导入角色',
+      bio: cData.bio || '',
+      handle: cData.handle || genHandle(),
+      password: cData.password || genPassword(),
+      group: targetGroup,
+      name: cData.name || '',
+      age: cData.age || '',
+      gender: cData.gender || '女',
+      persona: cData.persona || '',
+      npcs: cleanNpcs,
+      updatedAt: Date.now()
+    };
+
+    var list = getChars();
+    list.unshift(newChar);
+    saveChars(list);
+
+    var avUrl = cData.avatar || fallbackAvatarUrl || '';
+    if (avUrl) {
+      charAvatarCache[newId] = avUrl;
+      PhoneDB.set('archive_char_avatar_' + newId, avUrl);
+    }
+
+    netCharId = newId;
+    selectedNpcId = '';
+    renderCharsList();
+    renderNetwork();
+    showToast('已导入「' + (newChar.name || newChar.nickname) + '」');
   }
 
   function renderCharsList() {
@@ -245,7 +608,7 @@
       box.innerHTML =
         '<div class="ar-empty">' +
           '<div class="ar-empty-title">' + (list.length ? '该分组暂无角色' : '还没有角色档案') + '</div>' +
-          '<div class="ar-empty-sub">点击右上角「+ 新建」添加角色</div>' +
+          '<div class="ar-empty-sub">点击右上角「+ 新建」或「导入」添加角色</div>' +
         '</div>';
       return;
     }
@@ -486,7 +849,6 @@
 
   initLoad();
 
-  // 主页底栏切换（Char / 关系网）
   var shellEl = document.getElementById('arShell');
   var bottomBar = document.getElementById('arBottomBar');
   var homeTitle = document.getElementById('arHomeTitle');
@@ -548,6 +910,58 @@
 
   document.getElementById('arAddCharBtn').addEventListener('click', function () {
     openEditor(null);
+  });
+
+  document.getElementById('arImportBtn').addEventListener('click', function () {
+    document.getElementById('arInputImport').click();
+  });
+
+  document.getElementById('arInputImport').addEventListener('change', function () {
+    var file = this.files && this.files[0];
+    if (!file) return;
+    var isPng = /\.png$/i.test(file.name) || file.type === 'image/png';
+    if (isPng) {
+      file.arrayBuffer().then(function (buf) {
+        var parsed = extractCharaFromPng(buf);
+        var reader = new FileReader();
+        reader.onload = function () {
+          importParsedData(parsed, reader.result);
+        };
+        reader.readAsDataURL(file);
+      }).catch(function () {
+        showToast('PNG 角色卡解析失败');
+      });
+    } else {
+      var reader = new FileReader();
+      reader.onload = function () {
+        try {
+          importParsedData(JSON.parse(reader.result), '');
+        } catch (e) {
+          showToast('JSON 格式有误');
+        }
+      };
+      reader.readAsText(file, 'utf-8');
+    }
+    this.value = '';
+  });
+
+  var exportModal = document.getElementById('arExportModal');
+  document.getElementById('arExportBtn').addEventListener('click', function () {
+    exportModal.classList.add('open');
+  });
+  document.getElementById('arCloseExportModal').addEventListener('click', function () {
+    exportModal.classList.remove('open');
+  });
+  exportModal.addEventListener('click', function (e) {
+    var opt = e.target.closest('[data-export-fmt]');
+    if (!opt) return;
+    var fmt = opt.getAttribute('data-export-fmt');
+    var bundle = gatherEditorBundle();
+    var safeName = (bundle.char.name || bundle.char.nickname || 'char').replace(/[\\/:*?"<>|]/g, '_');
+    exportModal.classList.remove('open');
+    if (fmt === 'json') exportAsJson(bundle, safeName);
+    else if (fmt === 'md') exportAsMd(bundle, safeName);
+    else if (fmt === 'png') exportAsPng(bundle, safeName);
   });
 
   document.getElementById('arCloseEditor').addEventListener('click', function () {
