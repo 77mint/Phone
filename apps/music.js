@@ -12,8 +12,30 @@
   var SVG_PAUSE = '<svg viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1"></rect><rect x="14" y="4" width="4" height="16" rx="1"></rect></svg>';
   var SVG_NEXT = '<svg viewBox="0 0 24 24"><polygon points="5 4 15 12 5 20 5 4"></polygon><rect x="17" y="4" width="2.5" height="16" rx="1"></rect></svg>';
   var SVG_PREV = '<svg viewBox="0 0 24 24"><polygon points="19 4 9 12 19 20 19 4"></polygon><rect x="4.5" y="4" width="2.5" height="16" rx="1"></rect></svg>';
-  var SVG_REPEAT = '<svg viewBox="0 0 24 24"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>';
-  var SVG_SHUFFLE = '<svg viewBox="0 0 24 24"><path d="M16 3h5v5"></path><path d="M4 20L21 3"></path><path d="M21 16v5h-5"></path><path d="M15 15l6 6"></path><path d="M4 4l5 5"></path></svg>';
+
+  /* 对照你发的三张图：列表循环 / 单曲循环(1在内) / 平滑S形随机 */
+  var SVG_MODE_LOOP =
+    '<svg viewBox="0 0 24 24">' +
+      '<path d="M17 4l3 3-3 3"></path>' +
+      '<path d="M4 12V9a4 4 0 0 1 4-4h12"></path>' +
+      '<path d="M7 20l-3-3 3-3"></path>' +
+      '<path d="M20 12v3a4 4 0 0 1-4 4H4"></path>' +
+    '</svg>';
+  var SVG_MODE_ONE =
+    '<svg viewBox="0 0 24 24">' +
+      '<path d="M17 4l3 3-3 3"></path>' +
+      '<path d="M4 12V9a4 4 0 0 1 4-4h12"></path>' +
+      '<path d="M7 20l-3-3 3-3"></path>' +
+      '<path d="M20 12v3a4 4 0 0 1-4 4H4"></path>' +
+      '<path d="M11.5 10l1.2-1v6"></path>' +
+    '</svg>';
+  var SVG_MODE_SHUFFLE =
+    '<svg viewBox="0 0 24 24">' +
+      '<path d="M3 7h3.2c2.5 0 3.8 10 7.6 10H20"></path>' +
+      '<path d="M3 17h3.2c2.5 0 3.8-10 7.6-10H20"></path>' +
+      '<polyline points="17.5 4.5 20.5 7 17.5 9.5"></polyline>' +
+      '<polyline points="17.5 14.5 20.5 17 17.5 19.5"></polyline>' +
+    '</svg>';
 
   var START_SONGS = [
     { title: '红尘客栈', sub: '周杰伦', cls: 'mu-c1', id: '', pic: '' },
@@ -37,6 +59,15 @@
   ];
 
   var queueSongs = START_SONGS.slice();
+
+  function shuffleArr(arr) {
+    var a = arr.slice();
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
 
   function buildRectCards(list) {
     var s = '';
@@ -180,6 +211,7 @@
       '<div class="mu-ps-stage" id="muPsStage">' +
         '<div class="mu-ps-art" id="muPsArt">' + SVG_NOTE + '</div>' +
         '<div class="mu-ps-lyrics" id="muPsLyrics"><div class="mu-lyric-line">点击封面查看歌词</div></div>' +
+        '<div id="muBackCoverBtn" style="display:none;position:absolute;top:6px;right:0;z-index:5;padding:4px 10px;border-radius:999px;background:rgba(0,0,0,0.06);color:#666;font-size:12px;">封面</div>' +
       '</div>' +
       '<div>' +
         '<div class="mu-ps-meta">' +
@@ -203,7 +235,7 @@
           '<svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.5 8.5a5 5 0 0 1 0 7"></path></svg>' +
         '</div>' +
         '<div class="mu-ps-footer">' +
-          '<div class="mu-ps-fbtn" id="muPsModeBtn">' + SVG_REPEAT + '</div>' +
+          '<div class="mu-ps-fbtn" id="muPsModeBtn">' + SVG_MODE_LOOP + '</div>' +
           '<div class="mu-ps-fbtn" id="muPsQueueBtn"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><circle cx="4" cy="6" r="1"></circle><circle cx="4" cy="12" r="1"></circle><circle cx="4" cy="18" r="1"></circle></svg></div>' +
         '</div>' +
       '</div>' +
@@ -300,6 +332,7 @@
   var psStage = document.getElementById('muPsStage');
   var psArt = document.getElementById('muPsArt');
   var psLyrics = document.getElementById('muPsLyrics');
+  var backCoverBtn = document.getElementById('muBackCoverBtn');
   var psTitle = document.getElementById('muPsTitle');
   var psSub = document.getElementById('muPsSub');
   var psPlay = document.getElementById('muPsPlay');
@@ -312,17 +345,15 @@
 
   var currentIdx = -1;
   var isPlaying = false;
-  var playMode = 0; // 0: 列表循环, 1: 单曲循环, 2: 随机播放
+  var playMode = 0; // 0: 顺序/列表循环, 1: 单曲循环, 2: 随机播放
   var parsedLyrics = [];
+  var lastLyricIdx = -1;
+  var manualScrollUntil = 0;
 
   function renderModeBtn() {
-    if (playMode === 0) {
-      modeBtn.innerHTML = SVG_REPEAT;
-    } else if (playMode === 1) {
-      modeBtn.innerHTML = SVG_REPEAT + '<span class="mu-mode-badge">1</span>';
-    } else {
-      modeBtn.innerHTML = SVG_SHUFFLE;
-    }
+    if (playMode === 0) modeBtn.innerHTML = SVG_MODE_LOOP;
+    else if (playMode === 1) modeBtn.innerHTML = SVG_MODE_ONE;
+    else modeBtn.innerHTML = SVG_MODE_SHUFFLE;
   }
 
   modeBtn.addEventListener('click', function () {
@@ -345,8 +376,14 @@
     applyVolume(this.value);
   });
 
+  function setLyricsVisible(show) {
+    psStage.classList.toggle('lyrics-on', show);
+    backCoverBtn.style.display = show ? 'block' : 'none';
+  }
+
   function loadLyrics(songId) {
     parsedLyrics = [];
+    lastLyricIdx = -1;
     if (!songId) {
       psLyrics.innerHTML = '<div class="mu-lyric-line">暂无歌词</div>';
       return;
@@ -374,15 +411,46 @@
           return;
         }
         psLyrics.innerHTML = lines.map(function (l, i) {
-          return '<div class="mu-lyric-line" data-lrc-idx="' + i + '">' + l.text + '</div>';
+          return '<div class="mu-lyric-line" data-lrc-idx="' + i + '" data-lrc-time="' + l.time + '">' + l.text + '</div>';
         }).join('');
       }).catch(function () {
         psLyrics.innerHTML = '<div class="mu-lyric-line">歌词加载失败</div>';
       });
   }
 
-  psStage.addEventListener('click', function () {
-    psStage.classList.toggle('lyrics-on');
+  psArt.addEventListener('click', function () {
+    setLyricsVisible(true);
+  });
+
+  backCoverBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    setLyricsVisible(false);
+  });
+
+  psLyrics.addEventListener('touchstart', function () {
+    manualScrollUntil = Date.now() + 4500;
+  }, { passive: true });
+  psLyrics.addEventListener('scroll', function () {
+    manualScrollUntil = Date.now() + 4500;
+  }, { passive: true });
+
+  psLyrics.addEventListener('click', function (e) {
+    var line = e.target.closest('.mu-lyric-line[data-lrc-time]');
+    if (line) {
+      e.stopPropagation();
+      var t = parseFloat(line.getAttribute('data-lrc-time'));
+      if (!isNaN(t)) {
+        audio.currentTime = t;
+        manualScrollUntil = 0;
+        if (audio.paused && audio.src) {
+          isPlaying = true;
+          audio.play().catch(function () {});
+          syncPlayIcons();
+        }
+      }
+      return;
+    }
+    setLyricsVisible(false);
   });
 
   function syncPlayIcons() {
@@ -570,14 +638,17 @@
       for (var i = 0; i < parsedLyrics.length; i++) {
         if (curT >= parsedLyrics[i].time) activeIdx = i;
       }
-      var lrcEls = psLyrics.querySelectorAll('.mu-lyric-line');
-      lrcEls.forEach(function (el, idx) {
-        var on = idx === activeIdx;
-        el.classList.toggle('active', on);
-        if (on && psStage.classList.contains('lyrics-on')) {
-          el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-        }
-      });
+      if (activeIdx !== lastLyricIdx) {
+        lastLyricIdx = activeIdx;
+        var lrcEls = psLyrics.querySelectorAll('.mu-lyric-line');
+        lrcEls.forEach(function (el, idx) {
+          var on = idx === activeIdx;
+          el.classList.toggle('active', on);
+          if (on && psStage.classList.contains('lyrics-on') && Date.now() > manualScrollUntil) {
+            el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          }
+        });
+      }
     }
   });
 
@@ -600,10 +671,10 @@
       queueSongs = START_SONGS.slice();
     });
 
-    fetch(base + '/personalized?limit=6')
+    fetch(base + '/personalized?limit=24')
       .then(function (r) { return r.json(); })
       .then(function (res) {
-        var list = res.result || [];
+        var list = shuffleArr(res.result || []).slice(0, 6);
         if (!list.length) return;
         var pls = list.map(function (p, i) {
           return {
@@ -617,10 +688,10 @@
         document.getElementById('muPlaylistShelf').innerHTML = buildPlaylistCards(pls);
       }).catch(function () {});
 
-    fetch(base + '/top/artists?offset=0&limit=6')
+    fetch(base + '/top/artists?offset=0&limit=30')
       .then(function (r) { return r.json(); })
       .then(function (res) {
-        var list = res.artists || [];
+        var list = shuffleArr(res.artists || []).slice(0, 6);
         if (!list.length) return;
         var ars = list.map(function (a, i) {
           return {
@@ -729,7 +800,6 @@
     muProfileModal.classList.remove('open');
   });
 
-  /* 仿 p4 居中网易云登录弹窗 */
   var muLoginModal = document.getElementById('muLoginModal');
   var muLoginTip = document.getElementById('muLoginTip');
   var muLoginSub = document.getElementById('muLoginSub');
