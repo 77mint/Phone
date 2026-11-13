@@ -5,6 +5,7 @@
   var BOOKS_KEY = 'phone_lorebooks_v1';
   var activeBookId = '';
   var editingCoverBookId = '';
+  var tempNewCoverUrl = '';
   var coverMap = {};
   var openEntryIds = {};
 
@@ -21,13 +22,12 @@
     localStorage.setItem(BOOKS_KEY, JSON.stringify(list));
   }
 
-  // 供后续 iMessage / 线下 等模块按角色 + 场景匹配世界书词条
   window.PhoneLorebook = {
     getBooks: getBooks,
     matchContext: function (text, options) {
       var opts = options || {};
       var charId = opts.charId || '';
-      var scene = opts.scene || 'all'; // 'online' | 'offline' | 'all'
+      var scene = opts.scene || 'all';
       var haystack = String(text || '').toLowerCase();
 
       var books = getBooks().filter(function (b) {
@@ -121,6 +121,10 @@
         '<div class="lb-dialog">' +
           '<div class="lb-dialog-close" id="lbCloseNewModal">' + SVG_CLOSE + '</div>' +
           '<div class="lb-dialog-title">新建世界书</div>' +
+          '<div class="lb-new-cover-wrap">' +
+            '<div class="lb-new-cover-box" id="lbNewCoverBox"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></div>' +
+            '<div class="lb-new-cover-hint">点击上传封面（可选）</div>' +
+          '</div>' +
           '<div class="lb-input-box"><input type="text" class="lb-input" id="lbNewBookName" placeholder="输入世界书名称"></div>' +
           '<div class="lb-primary-btn" id="lbCreateBookBtn">创建</div>' +
         '</div>' +
@@ -129,6 +133,7 @@
       '<div class="lb-toast" id="lbToast"></div>' +
       '<input type="file" id="lbInputImport" accept=".json,application/json" style="display:none;">' +
       '<input type="file" id="lbInputCover" accept="image/*" style="display:none;">' +
+      '<input type="file" id="lbInputNewCover" accept="image/*" style="display:none;">' +
     '</div>';
 
   var toastTimer = null;
@@ -167,7 +172,7 @@
       var url = coverMap[b.id] || '';
       var hasCls = url ? ' has-cover' : '';
       var bgStyle = url ? ' style="background-image:url(\'' + url + '\');"' : '';
-      var scopeTxt = b.scope === 'local' ? '局部' : '全局';
+      var scopeTxt = b.scope === 'local' ? '局部绑定' : '全局';
       var sceneTxt = sceneLabel(b.scene || 'all');
 
       return (
@@ -217,7 +222,7 @@
         '<div class="lb-field-label">作用范围</div>' +
         '<div class="lb-seg">' +
           '<div class="lb-seg-btn' + (scope === 'global' ? ' active' : '') + '" data-set-scope="global">全局</div>' +
-          '<div class="lb-seg-btn' + (scope === 'local' ? ' active' : '') + '" data-set-scope="local">局部（部分角色）</div>' +
+          '<div class="lb-seg-btn' + (scope === 'local' ? ' active' : '') + '" data-set-scope="local">局部绑定</div>' +
         '</div>' +
         charsHtml +
       '</div>' +
@@ -423,21 +428,53 @@
   loadCovers();
 
   var newModal = document.getElementById('lbNewModal');
+  var newCoverBox = document.getElementById('lbNewCoverBox');
   var detailEl = document.getElementById('lbDetail');
 
+  function syncNewCoverUI() {
+    if (tempNewCoverUrl) {
+      newCoverBox.style.backgroundImage = 'url("' + tempNewCoverUrl + '")';
+      newCoverBox.classList.add('has-img');
+    } else {
+      newCoverBox.style.backgroundImage = '';
+      newCoverBox.classList.remove('has-img');
+    }
+  }
+
   document.getElementById('lbNewBookBtn').addEventListener('click', function () {
+    tempNewCoverUrl = '';
+    syncNewCoverUI();
     document.getElementById('lbNewBookName').value = '';
     newModal.classList.add('open');
   });
   document.getElementById('lbCloseNewModal').addEventListener('click', function () {
     newModal.classList.remove('open');
   });
+  newCoverBox.addEventListener('click', function () {
+    document.getElementById('lbInputNewCover').click();
+  });
+  document.getElementById('lbInputNewCover').addEventListener('change', function () {
+    var file = this.files && this.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      tempNewCoverUrl = reader.result;
+      syncNewCoverUI();
+    };
+    reader.readAsDataURL(file);
+    this.value = '';
+  });
+
   document.getElementById('lbCreateBookBtn').addEventListener('click', function () {
     var name = document.getElementById('lbNewBookName').value.trim() || '新建世界书';
     var books = getBooks();
     var id = 'lb_' + Date.now();
     books.unshift({ id: id, name: name, enabled: true, scope: 'global', scene: 'all', charIds: [], entries: [] });
     saveBooks(books);
+    if (tempNewCoverUrl) {
+      coverMap[id] = tempNewCoverUrl;
+      PhoneDB.set('lorebook_cover_' + id, tempNewCoverUrl);
+    }
     newModal.classList.remove('open');
     renderBookList();
     activeBookId = id;
