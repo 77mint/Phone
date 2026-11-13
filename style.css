@@ -204,3 +204,52 @@ body {
   background-size: cover;
   background-position: center;
 }
+/* 对角渐隐高光液态玻璃（左上、右下亮，左下、右上渐隐） */
+.glass,
+.app-back,
+.mu-back-sm {
+  position: relative;
+}
+
+.glass,
+.app-back,
+.lg-bottom-bar,
+.mu-back-sm,
+.mu-mini-player,
+.mu-bottom-bar {
+  border: none !important;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.28) 0%, rgba(255, 255, 255, 0.06) 50%, rgba(255, 255, 255, 0.18) 100%) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  box-shadow:
+    0 10px 26px rgba(0, 0, 0, 0.12),
+    0 2px 6px rgba(0, 0, 0, 0.05),
+    inset 0 1px 1px rgba(255, 255, 255, 0.5),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.05) !important;
+}
+
+.glass::before,
+.app-back::before,
+.lg-bottom-bar::before,
+.mu-back-sm::before,
+.mu-mini-player::before,
+.mu-bottom-bar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1.3px;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.98) 0%,
+    rgba(255, 255, 255, 0.35) 22%,
+    rgba(255, 255, 255, 0) 44%,
+    rgba(255, 255, 255, 0) 56%,
+    rgba(255, 255, 255, 0.35) 78%,
+    rgba(255, 255, 255, 0.92) 100%
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
