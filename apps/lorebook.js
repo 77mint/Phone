@@ -72,7 +72,6 @@
   var SVG_CLOSE = '<svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
   var SVG_EXPORT = '<svg viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><polyline points="16 6 12 2 8 6"></polyline><line x1="12" y1="2" x2="12" y2="15"></line></svg>';
   var SVG_IMPORT = '<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>';
-  var SVG_IMG = '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>';
 
   root.innerHTML =
     '<div class="lb-shell">' +
@@ -183,8 +182,6 @@
                 '<div class="lb-fb-title">' + escapeHtml(b.name || '未命名') + '</div>' +
                 '<div class="lb-fb-meta">' + count + ' 条</div>' +
               '</div>' +
-              '<span class="lb-cover-status' + (b.enabled ? ' on' : '') + '"></span>' +
-              '<div class="lb-cover-edit" data-edit-cover="' + escapeHtml(b.id) + '" title="上传封面">' + SVG_IMG + '</div>' +
             '</div>' +
           '</div>' +
           '<div class="lb-book-name">' + escapeHtml(b.name || '未命名世界书') + '</div>' +
