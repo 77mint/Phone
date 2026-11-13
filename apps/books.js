@@ -7,40 +7,38 @@
       id: 'bk_little_prince',
       title: '小王子',
       author: '安托万·德·圣-埃克苏佩里',
-      isbn: '9780156012195',
-      cover: 'https://covers.openlibrary.org/b/isbn/9780156012195-L.jpg'
+      cover: 'https://covers.openlibrary.org/b/isbn/9780156012195-L.jpg?default=false'
     },
     {
       id: 'bk_moon_sixpence',
       title: '月亮与六便士',
       author: '毛姆',
-      isbn: '9780141187136',
-      cover: 'https://covers.openlibrary.org/b/isbn/9780141187136-L.jpg'
+      cover: 'https://covers.openlibrary.org/b/isbn/0143039342-L.jpg?default=false'
     },
     {
       id: 'bk_pride_prejudice',
       title: '傲慢与偏见',
       author: '简·奥斯汀',
-      isbn: '9780141439518',
-      cover: 'https://covers.openlibrary.org/b/isbn/9780141439518-L.jpg'
+      cover: 'https://covers.openlibrary.org/b/isbn/9780141439518-L.jpg?default=false'
     },
     {
       id: 'bk_walden',
       title: '瓦尔登湖',
       author: '亨利·戴维·梭罗',
-      isbn: '9780140390445',
-      cover: 'https://covers.openlibrary.org/b/isbn/9780140390445-L.jpg'
+      cover: 'https://covers.openlibrary.org/b/isbn/9780140390445-L.jpg?default=false'
     },
     {
       id: 'bk_1984',
       title: '1984',
       author: '乔治·奥威尔',
-      isbn: '9780451524935',
-      cover: 'https://covers.openlibrary.org/b/isbn/9780451524935-L.jpg'
+      cover: 'https://covers.openlibrary.org/b/isbn/9780451524935-L.jpg?default=false'
     }
   ];
 
   var ARC_LEN = 339.292;
+  var TAB_INDEX = { home: 0, library: 1, stats: 2, notes: 3 };
+  var TAB_TITLES = { home: '主页', library: '书库', stats: '统计', notes: '笔记' };
+
   var customCoverMap = {};
   var editingCoverBookId = '';
   var tempGoalMinutes = 60;
@@ -48,7 +46,18 @@
   function getBooks() {
     try {
       var saved = JSON.parse(localStorage.getItem('phone_books_list') || 'null');
-      if (Array.isArray(saved) && saved.length) return saved;
+      if (Array.isArray(saved) && saved.length) {
+        // 同步修正旧版月亮与六便士封面链接
+        var changed = false;
+        saved.forEach(function (b) {
+          if (b.id === 'bk_moon_sixpence' && b.cover && b.cover.indexOf('9780141187136') !== -1) {
+            b.cover = 'https://covers.openlibrary.org/b/isbn/0143039342-L.jpg?default=false';
+            changed = true;
+          }
+        });
+        if (changed) localStorage.setItem('phone_books_list', JSON.stringify(saved));
+        return saved;
+      }
     } catch (e) {}
     return DEFAULT_BOOKS.slice();
   }
@@ -80,15 +89,47 @@
     localStorage.setItem('phone_books_recent', JSON.stringify(recent));
   }
 
+  function rotateShelf(direction) {
+    var books = getBooks();
+    var recent = getRecentIds(books);
+    if (recent.length < 2) return;
+    var five = recent.slice(0, 5);
+    var rest = recent.slice(5);
+    if (direction > 0) {
+      five.unshift(five.pop());
+    } else {
+      five.push(five.shift());
+    }
+    localStorage.setItem('phone_books_recent', JSON.stringify(five.concat(rest)));
+  }
+
   function getGoalMinutes() {
     var v = parseInt(localStorage.getItem('phone_books_goal_min') || '60', 10);
     return isNaN(v) || v < 5 ? 60 : v;
   }
 
+  function dateKey(d) {
+    var y = d.getFullYear();
+    var m = String(d.getMonth() + 1).padStart(2, '0');
+    var day = String(d.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + day;
+  }
+
+  function getHistoryMap() {
+    try {
+      var map = JSON.parse(localStorage.getItem('phone_books_history') || '{}');
+      return map && typeof map === 'object' ? map : {};
+    } catch (e) {
+      return {};
+    }
+  }
+
   function getTodayMinutes() {
-    var todayKey = new Date().toISOString().slice(0, 10);
+    var today = dateKey(new Date());
+    var hist = getHistoryMap();
+    if (typeof hist[today] === 'number') return hist[today];
     var savedDate = localStorage.getItem('phone_books_today_date');
-    if (savedDate !== todayKey) return 0;
+    if (savedDate !== today) return 0;
     var m = parseInt(localStorage.getItem('phone_books_today_min') || '0', 10);
     return isNaN(m) ? 0 : m;
   }
@@ -97,6 +138,13 @@
     var h = Math.floor(mins / 60);
     var m = mins % 60;
     return h + ':' + String(m).padStart(2, '0');
+  }
+
+  function formatTotalHours(mins) {
+    if (mins < 60) return mins + ' 分钟';
+    var h = Math.floor(mins / 60);
+    var m = mins % 60;
+    return m > 0 ? (h + ' 小时 ' + m + ' 分') : (h + ' 小时');
   }
 
   function escapeHtml(str) {
@@ -124,7 +172,7 @@
 
       '<div class="bk-body">' +
         '<div class="bk-panel active" id="bkPanelHome">' +
-          '<div class="bk-shelf-wrap">' +
+          '<div class="bk-shelf-wrap" id="bkShelfWrap">' +
             '<div class="bk-shelf-row" id="bkShelfRow"></div>' +
             '<div class="bk-shelf-ledge"></div>' +
           '</div>' +
@@ -154,14 +202,30 @@
         '</div>' +
 
         '<div class="bk-panel" id="bkPanelLibrary">' +
-          '<div class="bk-lib-grid" id="bkLibGrid"></div>' +
+          '<div class="bk-lib-list" id="bkLibList"></div>' +
+        '</div>' +
+
+        '<div class="bk-panel" id="bkPanelStats">' +
+          '<div class="bk-stats-stack" id="bkStatsContent"></div>' +
+        '</div>' +
+
+        '<div class="bk-panel" id="bkPanelNotes">' +
+          '<div class="bk-notes-empty">' +
+            '<div class="bk-notes-icon">' +
+              '<svg viewBox="0 0 24 24"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>' +
+            '</div>' +
+            '<div class="bk-notes-title">读书笔记</div>' +
+            '<div class="bk-notes-sub">页面待开发，后续可在这里整理划线与摘录</div>' +
+          '</div>' +
         '</div>' +
       '</div>' +
 
       '<div class="lg-bottom-bar bk-bottom-bar" id="bkBottomBar">' +
-        '<div class="bk-tab-indicator"></div>' +
+        '<div class="bk-tab-indicator" id="bkTabIndicator"></div>' +
         '<div class="bk-tab active" data-bk-tab="home">主页</div>' +
         '<div class="bk-tab" data-bk-tab="library">书库</div>' +
+        '<div class="bk-tab" data-bk-tab="stats">统计</div>' +
+        '<div class="bk-tab" data-bk-tab="notes">笔记</div>' +
       '</div>' +
 
       '<div class="bk-goal-modal" id="bkGoalModal">' +
@@ -237,10 +301,12 @@
 
   function buildCoverHtml(book) {
     var url = customCoverMap[book.id] || book.cover || '';
-    var hasClass = url ? ' has-cover' : '';
-    var bgStyle = url ? ' style="background-image:url(\'' + url + '\');"' : '';
+    var imgTag = url
+      ? '<img class="bk-cover-img" src="' + escapeHtml(url) + '" alt="" loading="lazy">'
+      : '';
     return (
-      '<div class="bk-cover-3d' + hasClass + '"' + bgStyle + '>' +
+      '<div class="bk-cover-3d">' +
+        imgTag +
         '<div class="bk-cover-fallback">' +
           '<div class="bk-fb-title">' + escapeHtml(book.title) + '</div>' +
           '<div class="bk-fb-author">' + escapeHtml(book.author || '本地图书') + '</div>' +
@@ -249,30 +315,60 @@
     );
   }
 
-  function renderShelfAndGoal() {
+  function bindCoverImages(container) {
+    container.querySelectorAll('.bk-cover-img').forEach(function (img) {
+      function checkLoaded() {
+        var box = img.closest('.bk-cover-3d');
+        if (!box) return;
+        if (img.naturalWidth > 10 && img.naturalHeight > 10) {
+          box.classList.add('has-cover');
+        } else {
+          box.classList.remove('has-cover');
+        }
+      }
+      if (img.complete) {
+        checkLoaded();
+      } else {
+        img.addEventListener('load', checkLoaded);
+        img.addEventListener('error', function () {
+          var box = img.closest('.bk-cover-3d');
+          if (box) box.classList.remove('has-cover');
+        });
+      }
+    });
+  }
+
+  function renderShelfAndGoal(animateFlip) {
+    var shelfEl = document.getElementById('bkShelfRow');
+    var oldRects = {};
+    if (animateFlip) {
+      shelfEl.querySelectorAll('[data-shelf-book]').forEach(function (el) {
+        oldRects[el.getAttribute('data-shelf-book')] = el.getBoundingClientRect();
+      });
+    }
+
     var books = getBooks();
     var recentIds = getRecentIds(books);
     var five = recentIds.slice(0, 5).map(function (id) {
       return books.find(function (b) { return b.id === id; });
     }).filter(Boolean);
 
-    // 排列为：小 小 大 小 小（中间是最近翻开的第 1 本）
+    // 排列为：最小(3) 中(1) 大(0) 中(2) 最小(4)
     var ordered = [];
     if (five.length >= 5) {
       ordered = [
-        { book: five[1], size: 'is-small' },
-        { book: five[2], size: 'is-small' },
-        { book: five[0], size: 'is-big' },
-        { book: five[3], size: 'is-small' },
-        { book: five[4], size: 'is-small' }
+        { book: five[3], size: 'is-xs' },
+        { book: five[1], size: 'is-md' },
+        { book: five[0], size: 'is-lg' },
+        { book: five[2], size: 'is-md' },
+        { book: five[4], size: 'is-xs' }
       ];
     } else {
       five.forEach(function (b, idx) {
-        ordered.push({ book: b, size: idx === 0 ? 'is-big' : 'is-small' });
+        ordered.push({ book: b, size: idx === 0 ? 'is-lg' : 'is-md' });
       });
     }
 
-    var shelfEl = document.getElementById('bkShelfRow');
     shelfEl.innerHTML = ordered.map(function (item) {
       return (
         '<div class="bk-book-slot ' + item.size + '" data-shelf-book="' + item.book.id + '">' +
@@ -280,9 +376,37 @@
         '</div>'
       );
     }).join('');
+    bindCoverImages(shelfEl);
+
+    if (animateFlip) {
+      var slots = shelfEl.querySelectorAll('[data-shelf-book]');
+      slots.forEach(function (el) {
+        var bid = el.getAttribute('data-shelf-book');
+        var oldR = oldRects[bid];
+        if (!oldR) return;
+        var newR = el.getBoundingClientRect();
+        if (!newR.width || !newR.height) return;
+        var dx = (oldR.left + oldR.width / 2) - (newR.left + newR.width / 2);
+        var dy = oldR.bottom - newR.bottom;
+        var scale = oldR.width / newR.width;
+        el.style.transition = 'none';
+        el.style.transform = 'translate3d(' + dx + 'px, ' + dy + 'px, 0) scale(' + scale + ')';
+      });
+      // 强制回流后平滑过渡到目标大小和位置
+      void shelfEl.offsetWidth;
+      slots.forEach(function (el) {
+        el.style.transition = 'transform 0.38s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.38s ease';
+        el.style.transform = '';
+      });
+    }
 
     var topBook = five[0] || books[0];
-    document.getElementById('bkContinueTitle').textContent = topBook ? topBook.title : '暂无图书';
+    var titleEl = document.getElementById('bkContinueTitle');
+    titleEl.style.opacity = '0';
+    setTimeout(function () {
+      titleEl.textContent = topBook ? topBook.title : '暂无图书';
+      titleEl.style.opacity = '1';
+    }, animateFlip ? 110 : 0);
 
     var goal = getGoalMinutes();
     var today = getTodayMinutes();
@@ -308,21 +432,144 @@
 
   function renderLibrary() {
     var books = getBooks();
-    var grid = document.getElementById('bkLibGrid');
-    grid.innerHTML = books.map(function (b) {
+    var recent = getRecentIds(books);
+    var currentId = recent[0];
+    var listEl = document.getElementById('bkLibList');
+
+    listEl.innerHTML = books.map(function (b) {
+      var isCurrent = b.id === currentId;
       return (
-        '<div class="bk-lib-item" data-lib-book="' + b.id + '">' +
-          '<div class="bk-lib-cover-wrap">' +
-            buildCoverHtml(b) +
-            '<div class="bk-lib-edit-cover" data-edit-cover="' + b.id + '">' +
-              '<svg viewBox="0 0 24 24"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>' +
+        '<div class="bk-lib-card" data-lib-book="' + b.id + '">' +
+          '<div class="bk-lib-thumb">' + buildCoverHtml(b) + '</div>' +
+          '<div class="bk-lib-info">' +
+            '<div class="bk-lib-title-row">' +
+              '<div class="bk-lib-name">' + escapeHtml(b.title) + '</div>' +
+              (isCurrent ? '<span class="bk-lib-badge">在读</span>' : '') +
             '</div>' +
+            '<div class="bk-lib-author">' + escapeHtml(b.author || '本地导入') + '</div>' +
           '</div>' +
-          '<div class="bk-lib-name">' + escapeHtml(b.title) + '</div>' +
-          '<div class="bk-lib-author">' + escapeHtml(b.author || '本地导入') + '</div>' +
+          '<div class="bk-lib-edit-btn" data-edit-cover="' + b.id + '" title="更换封面">' +
+            '<svg viewBox="0 0 24 24"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>' +
+          '</div>' +
         '</div>'
       );
     }).join('');
+    bindCoverImages(listEl);
+  }
+
+  function renderStats() {
+    var books = getBooks();
+    var goal = getGoalMinutes();
+    var hist = getHistoryMap();
+    var today = new Date();
+    var todayKey = dateKey(today);
+    hist[todayKey] = getTodayMinutes();
+
+    // 计算累计时长与连续天数
+    var totalMins = 0;
+    Object.keys(hist).forEach(function (k) {
+      if (typeof hist[k] === 'number' && hist[k] > 0) totalMins += hist[k];
+    });
+
+    var streak = 0;
+    var cursor = new Date(today);
+    while (true) {
+      var k = dateKey(cursor);
+      if ((hist[k] || 0) > 0) {
+        streak++;
+        cursor.setDate(cursor.getDate() - 1);
+      } else {
+        break;
+      }
+    }
+
+    // 计算本周（周一到周日）
+    var dayOfWeek = today.getDay(); // 0=周日
+    var mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    var weekLabels = ['一', '二', '三', '四', '五', '六', '日'];
+    var weekDays = [];
+    var weekTotal = 0;
+    var maxVal = goal;
+
+    for (var i = 0; i < 7; i++) {
+      var d = new Date(today);
+      d.setDate(today.getDate() + mondayOffset + i);
+      var dk = dateKey(d);
+      var mins = hist[dk] || 0;
+      weekTotal += mins;
+      if (mins > maxVal) maxVal = mins;
+      weekDays.push({
+        label: weekLabels[i],
+        mins: mins,
+        isToday: dk === todayKey
+      });
+    }
+
+    var goalLineBottom = Math.round((goal / maxVal) * 100);
+    var todayPct = Math.min(100, Math.round((getTodayMinutes() / goal) * 100));
+    var avgWeek = Math.round(weekTotal / 7);
+
+    var barsHtml = weekDays.map(function (wd) {
+      var hPct = wd.mins > 0 ? Math.max(6, Math.round((wd.mins / maxVal) * 100)) : 4;
+      var cls = 'bk-bar-col' + (wd.isToday ? ' is-today' : '') + (wd.mins > 0 ? ' has-val' : '');
+      return (
+        '<div class="' + cls + '">' +
+          '<div class="bk-bar-track">' +
+            '<div class="bk-bar-fill" style="height:' + hPct + '%;"></div>' +
+          '</div>' +
+          '<div class="bk-bar-day">' + wd.label + '</div>' +
+        '</div>'
+      );
+    }).join('');
+
+    document.getElementById('bkStatsContent').innerHTML =
+      '<div class="bk-stats-pair">' +
+        '<div class="bk-stat-kpi">' +
+          '<div class="bk-stat-kpi-label">连续阅读</div>' +
+          '<div class="bk-stat-kpi-val">' + streak + ' 天</div>' +
+          '<div class="bk-stat-kpi-sub">每日坚持打卡</div>' +
+        '</div>' +
+        '<div class="bk-stat-kpi">' +
+          '<div class="bk-stat-kpi-label">累计阅读</div>' +
+          '<div class="bk-stat-kpi-val">' + formatTotalHours(totalMins) + '</div>' +
+          '<div class="bk-stat-kpi-sub">书库共 ' + books.length + ' 本</div>' +
+        '</div>' +
+      '</div>' +
+
+      '<div class="bk-chart-card">' +
+        '<div class="bk-chart-head">' +
+          '<div class="bk-chart-title">本周阅读</div>' +
+          '<div class="bk-chart-pill">共 ' + weekTotal + ' 分钟</div>' +
+        '</div>' +
+        '<div class="bk-chart-area">' +
+          '<div class="bk-chart-goal-line" style="bottom:' + goalLineBottom + '%;">' +
+            '<span class="bk-chart-goal-tag">目标 ' + goal + 'm</span>' +
+          '</div>' +
+          barsHtml +
+        '</div>' +
+      '</div>' +
+
+      '<div class="bk-habit-card">' +
+        '<div class="bk-habit-row">' +
+          '<div class="bk-habit-label">今日目标达成</div>' +
+          '<div class="bk-habit-val">' + todayPct + '%</div>' +
+        '</div>' +
+        '<div class="bk-habit-row">' +
+          '<div class="bk-habit-label">本周日均阅读</div>' +
+          '<div class="bk-habit-val">' + avgWeek + ' 分钟</div>' +
+        '</div>' +
+        '<div class="bk-habit-row" id="bkStatsGoalRow" style="cursor:pointer;">' +
+          '<div class="bk-habit-label">每日阅读目标</div>' +
+          '<div class="bk-habit-val">' + goal + ' 分钟 ›</div>' +
+        '</div>' +
+      '</div>';
+
+    var goalRow = document.getElementById('bkStatsGoalRow');
+    if (goalRow) {
+      goalRow.addEventListener('click', function () {
+        document.getElementById('bkOpenAdjustModal').click();
+      });
+    }
   }
 
   function loadCustomCovers() {
@@ -335,30 +582,58 @@
   }
 
   loadCustomCovers().then(function () {
-    renderShelfAndGoal();
+    renderShelfAndGoal(false);
     renderLibrary();
+    renderStats();
   });
 
-  // Tab 切换
-  var bottomBar = document.getElementById('bkBottomBar');
+  // 4 格底栏切换
+  var indicator = document.getElementById('bkTabIndicator');
   var headerTitle = document.getElementById('bkHeaderTitle');
   var importBtn = document.getElementById('bkImportBtn');
+  var panelMap = {
+    home: 'bkPanelHome',
+    library: 'bkPanelLibrary',
+    stats: 'bkPanelStats',
+    notes: 'bkPanelNotes'
+  };
 
   root.querySelectorAll('.bk-tab').forEach(function (tab) {
     tab.addEventListener('click', function () {
+      var target = tab.getAttribute('data-bk-tab');
+      var idx = TAB_INDEX[target] || 0;
       root.querySelectorAll('.bk-tab').forEach(function (t) { t.classList.remove('active'); });
       tab.classList.add('active');
-      var target = tab.getAttribute('data-bk-tab');
-      var isLib = target === 'library';
-      bottomBar.classList.toggle('is-library', isLib);
-      headerTitle.textContent = isLib ? '书库' : '主页';
-      importBtn.classList.toggle('show', isLib);
-      document.getElementById('bkPanelHome').classList.toggle('active', !isLib);
-      document.getElementById('bkPanelLibrary').classList.toggle('active', isLib);
+      indicator.style.transform = 'translateX(' + (idx * 100) + '%)';
+      headerTitle.textContent = TAB_TITLES[target] || '主页';
+      importBtn.classList.toggle('show', target === 'library');
+      Object.keys(panelMap).forEach(function (k) {
+        document.getElementById(panelMap[k]).classList.toggle('active', k === target);
+      });
+      if (target === 'stats') renderStats();
+      if (target === 'library') renderLibrary();
     });
   });
 
-  // 点击书架或书库书籍 -> 设为最近阅读（放到中间大位）
+  // 书架左右滑动切书
+  var shelfWrap = document.getElementById('bkShelfWrap');
+  var touchStartX = 0;
+  var touchStartY = 0;
+  shelfWrap.addEventListener('touchstart', function (e) {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+  }, { passive: true });
+  shelfWrap.addEventListener('touchend', function (e) {
+    var dx = e.changedTouches[0].clientX - touchStartX;
+    var dy = e.changedTouches[0].clientY - touchStartY;
+    if (Math.abs(dx) > 36 && Math.abs(dx) > Math.abs(dy)) {
+      rotateShelf(dx > 0 ? 1 : -1);
+      renderShelfAndGoal(true);
+      renderLibrary();
+    }
+  }, { passive: true });
+
+  // 点击事件：切书 / 换封面
   root.addEventListener('click', function (e) {
     var editBtn = e.target.closest('[data-edit-cover]');
     if (editBtn) {
@@ -370,17 +645,24 @@
     var shelfBook = e.target.closest('[data-shelf-book]');
     if (shelfBook) {
       var sid = shelfBook.getAttribute('data-shelf-book');
+      var books = getBooks();
+      var currentTop = getRecentIds(books)[0];
+      if (sid === currentTop) {
+        var curBook = books.find(function (x) { return x.id === sid; });
+        if (curBook) showToast('《' + curBook.title + '》阅读器待开发');
+        return;
+      }
       setRecentTop(sid);
-      renderShelfAndGoal();
-      var sb = getBooks().find(function (x) { return x.id === sid; });
-      if (sb) showToast('已切换到《' + sb.title + '》（阅读器待开发）');
+      renderShelfAndGoal(true);
+      renderLibrary();
       return;
     }
     var libBook = e.target.closest('[data-lib-book]');
     if (libBook) {
       var lid = libBook.getAttribute('data-lib-book');
       setRecentTop(lid);
-      renderShelfAndGoal();
+      renderShelfAndGoal(false);
+      renderLibrary();
       var lb = getBooks().find(function (x) { return x.id === lid; });
       if (lb) showToast('已将《' + lb.title + '》置顶到主页书架');
     }
@@ -394,7 +676,7 @@
   // p2 目标弹窗
   var goalModal = document.getElementById('bkGoalModal');
   document.getElementById('bkOpenGoalModal').addEventListener('click', function () {
-    renderShelfAndGoal();
+    renderShelfAndGoal(false);
     goalModal.classList.add('open');
   });
   document.getElementById('bkCloseGoalModal').addEventListener('click', function () {
@@ -451,7 +733,8 @@
   document.getElementById('bkSaveGoalBtn').addEventListener('click', function () {
     localStorage.setItem('phone_books_goal_min', String(tempGoalMinutes));
     adjustModal.classList.remove('open');
-    renderShelfAndGoal();
+    renderShelfAndGoal(false);
+    renderStats();
     showToast('每日目标已设为 ' + tempGoalMinutes + ' 分钟');
   });
 
@@ -465,7 +748,7 @@
       var url = reader.result;
       customCoverMap[bid] = url;
       PhoneDB.set('book_cover_' + bid, url);
-      renderShelfAndGoal();
+      renderShelfAndGoal(false);
       renderLibrary();
       showToast('封面已更新');
     };
@@ -495,8 +778,9 @@
       saveBooks(books);
       PhoneDB.set('book_text_' + id, reader.result || '');
       setRecentTop(id);
-      renderShelfAndGoal();
+      renderShelfAndGoal(false);
       renderLibrary();
+      renderStats();
       showToast('已导入《' + title + '》');
     };
     reader.readAsText(file, 'utf-8');
