@@ -7,31 +7,36 @@
       id: 'bk_little_prince',
       title: '小王子',
       author: '安托万·德·圣-埃克苏佩里',
-      cover: 'https://covers.openlibrary.org/b/isbn/9780156012195-L.jpg?default=false'
+      cover: 'https://covers.openlibrary.org/b/isbn/9780156012195-L.jpg?default=false',
+      progress: 0
     },
     {
       id: 'bk_moon_sixpence',
       title: '月亮与六便士',
       author: '毛姆',
-      cover: 'https://covers.openlibrary.org/b/isbn/0143039342-L.jpg?default=false'
+      cover: 'https://covers.openlibrary.org/b/isbn/0143039342-L.jpg?default=false',
+      progress: 0
     },
     {
       id: 'bk_pride_prejudice',
       title: '傲慢与偏见',
       author: '简·奥斯汀',
-      cover: 'https://covers.openlibrary.org/b/isbn/9780141439518-L.jpg?default=false'
+      cover: 'https://covers.openlibrary.org/b/isbn/9780141439518-L.jpg?default=false',
+      progress: 0
     },
     {
       id: 'bk_walden',
       title: '瓦尔登湖',
       author: '亨利·戴维·梭罗',
-      cover: 'https://covers.openlibrary.org/b/isbn/9780140390445-L.jpg?default=false'
+      cover: 'https://covers.openlibrary.org/b/isbn/9780140390445-L.jpg?default=false',
+      progress: 0
     },
     {
       id: 'bk_1984',
       title: '1984',
       author: '乔治·奥威尔',
-      cover: 'https://covers.openlibrary.org/b/isbn/9780451524935-L.jpg?default=false'
+      cover: 'https://covers.openlibrary.org/b/isbn/9780451524935-L.jpg?default=false',
+      progress: 0
     }
   ];
 
@@ -40,14 +45,13 @@
   var TAB_TITLES = { home: '主页', library: '书库', stats: '统计', notes: '笔记' };
 
   var customCoverMap = {};
-  var editingCoverBookId = '';
+  var activeActionBookId = '';
   var tempGoalMinutes = 60;
 
   function getBooks() {
     try {
       var saved = JSON.parse(localStorage.getItem('phone_books_list') || 'null');
       if (Array.isArray(saved) && saved.length) {
-        // 同步修正旧版月亮与六便士封面链接
         var changed = false;
         saved.forEach(function (b) {
           if (b.id === 'bk_moon_sixpence' && b.cover && b.cover.indexOf('9780141187136') !== -1) {
@@ -156,7 +160,7 @@
   }
 
   root.innerHTML =
-    '<div class="bk-shell">' +
+    '<div class="bk-shell" id="bkShell">' +
       '<div class="bk-header">' +
         '<div class="bk-header-left">' +
           '<div class="mu-back-sm bk-back" data-close-app>' +
@@ -283,6 +287,19 @@
         '</div>' +
       '</div>' +
 
+      '<div class="bk-center-modal" id="bkBookMenuModal">' +
+        '<div class="bk-dialog">' +
+          '<div class="bk-dialog-close" id="bkCloseBookMenu">' +
+            '<svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>' +
+          '</div>' +
+          '<div class="bk-dialog-title" id="bkMenuBookTitle">图书操作</div>' +
+          '<div class="bk-menu-list">' +
+            '<div class="bk-menu-btn" id="bkMenuSetCurrent">设为当前在读</div>' +
+            '<div class="bk-menu-btn" id="bkMenuEditCover">更换书封图片</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+
       '<div class="bk-toast" id="bkToast"></div>' +
       '<input type="file" id="bkInputCover" accept="image/*" style="display:none;">' +
       '<input type="file" id="bkInputTxt" accept=".txt,text/plain" style="display:none;">' +
@@ -353,7 +370,6 @@
       return books.find(function (b) { return b.id === id; });
     }).filter(Boolean);
 
-    // 排列为：最小(3) 中(1) 大(0) 中(2) 最小(4)
     var ordered = [];
     if (five.length >= 5) {
       ordered = [
@@ -392,7 +408,6 @@
         el.style.transition = 'none';
         el.style.transform = 'translate3d(' + dx + 'px, ' + dy + 'px, 0) scale(' + scale + ')';
       });
-      // 强制回流后平滑过渡到目标大小和位置
       void shelfEl.offsetWidth;
       slots.forEach(function (el) {
         el.style.transition = 'transform 0.38s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.38s ease';
@@ -438,18 +453,27 @@
 
     listEl.innerHTML = books.map(function (b) {
       var isCurrent = b.id === currentId;
+      var pct = Math.max(0, Math.min(100, parseInt(b.progress || 0, 10) || 0));
       return (
         '<div class="bk-lib-card" data-lib-book="' + b.id + '">' +
           '<div class="bk-lib-thumb">' + buildCoverHtml(b) + '</div>' +
           '<div class="bk-lib-info">' +
-            '<div class="bk-lib-title-row">' +
-              '<div class="bk-lib-name">' + escapeHtml(b.title) + '</div>' +
-              (isCurrent ? '<span class="bk-lib-badge">在读</span>' : '') +
+            '<div class="bk-lib-top">' +
+              '<div class="bk-lib-title-row">' +
+                '<div class="bk-lib-name">' + escapeHtml(b.title) + '</div>' +
+                (isCurrent ? '<span class="bk-lib-badge">在读</span>' : '') +
+              '</div>' +
+              '<div class="bk-lib-author">' + escapeHtml(b.author || '本地导入') + '</div>' +
             '</div>' +
-            '<div class="bk-lib-author">' + escapeHtml(b.author || '本地导入') + '</div>' +
-          '</div>' +
-          '<div class="bk-lib-edit-btn" data-edit-cover="' + b.id + '" title="更换封面">' +
-            '<svg viewBox="0 0 24 24"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>' +
+            '<div class="bk-lib-bottom">' +
+              '<div class="bk-lib-progress">' +
+                '<div class="bk-lib-bar"><div class="bk-lib-bar-fill" style="width:' + pct + '%;"></div></div>' +
+                '<span class="bk-lib-pct">' + pct + '%</span>' +
+              '</div>' +
+              '<div class="bk-lib-more" data-more-book="' + b.id + '" title="更多">' +
+                '<svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="19" cy="12" r="2"></circle></svg>' +
+              '</div>' +
+            '</div>' +
           '</div>' +
         '</div>'
       );
@@ -465,7 +489,6 @@
     var todayKey = dateKey(today);
     hist[todayKey] = getTodayMinutes();
 
-    // 计算累计时长与连续天数
     var totalMins = 0;
     Object.keys(hist).forEach(function (k) {
       if (typeof hist[k] === 'number' && hist[k] > 0) totalMins += hist[k];
@@ -483,8 +506,7 @@
       }
     }
 
-    // 计算本周（周一到周日）
-    var dayOfWeek = today.getDay(); // 0=周日
+    var dayOfWeek = today.getDay();
     var mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
     var weekLabels = ['一', '二', '三', '四', '五', '六', '日'];
     var weekDays = [];
@@ -587,7 +609,8 @@
     renderStats();
   });
 
-  // 4 格底栏切换
+  // 4 格底栏切换（仅首页显示左上角返回键）
+  var shellEl = document.getElementById('bkShell');
   var indicator = document.getElementById('bkTabIndicator');
   var headerTitle = document.getElementById('bkHeaderTitle');
   var importBtn = document.getElementById('bkImportBtn');
@@ -606,6 +629,7 @@
       tab.classList.add('active');
       indicator.style.transform = 'translateX(' + (idx * 100) + '%)';
       headerTitle.textContent = TAB_TITLES[target] || '主页';
+      shellEl.classList.toggle('is-subtab', target !== 'home');
       importBtn.classList.toggle('show', target === 'library');
       Object.keys(panelMap).forEach(function (k) {
         document.getElementById(panelMap[k]).classList.toggle('active', k === target);
@@ -633,13 +657,16 @@
     }
   }, { passive: true });
 
-  // 点击事件：切书 / 换封面
+  // 点击事件：切书 / 三点菜单
+  var bookMenuModal = document.getElementById('bkBookMenuModal');
   root.addEventListener('click', function (e) {
-    var editBtn = e.target.closest('[data-edit-cover]');
-    if (editBtn) {
+    var moreBtn = e.target.closest('[data-more-book]');
+    if (moreBtn) {
       e.stopPropagation();
-      editingCoverBookId = editBtn.getAttribute('data-edit-cover');
-      document.getElementById('bkInputCover').click();
+      activeActionBookId = moreBtn.getAttribute('data-more-book');
+      var mb = getBooks().find(function (x) { return x.id === activeActionBookId; });
+      document.getElementById('bkMenuBookTitle').textContent = mb ? ('《' + mb.title + '》') : '图书操作';
+      bookMenuModal.classList.add('open');
       return;
     }
     var shelfBook = e.target.closest('[data-shelf-book]');
@@ -666,6 +693,22 @@
       var lb = getBooks().find(function (x) { return x.id === lid; });
       if (lb) showToast('已将《' + lb.title + '》置顶到主页书架');
     }
+  });
+
+  document.getElementById('bkCloseBookMenu').addEventListener('click', function () {
+    bookMenuModal.classList.remove('open');
+  });
+  document.getElementById('bkMenuSetCurrent').addEventListener('click', function () {
+    if (!activeActionBookId) return;
+    setRecentTop(activeActionBookId);
+    bookMenuModal.classList.remove('open');
+    renderShelfAndGoal(false);
+    renderLibrary();
+    showToast('已设为当前在读');
+  });
+  document.getElementById('bkMenuEditCover').addEventListener('click', function () {
+    bookMenuModal.classList.remove('open');
+    document.getElementById('bkInputCover').click();
   });
 
   document.getElementById('bkContinueBtn').addEventListener('click', function () {
@@ -741,8 +784,8 @@
   // 自定义封面上传
   document.getElementById('bkInputCover').addEventListener('change', function () {
     var file = this.files && this.files[0];
-    if (!file || !editingCoverBookId) return;
-    var bid = editingCoverBookId;
+    if (!file || !activeActionBookId) return;
+    var bid = activeActionBookId;
     var reader = new FileReader();
     reader.onload = function () {
       var url = reader.result;
@@ -773,7 +816,8 @@
         id: id,
         title: title,
         author: '本地导入',
-        cover: ''
+        cover: '',
+        progress: 0
       });
       saveBooks(books);
       PhoneDB.set('book_text_' + id, reader.result || '');
