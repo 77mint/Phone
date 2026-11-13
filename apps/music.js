@@ -12,6 +12,8 @@
   var SVG_PAUSE = '<svg viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1"></rect><rect x="14" y="4" width="4" height="16" rx="1"></rect></svg>';
   var SVG_NEXT = '<svg viewBox="0 0 24 24"><polygon points="5 4 15 12 5 20 5 4"></polygon><rect x="17" y="4" width="2.5" height="16" rx="1"></rect></svg>';
   var SVG_PREV = '<svg viewBox="0 0 24 24"><polygon points="19 4 9 12 19 20 19 4"></polygon><rect x="4.5" y="4" width="2.5" height="16" rx="1"></rect></svg>';
+  var SVG_REPEAT = '<svg viewBox="0 0 24 24"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>';
+  var SVG_SHUFFLE = '<svg viewBox="0 0 24 24"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line></svg>';
 
   var START_SONGS = [
     { title: '红尘客栈', sub: '周杰伦', cls: 'mu-c1', id: '', pic: '' },
@@ -50,6 +52,26 @@
             '<div class="mu-rect-sub">' + item.sub + '</div>' +
           '</div>' +
           '<div class="mu-rect-play">' + SVG_PLAY + '</div>' +
+        '</div>';
+    });
+    return s;
+  }
+
+  function buildQueueRows(list, activeIndex) {
+    var s = '';
+    list.forEach(function (item, idx) {
+      var cls = item.cls || 'mu-c4';
+      var hasArt = item.pic ? ' has-art' : '';
+      var bgStyle = item.pic ? ' style="background-image:url(\'' + item.pic + '\')"' : '';
+      var isCur = idx === activeIndex;
+      s +=
+        '<div class="mu-q-row' + (isCur ? ' playing' : '') + '" data-song-id="' + (item.id || '') + '" data-song-title="' + item.title + '" data-song-sub="' + item.sub + '" data-song-cls="' + cls + '" data-song-pic="' + (item.pic || '') + '">' +
+          '<div class="mu-q-cover ' + cls + hasArt + '"' + bgStyle + '>' + SVG_NOTE + '</div>' +
+          '<div class="mu-q-info">' +
+            '<div class="mu-q-title">' + item.title + '</div>' +
+            '<div class="mu-q-sub">' + item.sub + '</div>' +
+          '</div>' +
+          '<div class="mu-q-badge">' + (isCur ? '播放中' : '') + '</div>' +
         '</div>';
     });
     return s;
@@ -155,30 +177,33 @@
     '</div>' +
     '<div class="mu-player-sheet" id="muPlayerSheet">' +
       '<div class="mu-ps-grab-wrap" id="muPsClose"><div class="mu-ps-grab"></div></div>' +
-      '<div>' +
+      '<div class="mu-ps-stage" id="muPsStage">' +
         '<div class="mu-ps-art" id="muPsArt">' + SVG_NOTE + '</div>' +
+        '<div class="mu-ps-lyrics" id="muPsLyrics"><div class="mu-lyric-line">点击封面查看歌词</div></div>' +
+      '</div>' +
+      '<div>' +
         '<div class="mu-ps-meta">' +
           '<div class="mu-ps-title" id="muPsTitle">未在播放</div>' +
           '<div class="mu-ps-sub" id="muPsSub">点击歌曲开始播放</div>' +
         '</div>' +
         '<div class="mu-ps-prog">' +
-          '<div class="mu-ps-bar"><div class="mu-ps-bar-fill" id="muPsProgFill"></div></div>' +
+          '<div class="mu-ps-bar" id="muPsBar"><div class="mu-ps-bar-fill" id="muPsProgFill"></div></div>' +
           '<div class="mu-ps-times"><span id="muPsCur">--:--</span><span id="muPsDur">--:--</span></div>' +
         '</div>' +
       '</div>' +
+      '<div class="mu-ps-ctrls">' +
+        '<div class="mu-ps-btn" id="muPsPrev">' + SVG_PREV + '</div>' +
+        '<div class="mu-ps-btn main" id="muPsPlay">' + SVG_PLAY + '</div>' +
+        '<div class="mu-ps-btn" id="muPsNext">' + SVG_NEXT + '</div>' +
+      '</div>' +
       '<div>' +
-        '<div class="mu-ps-ctrls">' +
-          '<div class="mu-ps-btn" id="muPsPrev">' + SVG_PREV + '</div>' +
-          '<div class="mu-ps-btn main" id="muPsPlay">' + SVG_PLAY + '</div>' +
-          '<div class="mu-ps-btn" id="muPsNext">' + SVG_NEXT + '</div>' +
-        '</div>' +
         '<div class="mu-ps-vol">' +
           '<svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon></svg>' +
-          '<div class="mu-ps-vol-track"><div class="mu-ps-vol-fill"></div></div>' +
+          '<input type="range" class="mu-vol-range" id="muVolRange" min="0" max="1" step="0.01" value="0.8">' +
           '<svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.5 8.5a5 5 0 0 1 0 7"></path></svg>' +
         '</div>' +
         '<div class="mu-ps-footer">' +
-          '<div class="mu-ps-fbtn"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></div>' +
+          '<div class="mu-ps-fbtn" id="muPsModeBtn">' + SVG_REPEAT + '</div>' +
           '<div class="mu-ps-fbtn" id="muPsQueueBtn"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><circle cx="4" cy="6" r="1"></circle><circle cx="4" cy="12" r="1"></circle><circle cx="4" cy="18" r="1"></circle></svg></div>' +
         '</div>' +
       '</div>' +
@@ -255,6 +280,7 @@
   var miniCover = document.getElementById('muMiniCover');
   var miniPlay = document.getElementById('muMiniPlay');
   var psArt = document.getElementById('muPsArt');
+  var psLyrics = document.getElementById('muPsLyrics');
   var psTitle = document.getElementById('muPsTitle');
   var psSub = document.getElementById('muPsSub');
   var psPlay = document.getElementById('muPsPlay');
@@ -262,9 +288,83 @@
   var psCur = document.getElementById('muPsCur');
   var psDur = document.getElementById('muPsDur');
   var playerSheet = document.getElementById('muPlayerSheet');
+  var volRange = document.getElementById('muVolRange');
+  var modeBtn = document.getElementById('muPsModeBtn');
 
   var currentIdx = -1;
   var isPlaying = false;
+  var playMode = 0; // 0: 列表循环, 1: 单曲循环, 2: 随机播放
+  var parsedLyrics = [];
+
+  function renderModeBtn() {
+    if (playMode === 0) {
+      modeBtn.innerHTML = SVG_REPEAT;
+    } else if (playMode === 1) {
+      modeBtn.innerHTML = SVG_REPEAT + '<span class="mu-mode-badge">1</span>';
+    } else {
+      modeBtn.innerHTML = SVG_SHUFFLE;
+    }
+  }
+
+  modeBtn.addEventListener('click', function () {
+    playMode = (playMode + 1) % 3;
+    renderModeBtn();
+  });
+
+  function applyVolume(v) {
+    var num = Math.max(0, Math.min(1, parseFloat(v)));
+    audio.volume = num;
+    audio.muted = (num === 0);
+    var pct = Math.round(num * 100);
+    volRange.style.background = 'linear-gradient(90deg, #111111 ' + pct + '%, rgba(0,0,0,0.12) ' + pct + '%)';
+  }
+  var savedVol = localStorage.getItem('music_volume');
+  if (savedVol !== null) volRange.value = savedVol;
+  applyVolume(volRange.value);
+  volRange.addEventListener('input', function () {
+    localStorage.setItem('music_volume', this.value);
+    applyVolume(this.value);
+  });
+
+  function loadLyrics(songId) {
+    parsedLyrics = [];
+    if (!songId) {
+      psLyrics.innerHTML = '<div class="mu-lyric-line">暂无歌词</div>';
+      return;
+    }
+    psLyrics.innerHTML = '<div class="mu-lyric-line">正在加载歌词...</div>';
+    fetch(getApiBase() + '/lyric?id=' + songId)
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        var raw = res.lrc && res.lrc.lyric;
+        if (!raw) {
+          psLyrics.innerHTML = '<div class="mu-lyric-line">暂无歌词</div>';
+          return;
+        }
+        var lines = [];
+        raw.split('\n').forEach(function (line) {
+          var m = line.match(/\[(\d+):(\d+(?:\.\d+)?)\](.*)/);
+          if (m) {
+            var txt = m[3].trim();
+            if (txt) lines.push({ time: parseInt(m[1], 10) * 60 + parseFloat(m[2]), text: txt });
+          }
+        });
+        parsedLyrics = lines;
+        if (!lines.length) {
+          psLyrics.innerHTML = '<div class="mu-lyric-line">纯音乐，请欣赏</div>';
+          return;
+        }
+        psLyrics.innerHTML = lines.map(function (l, i) {
+          return '<div class="mu-lyric-line" data-lrc-idx="' + i + '">' + l.text + '</div>';
+        }).join('');
+      }).catch(function () {
+        psLyrics.innerHTML = '<div class="mu-lyric-line">歌词加载失败</div>';
+      });
+  }
+
+  document.getElementById('muPsStage').addEventListener('click', function () {
+    psLyrics.classList.toggle('show');
+  });
 
   function syncPlayIcons() {
     var icon = isPlaying ? SVG_PAUSE : SVG_PLAY;
@@ -290,6 +390,7 @@
     applyArt(psArt, 'mu-ps-art ' + (item.cls || 'mu-c1'), item.pic);
     isPlaying = true;
     syncPlayIcons();
+    loadLyrics(item.id);
 
     if (item.id) {
       var base = getApiBase();
@@ -314,6 +415,20 @@
     playSongObj(queueSongs[idx]);
   }
 
+  function playNextAuto() {
+    if (!queueSongs.length) return;
+    if (playMode === 1) {
+      audio.currentTime = 0;
+      audio.play().catch(function () {});
+    } else if (playMode === 2 && queueSongs.length > 1) {
+      var r = Math.floor(Math.random() * queueSongs.length);
+      if (r === currentIdx) r = (r + 1) % queueSongs.length;
+      playByIndex(r);
+    } else {
+      playByIndex(currentIdx + 1);
+    }
+  }
+
   function togglePlay() {
     if (currentIdx === -1 && miniTitle.textContent === '未在播放') {
       playByIndex(0);
@@ -327,9 +442,7 @@
     syncPlayIcons();
   }
 
-  audio.addEventListener('ended', function () {
-    playByIndex(currentIdx + 1);
-  });
+  audio.addEventListener('ended', playNextAuto);
 
   root.addEventListener('click', function (e) {
     var songEl = e.target.closest('[data-song-title]');
@@ -377,10 +490,17 @@
   });
 
   miniPlay.addEventListener('click', function (e) { e.stopPropagation(); togglePlay(); });
-  document.getElementById('muMiniNext').addEventListener('click', function (e) { e.stopPropagation(); playByIndex(currentIdx + 1); });
+  document.getElementById('muMiniNext').addEventListener('click', function (e) { e.stopPropagation(); playNextAuto(); });
   psPlay.addEventListener('click', togglePlay);
-  document.getElementById('muPsNext').addEventListener('click', function () { playByIndex(currentIdx + 1); });
+  document.getElementById('muPsNext').addEventListener('click', playNextAuto);
   document.getElementById('muPsPrev').addEventListener('click', function () { playByIndex(currentIdx - 1); });
+
+  document.getElementById('muPsBar').addEventListener('click', function (e) {
+    if (!audio.duration) return;
+    var rect = this.getBoundingClientRect();
+    var ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    audio.currentTime = ratio * audio.duration;
+  });
 
   document.getElementById('muMiniBar').addEventListener('click', function () { playerSheet.classList.add('open'); });
   document.getElementById('muPsClose').addEventListener('click', function () { playerSheet.classList.remove('open'); });
@@ -388,24 +508,28 @@
   var psStartY = 0;
   var psDy = 0;
   playerSheet.addEventListener('touchstart', function (e) {
+    if (e.target.closest('#muVolRange') || e.target.closest('#muPsLyrics')) return;
     psStartY = e.touches[0].clientY;
     psDy = 0;
     playerSheet.style.transition = 'none';
   }, { passive: true });
   playerSheet.addEventListener('touchmove', function (e) {
+    if (!psStartY) return;
     psDy = e.touches[0].clientY - psStartY;
     if (psDy > 0) playerSheet.style.transform = 'translateY(' + psDy + 'px)';
   }, { passive: true });
   playerSheet.addEventListener('touchend', function () {
+    if (!psStartY) return;
     playerSheet.style.transition = 'transform 0.32s cubic-bezier(0.32, 0.72, 0, 1)';
     if (psDy > 75) playerSheet.classList.remove('open');
     playerSheet.style.transform = '';
+    psStartY = 0;
   });
 
   var muQueueModal = document.getElementById('muQueueModal');
   var muQueueList = document.getElementById('muQueueList');
   document.getElementById('muPsQueueBtn').addEventListener('click', function () {
-    muQueueList.innerHTML = buildRectCards(queueSongs);
+    muQueueList.innerHTML = buildQueueRows(queueSongs, currentIdx);
     muQueueModal.classList.add('open');
   });
   document.getElementById('muCloseQueue').addEventListener('click', function () { muQueueModal.classList.remove('open'); });
@@ -422,6 +546,21 @@
     psProgFill.style.width = (audio.currentTime / audio.duration * 100) + '%';
     psCur.textContent = fmtTime(audio.currentTime);
     psDur.textContent = fmtTime(audio.duration);
+    if (parsedLyrics.length) {
+      var curT = audio.currentTime;
+      var activeIdx = 0;
+      for (var i = 0; i < parsedLyrics.length; i++) {
+        if (curT >= parsedLyrics[i].time) activeIdx = i;
+      }
+      var lrcEls = psLyrics.querySelectorAll('.mu-lyric-line');
+      lrcEls.forEach(function (el, idx) {
+        var on = idx === activeIdx;
+        el.classList.toggle('active', on);
+        if (on && psLyrics.classList.contains('show')) {
+          el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        }
+      });
+    }
   });
 
   (function hydrateHomeFromApi() {
