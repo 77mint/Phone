@@ -3,6 +3,7 @@
   if (!root) return;
 
   var STORAGE_KEY = 'phone_api_config_v2';
+  var PRESETS_KEY = 'phone_api_llm_presets';
   var LOGS_KEY = 'phone_api_logs';
 
   var MODULES = [
@@ -40,13 +41,36 @@
     ]
   };
 
+  var TRANSLATE_MODES = [
+    { id: 'free', label: '免费内置' },
+    { id: 'reuse_llm', label: '复用语言模型' },
+    { id: 'custom', label: '自定义接口' }
+  ];
+
+  var ALL_LANGUAGES = [
+    { code: 'zh-CN', label: '简体中文' },
+    { code: 'zh-TW', label: '繁體中文' },
+    { code: 'en', label: 'English' },
+    { code: 'ja', label: '日本語' },
+    { code: 'ko', label: '한국어' },
+    { code: 'fr', label: 'Français' },
+    { code: 'de', label: 'Deutsch' },
+    { code: 'es', label: 'Español' },
+    { code: 'ru', label: 'Русский' },
+    { code: 'it', label: 'Italiano' },
+    { code: 'pt', label: 'Português' },
+    { code: 'th', label: 'ไทย' },
+    { code: 'vi', label: 'Tiếng Việt' },
+    { code: 'ar', label: 'العربية' }
+  ];
+
   var IMAGE_SIZES = ['1024x1024', '1024x1536', '1536x1024'];
-  var TRANSLATE_LANGS = ['简体中文', 'English', '日本語'];
   var VOICE_SPEEDS = ['0.85', '1.0', '1.15'];
 
   function createEmptySlot(modKey) {
     var list = PROVIDERS[modKey] || PROVIDERS.llm;
     return {
+      mode: modKey === 'translate' ? 'free' : '',
       type: list[0].id,
       url: '',
       key: '',
@@ -55,7 +79,7 @@
       groupId: '',
       speed: '1.0',
       size: '1024x1024',
-      targetLang: '简体中文'
+      targetLang: 'zh-CN'
     };
   }
 
@@ -68,10 +92,17 @@
     MODULES.forEach(function (m) {
       var item = raw[m.key] || {};
       out[m.key] = {
+        activePresetId: item.activePresetId || '',
         primary: Object.assign(createEmptySlot(m.key), item.primary || {}),
         backupEnabled: !!item.backupEnabled,
         backup: Object.assign(createEmptySlot(m.key), item.backup || {})
       };
+      if (m.key === 'translate' && !out[m.key].primary.mode) {
+        out[m.key].primary.mode = 'free';
+      }
+      if (m.key === 'translate' && out[m.key].primary.targetLang === '简体中文') {
+        out[m.key].primary.targetLang = 'zh-CN';
+      }
     });
     return out;
   }
@@ -80,13 +111,52 @@
     localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
   }
 
-  function loadLogs() {
+  function loadLlmPresets() {
     try {
-      var arr = JSON.parse(localStorage.getItem(LOGS_KEY) || '[]');
+      var arr = JSON.parse(localStorage.getItem(PRESETS_KEY) || '[]');
       return Array.isArray(arr) ? arr : [];
     } catch (e) {
       return [];
     }
+  }
+
+  function saveLlmPresets(list) {
+    localStorage.setItem(PRESETS_KEY, JSON.stringify(list));
+  }
+
+  function loadLogs() {
+    try {
+      var arr = JSON.parse(localStorage.getItem(LOGS_KEY) || '[]');
+      return Array.isArray(arr) ? arr.slice(0, 10) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function analyzeError(rawMsg) {
+    var msg = String(rawMsg || '').toLowerCase();
+    if (msg.indexOf('401') !== -1 || msg.indexOf('unauthorized') !== -1 || msg.indexOf('invalid api key') !== -1 || msg.indexOf('incorrect api key') !== -1) {
+      return 'Key 无效、已过期，或复制时多带了空格。';
+    }
+    if (msg.indexOf('403') !== -1 || msg.indexOf('forbidden') !== -1 || msg.indexOf('quota') !== -1 || msg.indexOf('insufficient') !== -1) {
+      return '账号余额不足、无权限，或被 Cloudflare / 风控拦截。';
+    }
+    if (msg.indexOf('404') !== -1 || msg.indexOf('not found') !== -1) {
+      return '接口路径不对，请检查地址末尾是否多写或漏写了 /v1。';
+    }
+    if (msg.indexOf('429') !== -1 || msg.indexOf('rate limit') !== -1) {
+      return '请求太快或额度达到上限，建议稍等几秒或切换副 API。';
+    }
+    if (msg.indexOf('500') !== -1 || msg.indexOf('502') !== -1 || msg.indexOf('503') !== -1 || msg.indexOf('504') !== -1) {
+      return '反代或官方服务器临时过载/抽风，可稍后再试或切换备用组。';
+    }
+    if (msg.indexOf('failed to fetch') !== -1 || msg.indexOf('load failed') !== -1 || msg.indexOf('networkerror') !== -1) {
+      return '网络连不上或跨域（CORS）被浏览器拦截：请检查网址拼写、是否 https，或反代是否允许网页跨域。';
+    }
+    if (msg.indexOf('abort') !== -1 || msg.indexOf('timeout') !== -1) {
+      return '请求超时，当前节点或反代响应太慢。';
+    }
+    return '接口返回异常，请对照上方原报错检查地址、Key 或模型名。';
   }
 
   function appendLog(entry) {
@@ -95,14 +165,54 @@
     var hh = String(now.getHours()).padStart(2, '0');
     var mm = String(now.getMinutes()).padStart(2, '0');
     var ss = String(now.getSeconds()).padStart(2, '0');
+    var raw = entry.rawError || entry.detail || '';
+    var analysis = entry.analysis || (entry.ok ? '' : analyzeError(raw));
     logs.unshift({
       time: hh + ':' + mm + ':' + ss,
       module: entry.module || 'LLM',
       ok: !!entry.ok,
-      detail: entry.detail || ''
+      raw: raw,
+      analysis: analysis
     });
-    if (logs.length > 50) logs = logs.slice(0, 50);
+    if (logs.length > 10) logs = logs.slice(0, 10);
     localStorage.setItem(LOGS_KEY, JSON.stringify(logs));
+  }
+
+  function getLangLabel(codeOrLabel) {
+    var found = ALL_LANGUAGES.find(function (l) { return l.code === codeOrLabel || l.label === codeOrLabel; });
+    return found ? found.label : (codeOrLabel || '简体中文');
+  }
+
+  function getLangCode(codeOrLabel) {
+    var found = ALL_LANGUAGES.find(function (l) { return l.code === codeOrLabel || l.label === codeOrLabel; });
+    return found ? found.code : (codeOrLabel || 'zh-CN');
+  }
+
+  function freeTranslate(text, targetLang) {
+    var tl = getLangCode(targetLang);
+    var gUrl = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=' + encodeURIComponent(tl) + '&dt=t&q=' + encodeURIComponent(text);
+    return fetch(gUrl)
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        if (Array.isArray(data) && Array.isArray(data[0])) {
+          return data[0].map(function (seg) { return seg[0] || ''; }).join('');
+        }
+        throw new Error('返回格式异常');
+      })
+      .catch(function () {
+        var mmUrl = 'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(text) + '&langpair=autodetect|' + encodeURIComponent(tl);
+        return fetch(mmUrl)
+          .then(function (r) { return r.json(); })
+          .then(function (res) {
+            if (res && res.responseData && res.responseData.translatedText) {
+              return res.responseData.translatedText;
+            }
+            throw new Error('免费翻译接口暂不可用');
+          });
+      });
   }
 
   window.PhoneAPI = {
@@ -110,7 +220,13 @@
       var all = loadAllConfigs();
       return all[moduleKey] || null;
     },
-    addLog: appendLog
+    addLog: appendLog,
+    translate: function (text, targetLang) {
+      var all = loadAllConfigs();
+      var tCfg = all.translate && all.translate.primary;
+      var lang = targetLang || (tCfg && tCfg.targetLang) || 'zh-CN';
+      return freeTranslate(text, lang);
+    }
   };
 
   var SVG_CHEVRON = '<svg class="api-chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></svg>';
@@ -144,7 +260,106 @@
     return list.find(function (x) { return x.id === typeId; }) || list[0];
   }
 
-  function buildSlotFields(modKey, prefix, slot) {
+  function buildLlmPresetsBar(c) {
+    var presets = loadLlmPresets();
+    var chips = presets.map(function (p) {
+      var on = c.activePresetId === p.id ? ' active' : '';
+      return (
+        '<div class="api-preset-chip' + on + '" data-load-preset="' + escapeHtml(p.id) + '">' +
+          '<span>' + escapeHtml(p.name) + '</span>' +
+          '<span class="api-preset-del" data-del-preset="' + escapeHtml(p.id) + '">×</span>' +
+        '</div>'
+      );
+    }).join('');
+
+    return (
+      '<div class="api-preset-bar">' +
+        '<div class="api-field-label">已保存配置组</div>' +
+        (chips ? '<div class="api-preset-chips">' + chips + '</div>' : '<div class="api-switch-sub">暂无保存组，填好下方后起个名字保存即可</div>') +
+        '<div class="api-preset-save-row">' +
+          '<div class="api-input-box" style="flex:1;">' +
+            '<input type="text" class="api-input" id="apiLlmPresetName" placeholder="配置组名称（如：Kiro反代）">' +
+          '</div>' +
+          '<div class="api-mini-action" id="apiSavePresetBtn" style="padding:10px 14px;border-radius:14px;">存为组</div>' +
+        '</div>' +
+      '</div>'
+    );
+  }
+
+  function buildTranslateBody(c) {
+    var slot = c.primary;
+    var modeHtml = TRANSLATE_MODES.map(function (md) {
+      var on = slot.mode === md.id ? ' active' : '';
+      return '<div class="api-seg-btn' + on + '" data-pick-prop="translate" data-slot="primary" data-prop="mode" data-val="' + md.id + '">' + md.label + '</div>';
+    }).join('');
+
+    var langOptions = ALL_LANGUAGES.map(function (lg) {
+      var sel = getLangCode(slot.targetLang) === lg.code ? ' selected' : '';
+      return '<option value="' + lg.code + '"' + sel + '>' + lg.label + '</option>';
+    }).join('');
+
+    var html =
+      '<div class="api-slot-box">' +
+        '<div>' +
+          '<div class="api-field-label">1. 翻译方式</div>' +
+          '<div class="api-seg">' + modeHtml + '</div>' +
+        '</div>' +
+        '<div>' +
+          '<div class="api-field-label">2. 目标语言（源语言自动识别，全语种支持）</div>' +
+          '<div class="api-input-box">' +
+            '<select class="api-select" id="apiTranslateLangSelect">' + langOptions + '</select>' +
+          '</div>' +
+        '</div>';
+
+    if (slot.mode === 'free') {
+      html +=
+        '<div class="api-switch-row">' +
+          '<div>' +
+            '<div class="api-switch-text">已内置免费翻译引擎</div>' +
+            '<div class="api-switch-sub">无需填写 Key，任意语言均可互译</div>' +
+          '</div>' +
+        '</div>' +
+        '<div>' +
+          '<div class="api-field-label">试翻一句</div>' +
+          '<div class="api-input-box">' +
+            '<input type="text" class="api-input" id="apiTranslateSampleInput" placeholder="输入任意外语或中文试试翻译">' +
+          '</div>' +
+        '</div>';
+    } else if (slot.mode === 'reuse_llm') {
+      var llmCfg = configs.llm && configs.llm.primary;
+      var llmTip = (llmCfg && llmCfg.url) ? ('当前将复用：' + getProviderObj('llm', llmCfg.type).label + (llmCfg.model ? ' · ' + llmCfg.model : '')) : '请先在上方「语言模型 LLM」填写地址与 Key';
+      html +=
+        '<div class="api-switch-row">' +
+          '<div>' +
+            '<div class="api-switch-text">自动复用语言模型配置</div>' +
+            '<div class="api-switch-sub">' + escapeHtml(llmTip) + '</div>' +
+          '</div>' +
+        '</div>';
+    } else {
+      html += buildSlotFields('translate', 'primary', slot, true);
+    }
+
+    html += '</div>';
+
+    if (slot.mode === 'custom') {
+      html +=
+        '<div class="api-switch-row">' +
+          '<div>' +
+            '<div class="api-switch-text">副 API</div>' +
+            '<div class="api-switch-sub">开启后展开备用接口</div>' +
+          '</div>' +
+          '<div class="api-switch' + (c.backupEnabled ? ' on' : '') + '" data-toggle-backup="translate"><div class="api-switch-thumb"></div></div>' +
+        '</div>' +
+        '<div class="api-sub-section' + (c.backupEnabled ? ' open' : '') + '">' +
+          '<div class="api-sub-badge">副 API 配置</div>' +
+          buildSlotFields('translate', 'backup', c.backup, true) +
+        '</div>';
+    }
+
+    return html;
+  }
+
+  function buildSlotFields(modKey, prefix, slot, skipTranslateExtras) {
     var provList = PROVIDERS[modKey] || PROVIDERS.llm;
     var prov = getProviderObj(modKey, slot.type);
 
@@ -233,18 +448,6 @@
         '</div>';
     }
 
-    if (modKey === 'translate') {
-      var langHtml = TRANSLATE_LANGS.map(function (lg) {
-        var on = slot.targetLang === lg ? ' active' : '';
-        return '<div class="api-seg-btn' + on + '" data-pick-prop="' + modKey + '" data-slot="' + prefix + '" data-prop="targetLang" data-val="' + lg + '">' + lg + '</div>';
-      }).join('');
-      html +=
-        '<div>' +
-          '<div class="api-field-label">5. 目标语言</div>' +
-          '<div class="api-seg">' + langHtml + '</div>' +
-        '</div>';
-    }
-
     html += '</div>';
     return html;
   }
@@ -252,6 +455,10 @@
   function syncInputsToState(modKey) {
     var cfg = configs[modKey];
     if (!cfg) return;
+    if (modKey === 'translate') {
+      var sel = document.getElementById('apiTranslateLangSelect');
+      if (sel) cfg.primary.targetLang = sel.value;
+    }
     ['primary', 'backup'].forEach(function (prefix) {
       ['url', 'key', 'model', 'voiceId', 'groupId'].forEach(function (field) {
         var el = document.getElementById('api_' + modKey + '_' + prefix + '_' + field);
@@ -268,15 +475,49 @@
       var c = configs[m.key];
       var isOpen = openKey === m.key;
       var prov = getProviderObj(m.key, c.primary.type);
-      var hasCfg = !!(c.primary.url || c.primary.key);
       var subText = '未配置';
       var subCls = 'api-card-sub';
-      if (hasCfg) {
+
+      if (m.key === 'translate') {
+        subCls += ' configured';
+        var langName = getLangLabel(c.primary.targetLang);
+        if (c.primary.mode === 'free') {
+          subText = '免费内置 · ' + langName;
+        } else if (c.primary.mode === 'reuse_llm') {
+          subText = '复用语言模型 · ' + langName;
+        } else if (c.primary.url || c.primary.key) {
+          subText = prov.label + ' · ' + langName;
+        } else {
+          subText = '自定义接口（未填地址）';
+        }
+      } else if (c.primary.url || c.primary.key) {
         subCls += ' configured';
         subText = prov.label +
           (c.primary.model ? ' · ' + c.primary.model : '') +
           (c.backupEnabled ? ' · 已开副API' : '');
       }
+
+      var bodyInner = '';
+      if (m.key === 'translate') {
+        bodyInner = buildTranslateBody(c);
+      } else {
+        bodyInner =
+          (m.key === 'llm' ? buildLlmPresetsBar(c) : '') +
+          buildSlotFields(m.key, 'primary', c.primary, false) +
+          '<div class="api-switch-row">' +
+            '<div>' +
+              '<div class="api-switch-text">副 API</div>' +
+              '<div class="api-switch-sub">开启后展开备用接口</div>' +
+            '</div>' +
+            '<div class="api-switch' + (c.backupEnabled ? ' on' : '') + '" data-toggle-backup="' + m.key + '"><div class="api-switch-thumb"></div></div>' +
+          '</div>' +
+          '<div class="api-sub-section' + (c.backupEnabled ? ' open' : '') + '">' +
+            '<div class="api-sub-badge">副 API 配置</div>' +
+            buildSlotFields(m.key, 'backup', c.backup, false) +
+          '</div>';
+      }
+
+      var testLabel = (m.key === 'translate' && c.primary.mode === 'free') ? '测试翻译' : '测试连接';
 
       return (
         '<div class="api-card' + (isOpen ? ' open' : '') + '" data-card="' + m.key + '">' +
@@ -291,21 +532,10 @@
             SVG_CHEVRON +
           '</div>' +
           '<div class="api-card-body">' +
-            buildSlotFields(m.key, 'primary', c.primary) +
-            '<div class="api-switch-row">' +
-              '<div>' +
-                '<div class="api-switch-text">副 API</div>' +
-                '<div class="api-switch-sub">开启后展开备用接口</div>' +
-              '</div>' +
-              '<div class="api-switch' + (c.backupEnabled ? ' on' : '') + '" data-toggle-backup="' + m.key + '"><div class="api-switch-thumb"></div></div>' +
-            '</div>' +
-            '<div class="api-sub-section' + (c.backupEnabled ? ' open' : '') + '">' +
-              '<div class="api-sub-badge">副 API 配置</div>' +
-              buildSlotFields(m.key, 'backup', c.backup) +
-            '</div>' +
+            bodyInner +
             '<div class="api-test-msg" id="api_msg_' + m.key + '"></div>' +
             '<div class="api-actions">' +
-              '<div class="api-btn-secondary" data-test-mod="' + m.key + '">测试连接</div>' +
+              '<div class="api-btn-secondary" data-test-mod="' + m.key + '">' + testLabel + '</div>' +
               '<div class="api-btn-primary" data-save-mod="' + m.key + '">保存配置</div>' +
             '</div>' +
           '</div>' +
@@ -314,17 +544,18 @@
     }).join('');
 
     var logsOpen = openKey === 'logs';
-    var logSub = logs.length ? ('共 ' + logs.length + ' 条记录 · 最近 ' + logs[0].time) : '暂无记录';
+    var logSub = logs.length ? ('最近 ' + logs.length + ' 条 · 最新 ' + logs[0].time) : '暂无记录';
     var logBodyHtml = !logs.length
       ? '<div class="api-log-empty">暂无调用记录</div>'
       : '<div class="api-log-list">' + logs.map(function (l) {
           return (
             '<div class="api-log-item">' +
               '<div class="api-log-top">' +
-                '<span class="api-log-mod">' + escapeHtml(l.module) + ' · ' + (l.ok ? '成功' : '失败') + '</span>' +
+                '<span class="api-log-mod' + (l.ok ? '' : ' err') + '">' + escapeHtml(l.module) + ' · ' + (l.ok ? '成功' : '失败') + '</span>' +
                 '<span class="api-log-time">' + escapeHtml(l.time) + '</span>' +
               '</div>' +
-              '<div class="api-log-detail">' + escapeHtml(l.detail) + '</div>' +
+              '<div class="api-log-raw">' + (l.ok ? escapeHtml(l.raw) : ('原报错：' + escapeHtml(l.raw))) + '</div>' +
+              (l.analysis ? '<div class="api-log-analysis">分析：' + escapeHtml(l.analysis) + '</div>' : '') +
             '</div>'
           );
         }).join('') + '</div>' +
@@ -354,6 +585,15 @@
       u += '/v1';
     }
     return u;
+  }
+
+  function readHttpError(r) {
+    return r.text().then(function (txt) {
+      var snippet = (txt || '').replace(/\s+/g, ' ').trim().slice(0, 180);
+      return 'HTTP ' + r.status + (snippet ? ' - ' + snippet : '');
+    }).catch(function () {
+      return 'HTTP ' + r.status;
+    });
   }
 
   function pullModels(modKey, prefix) {
@@ -389,7 +629,7 @@
 
     fetch(endpoint, { headers: headers })
       .then(function (r) {
-        if (!r.ok) throw new Error('HTTP ' + r.status);
+        if (!r.ok) return readHttpError(r).then(function (e) { throw new Error(e); });
         return r.json();
       })
       .then(function (data) {
@@ -399,7 +639,7 @@
         } else if (Array.isArray(data.models)) {
           list = data.models.map(function (x) { return (x.name || '').replace(/^models\//, ''); }).filter(Boolean);
         }
-        if (!list.length) throw new Error('未返回模型列表');
+        if (!list.length) throw new Error('接口未返回可用模型列表');
         chipsEl.innerHTML = list.slice(0, 30).map(function (id) {
           var on = slot.model === id ? ' active' : '';
           return '<div class="api-model-chip' + on + '" data-pick-chip="' + modKey + '" data-slot="' + prefix + '" data-val="' + escapeHtml(id) + '">' + escapeHtml(id) + '</div>';
@@ -410,16 +650,54 @@
       })
       .catch(function (err) {
         msgEl.className = 'api-test-msg show err';
-        msgEl.textContent = '拉取失败（' + err.message + '），可直接手动填写模型名';
+        msgEl.textContent = '拉取失败：' + err.message;
+        appendLog({
+          module: modKey.toUpperCase(),
+          ok: false,
+          rawError: err.message
+        });
       });
   }
 
   function testConnection(modKey) {
     syncInputsToState(modKey);
-    var slot = configs[modKey].primary;
-    var mod = MODULES.find(function (m) { return m.key === modKey; });
-    var prov = getProviderObj(modKey, slot.type);
     var msgEl = document.getElementById('api_msg_' + modKey);
+
+    if (modKey === 'translate' && configs.translate.primary.mode === 'free') {
+      var lang = configs.translate.primary.targetLang || 'zh-CN';
+      var sampleInput = document.getElementById('apiTranslateSampleInput');
+      var sample = (sampleInput && sampleInput.value.trim()) || (lang === 'en' ? '晚上好，小手机！' : 'Good evening, have a nice day!');
+      msgEl.className = 'api-test-msg show';
+      msgEl.textContent = '正在翻译...';
+      var tStart = Date.now();
+      freeTranslate(sample, lang)
+        .then(function (resText) {
+          var ms = Date.now() - tStart;
+          msgEl.className = 'api-test-msg show ok';
+          msgEl.textContent = '译文：' + resText + '（' + ms + 'ms）';
+          appendLog({
+            module: 'TRANSLATE',
+            ok: true,
+            rawError: '免费翻译测试成功（' + ms + 'ms）'
+          });
+        })
+        .catch(function (err) {
+          msgEl.className = 'api-test-msg show err';
+          msgEl.textContent = '翻译失败：' + err.message;
+          appendLog({
+            module: 'TRANSLATE',
+            ok: false,
+            rawError: err.message
+          });
+        });
+      return;
+    }
+
+    var slot = (modKey === 'translate' && configs.translate.primary.mode === 'reuse_llm')
+      ? configs.llm.primary
+      : configs[modKey].primary;
+    var mod = MODULES.find(function (m) { return m.key === modKey; });
+    var prov = getProviderObj(modKey === 'translate' && configs.translate.primary.mode === 'reuse_llm' ? 'llm' : modKey, slot.type);
     var base = normalizeBaseUrl(slot.url, slot.type);
 
     if (!base || !slot.key) {
@@ -453,31 +731,104 @@
 
     fetch(endpoint, { headers: headers })
       .then(function (r) {
+        if (!r.ok) return readHttpError(r).then(function (e) { throw new Error(e); });
         var ms = Date.now() - start;
-        if (!r.ok) throw new Error('HTTP ' + r.status);
         msgEl.className = 'api-test-msg show ok';
         msgEl.textContent = '连接成功（' + ms + 'ms）';
         appendLog({
           module: mod.tag,
           ok: true,
-          detail: '测试连通成功 · ' + prov.label + ' · ' + ms + 'ms'
+          rawError: '测试连通成功 · ' + prov.label + ' · ' + ms + 'ms'
         });
       })
       .catch(function (err) {
         var ms = Date.now() - start;
+        var rawErr = err.message || String(err);
+        var tip = analyzeError(rawErr);
         msgEl.className = 'api-test-msg show err';
-        msgEl.textContent = '连接失败：' + err.message + '（' + ms + 'ms）';
+        msgEl.textContent = '失败（' + ms + 'ms）：' + tip;
         appendLog({
           module: mod.tag,
           ok: false,
-          detail: '测试失败：' + err.message + ' · ' + prov.label
+          rawError: rawErr,
+          analysis: tip
         });
       });
   }
 
   renderAll();
 
+  root.addEventListener('change', function (e) {
+    if (e.target && e.target.id === 'apiTranslateLangSelect') {
+      configs.translate.primary.targetLang = e.target.value;
+      saveAllConfigs(configs);
+    }
+  });
+
   root.addEventListener('click', function (e) {
+    var delPresetBtn = e.target.closest('[data-del-preset]');
+    if (delPresetBtn) {
+      e.stopPropagation();
+      var delId = delPresetBtn.getAttribute('data-del-preset');
+      var list = loadLlmPresets().filter(function (p) { return p.id !== delId; });
+      saveLlmPresets(list);
+      if (configs.llm.activePresetId === delId) configs.llm.activePresetId = '';
+      saveAllConfigs(configs);
+      renderAll();
+      return;
+    }
+
+    var loadPresetBtn = e.target.closest('[data-load-preset]');
+    if (loadPresetBtn) {
+      var pid = loadPresetBtn.getAttribute('data-load-preset');
+      var hit = loadLlmPresets().find(function (p) { return p.id === pid; });
+      if (hit) {
+        configs.llm = {
+          activePresetId: hit.id,
+          primary: Object.assign(createEmptySlot('llm'), hit.primary || {}),
+          backupEnabled: !!hit.backupEnabled,
+          backup: Object.assign(createEmptySlot('llm'), hit.backup || {})
+        };
+        saveAllConfigs(configs);
+        renderAll();
+        var msgEl = document.getElementById('api_msg_llm');
+        if (msgEl) {
+          msgEl.className = 'api-test-msg show ok';
+          msgEl.textContent = '已切换到配置组：' + hit.name;
+        }
+      }
+      return;
+    }
+
+    if (e.target.closest('#apiSavePresetBtn')) {
+      syncInputsToState('llm');
+      var nameEl = document.getElementById('apiLlmPresetName');
+      var pName = nameEl ? nameEl.value.trim() : '';
+      if (!pName) {
+        var prov = getProviderObj('llm', configs.llm.primary.type);
+        pName = prov.label + (configs.llm.primary.model ? ' · ' + configs.llm.primary.model : '');
+      }
+      var presets = loadLlmPresets();
+      var newId = 'llm_' + Date.now();
+      presets.unshift({
+        id: newId,
+        name: pName,
+        primary: JSON.parse(JSON.stringify(configs.llm.primary)),
+        backupEnabled: configs.llm.backupEnabled,
+        backup: JSON.parse(JSON.stringify(configs.llm.backup))
+      });
+      saveLlmPresets(presets);
+      configs.llm.activePresetId = newId;
+      saveAllConfigs(configs);
+      renderAll();
+      var lMsg = document.getElementById('api_msg_llm');
+      if (lMsg) {
+        lMsg.className = 'api-test-msg show ok';
+        lMsg.textContent = '已保存配置组「' + pName + '」';
+      }
+      return;
+    }
+
     var head = e.target.closest('[data-toggle-card]');
     if (head) {
       if (openKey && openKey !== 'logs') syncInputsToState(openKey);
@@ -494,6 +845,7 @@
       var val = typeBtn.getAttribute('data-val');
       syncInputsToState(mk);
       configs[mk][sl].type = val;
+      if (mk === 'llm') configs.llm.activePresetId = '';
       renderAll();
       return;
     }
