@@ -2,6 +2,14 @@
   var root = document.getElementById('app-appearance');
   if (!root) return;
 
+  var APPS_LIST = [
+    { id: 'appearance', name: '外观', emoji: '🎨', bg: 'bg-1' },
+    { id: 'chat', name: '聊天', emoji: '💬', bg: 'bg-2' },
+    { id: 'photos', name: '相册', emoji: '🖼️', bg: 'bg-3' },
+    { id: 'music', name: '音乐', emoji: '🎵', bg: 'bg-4' },
+    { id: 'settings', name: '设置', emoji: '⚙️', bg: 'bg-5' }
+  ];
+
   root.innerHTML =
     '<div class="app-header">' +
       '<div class="app-back" data-close-app>' +
@@ -69,7 +77,29 @@
         '</div>' +
       '</div>' +
       '<div class="tab-panel" id="panel-icons">' +
-        '<div class="lg-card"><div class="empty-tip">图标样式暂未设置</div></div>' +
+        '<div class="icon-sec-title">HOME SCREEN</div>' +
+        '<div class="lg-card home-icon-card">' +
+          '<div class="home-icon-head">' +
+            '<div class="home-icon-title">主屏图标</div>' +
+            '<div class="home-tag">HOME</div>' +
+          '</div>' +
+          '<div class="home-icon-desc">更换点击「添加到主屏幕」图标。</div>' +
+          '<div class="home-icon-boxes">' +
+            '<div class="home-icon-slot">' +
+              '<div class="icon-upload-box" id="btnUploadHomeIcon">+</div>' +
+              '<div class="home-icon-slot-label">上传</div>' +
+            '</div>' +
+            '<div class="home-icon-slot">' +
+              '<div class="icon-default-box" id="boxDefaultHomeIcon">小手机<span class="icon-reset-badge" id="resetHomeIcon">×</span></div>' +
+              '<div class="home-icon-slot-label" id="labelHomeIcon">默认</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="home-icon-note">换完需要重新「添加到主屏幕」才会在桌面生效。</div>' +
+        '</div>' +
+        '<div class="icon-sec-title">ICON CHANGES</div>' +
+        '<div class="lg-card">' +
+          '<div class="icon-grid" id="iconGrid"></div>' +
+        '</div>' +
       '</div>' +
     '</div>' +
     '<div class="lg-bottom-bar" id="lgBottomBar">' +
@@ -79,7 +109,9 @@
     '</div>' +
     '<input type="file" id="inputLockWall" accept="image/*" style="display:none;">' +
     '<input type="file" id="inputHomeWall" accept="image/*" style="display:none;">' +
-    '<input type="file" id="inputFont" accept=".ttf,.otf,.woff,.woff2,font/*" multiple style="display:none;">';
+    '<input type="file" id="inputFont" accept=".ttf,.otf,.woff,.woff2,font/*" multiple style="display:none;">' +
+    '<input type="file" id="inputHomeScreenIcon" accept="image/*" style="display:none;">' +
+    '<input type="file" id="inputAppIcon" accept="image/*" style="display:none;">';
 
   var bottomBar = document.getElementById('lgBottomBar');
   var tabs = root.querySelectorAll('.lg-tab');
@@ -314,6 +346,119 @@
     chain.then(function () {
       saveFontsList(list);
       renderFontList();
+    });
+    this.value = '';
+  });
+
+  /* 图标页逻辑 */
+  var boxDefaultHomeIcon = document.getElementById('boxDefaultHomeIcon');
+  var labelHomeIcon = document.getElementById('labelHomeIcon');
+  var resetHomeIcon = document.getElementById('resetHomeIcon');
+  var inputHomeScreenIcon = document.getElementById('inputHomeScreenIcon');
+
+  function syncHomeScreenIconUI(url) {
+    if (url) {
+      boxDefaultHomeIcon.style.backgroundImage = 'url("' + url + '")';
+      boxDefaultHomeIcon.classList.add('has-img');
+      labelHomeIcon.textContent = '已设置';
+    } else {
+      boxDefaultHomeIcon.style.backgroundImage = '';
+      boxDefaultHomeIcon.classList.remove('has-img');
+      labelHomeIcon.textContent = '默认';
+    }
+  }
+
+  PhoneDB.get('home_screen_icon').then(syncHomeScreenIconUI);
+
+  document.getElementById('btnUploadHomeIcon').addEventListener('click', function () {
+    inputHomeScreenIcon.click();
+  });
+
+  inputHomeScreenIcon.addEventListener('change', function () {
+    var file = this.files && this.files[0];
+    if (!file) return;
+    readImageAsDataUrl(file, function (url) {
+      PhoneDB.set('home_screen_icon', url);
+      if (window.applyHomeScreenIcon) window.applyHomeScreenIcon(url);
+      syncHomeScreenIconUI(url);
+    });
+    this.value = '';
+  });
+
+  resetHomeIcon.addEventListener('click', function (e) {
+    e.stopPropagation();
+    PhoneDB.del('home_screen_icon');
+    if (window.applyHomeScreenIcon) window.applyHomeScreenIcon('');
+    syncHomeScreenIconUI('');
+  });
+
+  var iconGrid = document.getElementById('iconGrid');
+  var inputAppIcon = document.getElementById('inputAppIcon');
+  var editingAppId = '';
+
+  function renderIconGrid() {
+    var html = '';
+    APPS_LIST.forEach(function (app) {
+      html +=
+        '<div class="icon-grid-item" data-icon-app="' + app.id + '">' +
+          '<div class="icon-grid-box ' + app.bg + '" id="gridIcon-' + app.id + '">' +
+            app.emoji +
+            '<span class="icon-reset-badge" data-reset-icon="' + app.id + '">×</span>' +
+          '</div>' +
+          '<div class="icon-grid-name">' + app.name + '</div>' +
+        '</div>';
+    });
+    iconGrid.innerHTML = html;
+
+    APPS_LIST.forEach(function (app) {
+      PhoneDB.get('icon_' + app.id).then(function (url) {
+        var box = document.getElementById('gridIcon-' + app.id);
+        if (!box) return;
+        if (url) {
+          box.style.backgroundImage = 'url("' + url + '")';
+          box.classList.add('has-img');
+        } else {
+          box.style.backgroundImage = '';
+          box.classList.remove('has-img');
+        }
+      });
+    });
+  }
+
+  renderIconGrid();
+
+  iconGrid.addEventListener('click', function (e) {
+    var resetId = e.target.getAttribute('data-reset-icon');
+    if (resetId) {
+      e.stopPropagation();
+      PhoneDB.del('icon_' + resetId);
+      if (window.applyAppIcon) window.applyAppIcon(resetId, '');
+      var box = document.getElementById('gridIcon-' + resetId);
+      if (box) {
+        box.style.backgroundImage = '';
+        box.classList.remove('has-img');
+      }
+      return;
+    }
+    var item = e.target.closest('.icon-grid-item');
+    if (item) {
+      editingAppId = item.getAttribute('data-icon-app');
+      inputAppIcon.click();
+    }
+  });
+
+  inputAppIcon.addEventListener('change', function () {
+    var file = this.files && this.files[0];
+    if (!file || !editingAppId) return;
+    var targetId = editingAppId;
+    readImageAsDataUrl(file, function (url) {
+      PhoneDB.set('icon_' + targetId, url);
+      if (window.applyAppIcon) window.applyAppIcon(targetId, url);
+      var box = document.getElementById('gridIcon-' + targetId);
+      if (box) {
+        box.style.backgroundImage = 'url("' + url + '")';
+        box.classList.add('has-img');
+      }
     });
     this.value = '';
   });
