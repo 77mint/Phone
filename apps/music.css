@@ -865,3 +865,9 @@
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+
+.has-art {
+  background-size: cover !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+}
