@@ -4,6 +4,8 @@
 
   var BOOKS_KEY = 'phone_lorebooks_v1';
   var activeBookId = '';
+  var editingCoverBookId = '';
+  var coverMap = {};
   var openEntryIds = {};
 
   function getBooks() {
@@ -19,12 +21,27 @@
     localStorage.setItem(BOOKS_KEY, JSON.stringify(list));
   }
 
-  // 供后续 iMessage / 线下 等模块扫描匹配世界书词条
+  // 供后续 iMessage / 线下 等模块按角色 + 场景匹配世界书词条
   window.PhoneLorebook = {
     getBooks: getBooks,
-    matchContext: function (text) {
+    matchContext: function (text, options) {
+      var opts = options || {};
+      var charId = opts.charId || '';
+      var scene = opts.scene || 'all'; // 'online' | 'offline' | 'all'
       var haystack = String(text || '').toLowerCase();
-      var books = getBooks().filter(function (b) { return b.enabled; });
+
+      var books = getBooks().filter(function (b) {
+        if (!b.enabled) return false;
+        var bScope = b.scope || 'global';
+        if (bScope === 'local') {
+          var ids = Array.isArray(b.charIds) ? b.charIds : [];
+          if (!charId || ids.indexOf(charId) === -1) return false;
+        }
+        var bScene = b.scene || 'all';
+        if (bScene !== 'all' && scene !== 'all' && bScene !== scene) return false;
+        return true;
+      });
+
       var matched = [];
       books.forEach(function (b) {
         (b.entries || []).forEach(function (e) {
@@ -55,6 +72,7 @@
   var SVG_CLOSE = '<svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
   var SVG_EXPORT = '<svg viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><polyline points="16 6 12 2 8 6"></polyline><line x1="12" y1="2" x2="12" y2="15"></line></svg>';
   var SVG_IMPORT = '<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>';
+  var SVG_IMG = '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>';
 
   root.innerHTML =
     '<div class="lb-shell">' +
@@ -75,7 +93,7 @@
       '</div>' +
 
       '<div class="lb-body">' +
-        '<div class="lb-list" id="lbBookList"></div>' +
+        '<div id="lbBookList"></div>' +
       '</div>' +
 
       '<div class="lb-detail" id="lbDetail">' +
@@ -87,6 +105,7 @@
           '</div>' +
         '</div>' +
         '<div class="lb-detail-body">' +
+          '<div class="lb-meta-card" id="lbMetaCard"></div>' +
           '<div class="lb-add-entry-btn" id="lbAddEntryBtn">' +
             '<svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>' +
             '<span>添加词条</span>' +
@@ -109,6 +128,7 @@
 
       '<div class="lb-toast" id="lbToast"></div>' +
       '<input type="file" id="lbInputImport" accept=".json,application/json" style="display:none;">' +
+      '<input type="file" id="lbInputCover" accept="image/*" style="display:none;">' +
     '</div>';
 
   var toastTimer = null;
@@ -122,10 +142,17 @@
     }, 1800);
   }
 
+  function sceneLabel(sc) {
+    if (sc === 'online') return '线上';
+    if (sc === 'offline') return '线下';
+    return '通用';
+  }
+
   function renderBookList() {
     var books = getBooks();
     var listEl = document.getElementById('lbBookList');
     if (!books.length) {
+      listEl.className = '';
       listEl.innerHTML =
         '<div class="lb-empty">' +
           '<div class="lb-empty-title">还没有世界书</div>' +
@@ -134,21 +161,74 @@
       return;
     }
 
+    listEl.className = 'lb-grid';
     listEl.innerHTML = books.map(function (b) {
       var count = (b.entries || []).length;
-      var activeCount = (b.entries || []).filter(function (e) { return e.enabled; }).length;
+      var url = coverMap[b.id] || '';
+      var hasCls = url ? ' has-cover' : '';
+      var bgStyle = url ? ' style="background-image:url(\'' + url + '\');"' : '';
+      var scopeTxt = b.scope === 'local' ? '局部' : '全局';
+      var sceneTxt = sceneLabel(b.scene || 'all');
+
       return (
-        '<div class="lb-book-card" data-open-book="' + escapeHtml(b.id) + '">' +
-          '<div class="lb-book-info">' +
-            '<div class="lb-book-name">' + escapeHtml(b.name || '未命名世界书') + '</div>' +
-            '<div class="lb-book-sub">共 ' + count + ' 条词条 · 已启用 ' + activeCount + ' 条</div>' +
+        '<div class="lb-book-item" data-open-book="' + escapeHtml(b.id) + '">' +
+          '<div class="lb-cover-wrap">' +
+            '<div class="lb-cover-3d' + hasCls + '"' + bgStyle + '>' +
+              '<div class="lb-cover-fallback">' +
+                '<div class="lb-fb-title">' + escapeHtml(b.name || '未命名') + '</div>' +
+                '<div class="lb-fb-meta">' + count + ' 条</div>' +
+              '</div>' +
+              '<span class="lb-cover-status' + (b.enabled ? ' on' : '') + '"></span>' +
+              '<div class="lb-cover-edit" data-edit-cover="' + escapeHtml(b.id) + '" title="上传封面">' + SVG_IMG + '</div>' +
+            '</div>' +
           '</div>' +
-          '<div class="lb-switch' + (b.enabled ? ' on' : '') + '" data-toggle-book="' + escapeHtml(b.id) + '">' +
-            '<div class="lb-switch-thumb"></div>' +
-          '</div>' +
+          '<div class="lb-book-name">' + escapeHtml(b.name || '未命名世界书') + '</div>' +
+          '<div class="lb-book-sub">' + scopeTxt + ' · ' + sceneTxt + '</div>' +
         '</div>'
       );
     }).join('');
+  }
+
+  function renderDetailMeta(book) {
+    var scope = book.scope || 'global';
+    var scene = book.scene || 'all';
+    var charIds = Array.isArray(book.charIds) ? book.charIds : [];
+    var allChars = (window.PhoneArchive && window.PhoneArchive.getChars) ? window.PhoneArchive.getChars() : [];
+
+    var charsHtml = '';
+    if (scope === 'local') {
+      if (!allChars.length) {
+        charsHtml = '<div class="lb-book-sub" style="margin-top:8px;">暂无角色，先去「档案」新建角色即可在这里勾选</div>';
+      } else {
+        charsHtml = '<div class="lb-char-chips">' + allChars.map(function (c) {
+          var on = charIds.indexOf(c.id) !== -1 ? ' active' : '';
+          var cName = c.name || c.nickname || '未命名';
+          return '<div class="lb-char-chip' + on + '" data-toggle-char="' + escapeHtml(c.id) + '">' + escapeHtml(cName) + '</div>';
+        }).join('') + '</div>';
+      }
+    }
+
+    document.getElementById('lbMetaCard').innerHTML =
+      '<div class="lb-meta-row">' +
+        '<div class="lb-meta-row-title">启用这本世界书</div>' +
+        '<div class="lb-switch' + (book.enabled ? ' on' : '') + '" id="lbDetailEnableSwitch"><div class="lb-switch-thumb"></div></div>' +
+      '</div>' +
+      '<div>' +
+        '<div class="lb-field-label">作用范围</div>' +
+        '<div class="lb-seg">' +
+          '<div class="lb-seg-btn' + (scope === 'global' ? ' active' : '') + '" data-set-scope="global">全局</div>' +
+          '<div class="lb-seg-btn' + (scope === 'local' ? ' active' : '') + '" data-set-scope="local">局部（部分角色）</div>' +
+        '</div>' +
+        charsHtml +
+      '</div>' +
+      '<div>' +
+        '<div class="lb-field-label">生效场景</div>' +
+        '<div class="lb-seg">' +
+          '<div class="lb-seg-btn' + (scene === 'all' ? ' active' : '') + '" data-set-scene="all">通用</div>' +
+          '<div class="lb-seg-btn' + (scene === 'online' ? ' active' : '') + '" data-set-scene="online">线上</div>' +
+          '<div class="lb-seg-btn' + (scene === 'offline' ? ' active' : '') + '" data-set-scene="offline">线下</div>' +
+        '</div>' +
+      '</div>';
   }
 
   function syncActiveEntriesInputs() {
@@ -176,6 +256,7 @@
     var book = books.find(function (b) { return b.id === activeBookId; });
     if (!book) return;
     document.getElementById('lbDetailTitleInput').value = book.name || '';
+    renderDetailMeta(book);
 
     var listEl = document.getElementById('lbEntryList');
     var entries = book.entries || [];
@@ -266,6 +347,8 @@
     });
     var payload = {
       name: book.name || '世界书',
+      scope: book.scope || 'global',
+      scene: book.scene || 'all',
       entries: entriesObj
     };
     var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
@@ -318,6 +401,9 @@
       id: 'lb_' + Date.now(),
       name: (rawObj && rawObj.name) ? rawObj.name : (fallbackName || '导入的世界书'),
       enabled: true,
+      scope: (rawObj && rawObj.scope) || 'global',
+      scene: (rawObj && rawObj.scene) || 'all',
+      charIds: [],
       entries: mapped
     });
     saveBooks(books);
@@ -325,7 +411,16 @@
     showToast('已导入 ' + mapped.length + ' 条词条');
   }
 
-  renderBookList();
+  function loadCovers() {
+    var books = getBooks();
+    Promise.all(books.map(function (b) {
+      return PhoneDB.get('lorebook_cover_' + b.id).then(function (url) {
+        if (url) coverMap[b.id] = url;
+      });
+    })).then(renderBookList);
+  }
+
+  loadCovers();
 
   var newModal = document.getElementById('lbNewModal');
   var detailEl = document.getElementById('lbDetail');
@@ -341,7 +436,7 @@
     var name = document.getElementById('lbNewBookName').value.trim() || '新建世界书';
     var books = getBooks();
     var id = 'lb_' + Date.now();
-    books.unshift({ id: id, name: name, enabled: true, entries: [] });
+    books.unshift({ id: id, name: name, enabled: true, scope: 'global', scene: 'all', charIds: [], entries: [] });
     saveBooks(books);
     newModal.classList.remove('open');
     renderBookList();
@@ -371,18 +466,27 @@
     this.value = '';
   });
 
+  document.getElementById('lbInputCover').addEventListener('change', function () {
+    var file = this.files && this.files[0];
+    if (!file || !editingCoverBookId) return;
+    var bid = editingCoverBookId;
+    var reader = new FileReader();
+    reader.onload = function () {
+      coverMap[bid] = reader.result;
+      PhoneDB.set('lorebook_cover_' + bid, reader.result);
+      renderBookList();
+      showToast('封面已更新');
+    };
+    reader.readAsDataURL(file);
+    this.value = '';
+  });
+
   document.getElementById('lbBookList').addEventListener('click', function (e) {
-    var sw = e.target.closest('[data-toggle-book]');
-    if (sw) {
+    var editBtn = e.target.closest('[data-edit-cover]');
+    if (editBtn) {
       e.stopPropagation();
-      var tid = sw.getAttribute('data-toggle-book');
-      var books = getBooks();
-      var b = books.find(function (x) { return x.id === tid; });
-      if (b) {
-        b.enabled = !b.enabled;
-        saveBooks(books);
-        renderBookList();
-      }
+      editingCoverBookId = editBtn.getAttribute('data-edit-cover');
+      document.getElementById('lbInputCover').click();
       return;
     }
     var card = e.target.closest('[data-open-book]');
@@ -391,6 +495,46 @@
       openEntryIds = {};
       renderDetailEntries();
       detailEl.classList.add('open');
+    }
+  });
+
+  document.getElementById('lbMetaCard').addEventListener('click', function (e) {
+    var books = getBooks();
+    var book = books.find(function (b) { return b.id === activeBookId; });
+    if (!book) return;
+
+    if (e.target.closest('#lbDetailEnableSwitch')) {
+      book.enabled = !book.enabled;
+      saveBooks(books);
+      renderDetailMeta(book);
+      renderBookList();
+      return;
+    }
+    var scopeBtn = e.target.closest('[data-set-scope]');
+    if (scopeBtn) {
+      book.scope = scopeBtn.getAttribute('data-set-scope');
+      saveBooks(books);
+      renderDetailMeta(book);
+      renderBookList();
+      return;
+    }
+    var sceneBtn = e.target.closest('[data-set-scene]');
+    if (sceneBtn) {
+      book.scene = sceneBtn.getAttribute('data-set-scene');
+      saveBooks(books);
+      renderDetailMeta(book);
+      renderBookList();
+      return;
+    }
+    var charChip = e.target.closest('[data-toggle-char]');
+    if (charChip) {
+      var cid = charChip.getAttribute('data-toggle-char');
+      book.charIds = Array.isArray(book.charIds) ? book.charIds : [];
+      var idx = book.charIds.indexOf(cid);
+      if (idx !== -1) book.charIds.splice(idx, 1);
+      else book.charIds.push(cid);
+      saveBooks(books);
+      renderDetailMeta(book);
     }
   });
 
@@ -414,6 +558,8 @@
   document.getElementById('lbDeleteBookBtn').addEventListener('click', function () {
     var books = getBooks().filter(function (b) { return b.id !== activeBookId; });
     saveBooks(books);
+    delete coverMap[activeBookId];
+    PhoneDB.del('lorebook_cover_' + activeBookId);
     detailEl.classList.remove('open');
     renderBookList();
     showToast('已删除世界书');
