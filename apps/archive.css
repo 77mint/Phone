@@ -28,8 +28,14 @@
   gap: 12px;
 }
 
+.ar-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .ar-shell.is-subtab .ar-back,
-.ar-shell.is-subtab .ar-add-btn {
+.ar-shell.is-subtab .ar-header-actions {
   display: none;
 }
 
@@ -42,7 +48,7 @@
 }
 
 .ar-add-btn {
-  padding: 7px 13px;
+  padding: 7px 12px;
   border-radius: 999px;
   background: #ffffff;
   color: #111111;
@@ -62,6 +68,7 @@
   fill: none;
   stroke-width: 2.2;
   stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .ar-body {
@@ -440,11 +447,18 @@
   flex-shrink: 0;
 }
 
+.ar-editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 /* 左上角平滑滑动三格切换：资料 / 面具 / 交际 */
 .ar-top-tabs {
   position: relative;
   display: inline-flex;
-  width: 198px;
+  width: 192px;
   height: 36px;
   background: rgba(0, 0, 0, 0.06);
   border-radius: 999px;
@@ -487,7 +501,7 @@
   color: #111111;
 }
 
-.ar-close-circle {
+.ar-icon-circle {
   width: 32px;
   height: 32px;
   border-radius: 50%;
@@ -500,13 +514,14 @@
   flex-shrink: 0;
 }
 
-.ar-close-circle svg {
-  width: 14px;
-  height: 14px;
+.ar-icon-circle svg {
+  width: 15px;
+  height: 15px;
   stroke: #111111;
   fill: none;
-  stroke-width: 2.3;
+  stroke-width: 2.2;
   stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 /* 三页平滑滑动容器 */
@@ -872,6 +887,93 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
+}
+
+/* 导出格式居中白卡弹窗 */
+.ar-modal {
+  position: absolute;
+  inset: 0;
+  z-index: 70;
+  background: rgba(0, 0, 0, 0.36);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.ar-modal.open {
+  display: flex;
+}
+
+.ar-dialog {
+  position: relative;
+  width: 100%;
+  max-width: 310px;
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 20px 18px 18px;
+  text-align: center;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.20);
+}
+
+.ar-dialog-title {
+  font-size: calc(var(--app-font-size, 15px) + 1px);
+  font-weight: 700;
+  color: #111111;
+  margin-bottom: 14px;
+}
+
+.ar-dialog-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #f2f2f7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.ar-dialog-close svg {
+  width: 13px;
+  height: 13px;
+  stroke: #111111;
+  fill: none;
+  stroke-width: 2.3;
+  stroke-linecap: round;
+}
+
+.ar-export-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ar-export-opt {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: #f2f2f7;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ar-export-opt:active {
+  opacity: 0.8;
+}
+
+.ar-export-name {
+  font-size: calc(var(--app-font-size, 15px) - 1px);
+  font-weight: 600;
+  color: #111111;
+}
+
+.ar-export-desc {
+  font-size: 12px;
+  color: #8e8e93;
+  margin-top: 2px;
 }
 
 .ar-toast {
