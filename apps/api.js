@@ -3,7 +3,8 @@
   if (!root) return;
 
   var STORAGE_KEY = 'phone_api_config_v2';
-  var PRESETS_KEY = 'phone_api_llm_presets';
+  var PRESETS_KEY = 'phone_api_bundle_presets';
+  var OLD_LLM_PRESETS_KEY = 'phone_api_llm_presets';
   var LOGS_KEY = 'phone_api_logs';
 
   var MODULES = [
@@ -92,7 +93,6 @@
     MODULES.forEach(function (m) {
       var item = raw[m.key] || {};
       out[m.key] = {
-        activePresetId: item.activePresetId || '',
         primary: Object.assign(createEmptySlot(m.key), item.primary || {}),
         backupEnabled: !!item.backupEnabled,
         backup: Object.assign(createEmptySlot(m.key), item.backup || {})
@@ -104,6 +104,7 @@
         out[m.key].primary.targetLang = 'zh-CN';
       }
     });
+    out._activeBundleId = raw._activeBundleId || '';
     return out;
   }
 
@@ -111,16 +112,39 @@
     localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
   }
 
-  function loadLlmPresets() {
+  function loadBundlePresets() {
+    var arr = [];
     try {
-      var arr = JSON.parse(localStorage.getItem(PRESETS_KEY) || '[]');
-      return Array.isArray(arr) ? arr : [];
-    } catch (e) {
-      return [];
+      arr = JSON.parse(localStorage.getItem(PRESETS_KEY) || '[]');
+      if (!Array.isArray(arr)) arr = [];
+    } catch (e) { arr = []; }
+
+    // 兼容迁移旧版仅 LLM 的配置组
+    if (!arr.length) {
+      try {
+        var oldArr = JSON.parse(localStorage.getItem(OLD_LLM_PRESETS_KEY) || '[]');
+        if (Array.isArray(oldArr) && oldArr.length) {
+          arr = oldArr.map(function (o) {
+            return {
+              id: o.id || ('b_' + Date.now()),
+              name: o.name || '已保存配置',
+              modules: {
+                llm: {
+                  primary: Object.assign(createEmptySlot('llm'), o.primary || {}),
+                  backupEnabled: !!o.backupEnabled,
+                  backup: Object.assign(createEmptySlot('llm'), o.backup || {})
+                }
+              }
+            };
+          });
+          localStorage.setItem(PRESETS_KEY, JSON.stringify(arr));
+        }
+      } catch (e) {}
     }
+    return arr;
   }
 
-  function saveLlmPresets(list) {
+  function saveBundlePresets(list) {
     localStorage.setItem(PRESETS_KEY, JSON.stringify(list));
   }
 
@@ -142,7 +166,7 @@
       return '账号余额不足、无权限，或被 Cloudflare / 风控拦截。';
     }
     if (msg.indexOf('404') !== -1 || msg.indexOf('not found') !== -1) {
-      return '接口路径不对，请检查地址末尾是否多写或漏写了 /v1。';
+      return '接口路径不对（若为查额度，则说明该中转站未开放查余额接口）。';
     }
     if (msg.indexOf('429') !== -1 || msg.indexOf('rate limit') !== -1) {
       return '请求太快或额度达到上限，建议稍等几秒或切换副 API。';
@@ -245,7 +269,8 @@
       '</div>' +
     '</div>';
 
-  var openKey = '';
+  // 支持多张卡片同时展开
+  var openCards = {};
   var configs = loadAllConfigs();
 
   function escapeHtml(str) {
@@ -262,19 +287,23 @@
   }
 
   function buildPresetsCard() {
-    var presets = loadLlmPresets();
-    var isOpen = openKey === 'presets';
-    var activePreset = presets.find(function (p) { return p.id === configs.llm.activePresetId; });
+    var presets = loadBundlePresets();
+    var isOpen = !!openCards.presets;
+    var activePreset = presets.find(function (p) { return p.id === configs._activeBundleId; });
     var subText = presets.length
       ? ('共 ' + presets.length + ' 组' + (activePreset ? (' · 当前：' + activePreset.name) : ''))
       : '暂无保存组（点击展开保存当前配置）';
 
     var listHtml = !presets.length
-      ? '<div class="api-switch-sub" style="padding:10px 0 4px;">在上方「语言模型」填好地址和 Key 后，起个名字就能存成一组。</div>'
-      : '<div class="api-preset-list">' + presets.map(function (p) {
-          var isAct = configs.llm.activePresetId === p.id;
-          var prov = getProviderObj('llm', (p.primary && p.primary.type) || 'openai');
-          var meta = prov.label + (p.primary && p.primary.model ? ' · ' + p.primary.model : '') + (p.backupEnabled ? ' · 含副API' : '');
+      ? '<div class="api-switch-sub" style="padding:4px 0;">填好上面的语言、语音或生图模型后，在这里起个名字就能打包存成一组（没填的模块不会空覆盖）。</div>'
+      : '<div class="api-preset-list" style="padding-top:4px;">' + presets.map(function (p) {
+          var isAct = configs._activeBundleId === p.id;
+          var mods = p.modules || {};
+          var tags = [];
+          if (mods.llm) tags.push('LLM' + (mods.llm.primary && mods.llm.primary.model ? '(' + mods.llm.primary.model + ')' : ''));
+          if (mods.voice) tags.push('VOICE');
+          if (mods.image) tags.push('IMAGE');
+          var meta = tags.length ? tags.join(' · ') : '空配置';
           return (
             '<div class="api-preset-row' + (isAct ? ' active' : '') + '">' +
               '<div class="api-preset-info">' +
@@ -290,13 +319,13 @@
         }).join('') + '</div>';
 
     var bodyHtml =
-      listHtml +
-      '<div class="api-preset-save-row" style="padding-top:6px;">' +
+      '<div class="api-preset-save-row" style="padding-top:10px;">' +
         '<div class="api-input-box" style="flex:1;">' +
-          '<input type="text" class="api-input" id="apiLlmPresetName" placeholder="新配置组名称（如：Kiro反代）">' +
+          '<input type="text" class="api-input" id="apiBundleName" placeholder="配置组名称（如：聚梦主力）">' +
         '</div>' +
-        '<div class="api-mini-action" id="apiSavePresetBtn" style="padding:10px 14px;border-radius:14px;">存为新组</div>' +
+        '<div class="api-mini-action" id="apiSavePresetBtn" style="padding:10px 14px;border-radius:14px;">保存当前</div>' +
       '</div>' +
+      listHtml +
       '<div class="api-test-msg" id="api_msg_presets"></div>';
 
     return (
@@ -497,6 +526,12 @@
     });
   }
 
+  function syncAllOpenInputs() {
+    MODULES.forEach(function (m) {
+      if (openCards[m.key]) syncInputsToState(m.key);
+    });
+  }
+
   function renderAll() {
     var logs = loadLogs();
     var listEl = document.getElementById('apiAccordionList');
@@ -504,7 +539,7 @@
     var html = '';
     MODULES.forEach(function (m) {
       var c = configs[m.key];
-      var isOpen = openKey === m.key;
+      var isOpen = !!openCards[m.key];
       var prov = getProviderObj(m.key, c.primary.type);
       var subText = '未配置';
       var subCls = 'api-card-sub';
@@ -548,6 +583,7 @@
       }
 
       var testLabel = (m.key === 'translate' && c.primary.mode === 'free') ? '测试翻译' : '测试连接';
+      var showQuota = m.key === 'llm' || m.key === 'voice' || m.key === 'image';
 
       html +=
         '<div class="api-card' + (isOpen ? ' open' : '') + '" data-card="' + m.key + '">' +
@@ -566,18 +602,19 @@
             '<div class="api-test-msg" id="api_msg_' + m.key + '"></div>' +
             '<div class="api-actions">' +
               '<div class="api-btn-secondary" data-test-mod="' + m.key + '">' + testLabel + '</div>' +
+              (showQuota ? '<div class="api-btn-secondary" data-quota-mod="' + m.key + '">查额度</div>' : '') +
               '<div class="api-btn-primary" data-save-mod="' + m.key + '">保存配置</div>' +
             '</div>' +
           '</div>' +
         '</div>';
 
-      // 紧接在「语言模型 LLM」下面插入独立的「已保存配置组」板块
-      if (m.key === 'llm') {
+      // 把「已保存配置组」放在「生图模型 IMAGE」下面
+      if (m.key === 'image') {
         html += buildPresetsCard();
       }
     });
 
-    var logsOpen = openKey === 'logs';
+    var logsOpen = !!openCards.logs;
     var logSub = logs.length ? ('最近 ' + logs.length + ' 条 · 最新 ' + logs[0].time) : '暂无记录';
     var logBodyHtml = !logs.length
       ? '<div class="api-log-empty">暂无调用记录（每次真实请求都会记在这里，防止暗中扣费）</div>'
@@ -645,7 +682,7 @@
     }
 
     msgEl.className = 'api-test-msg show';
-    msgEl.textContent = '正在拉取模型列表（仅查列表，不扣对话额度）...';
+    msgEl.textContent = '正在拉取模型列表（0 扣费）...';
 
     var endpoint = '';
     var headers = {};
@@ -691,6 +728,73 @@
           source: '拉取模型列表',
           ok: false,
           rawError: err.message
+        });
+      });
+  }
+
+  function checkQuota(modKey) {
+    syncInputsToState(modKey);
+    var slot = configs[modKey].primary;
+    var mod = MODULES.find(function (m) { return m.key === modKey; });
+    var msgEl = document.getElementById('api_msg_' + modKey);
+    var rawUrl = (slot.url || '').trim().replace(/\/+$/, '');
+
+    if (!rawUrl || !slot.key) {
+      msgEl.className = 'api-test-msg show err';
+      msgEl.textContent = '请先填写地址和 Key 再查额度';
+      return;
+    }
+
+    var rootUrl = rawUrl.replace(/\/v\d+$/i, '');
+    msgEl.className = 'api-test-msg show';
+    msgEl.textContent = '正在查询剩余额度...';
+
+    var headers = { 'Authorization': 'Bearer ' + slot.key };
+    var subUrl = rootUrl + '/v1/dashboard/billing/subscription';
+
+    var now = new Date();
+    var endD = new Date(now.getTime() + 86400000);
+    var startStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-01';
+    var endStr = endD.getFullYear() + '-' + String(endD.getMonth() + 1).padStart(2, '0') + '-' + String(endD.getDate()).padStart(2, '0');
+    var usageUrl = rootUrl + '/v1/dashboard/billing/usage?start_date=' + startStr + '&end_date=' + endStr;
+
+    fetch(subUrl, { headers: headers })
+      .then(function (r) {
+        if (!r.ok) return readHttpError(r).then(function (e) { throw new Error(e); });
+        return r.json();
+      })
+      .then(function (subData) {
+        var total = Number(subData.hard_limit_usd || subData.system_hard_limit_usd || 0);
+        return fetch(usageUrl, { headers: headers })
+          .then(function (ur) { return ur.ok ? ur.json() : { total_usage: 0 }; })
+          .then(function (uData) {
+            var used = Number(uData.total_usage || 0) / 100;
+            var txt = '';
+            if (total >= 100000) {
+              txt = '总额度：无限 / 按量 · 已用：$' + used.toFixed(2);
+            } else {
+              var remain = Math.max(0, total - used);
+              txt = '总额 $' + total.toFixed(2) + ' · 已用 $' + used.toFixed(2) + ' · 剩余 $' + remain.toFixed(2);
+            }
+            msgEl.className = 'api-test-msg show ok';
+            msgEl.textContent = txt;
+            appendLog({
+              module: mod.tag,
+              source: '查询剩余额度',
+              ok: true,
+              rawError: txt
+            });
+          });
+      })
+      .catch(function (err) {
+        msgEl.className = 'api-test-msg show err';
+        msgEl.textContent = '该站点未开放接口查余额，请到中转站后台查看';
+        appendLog({
+          module: mod.tag,
+          source: '查询剩余额度',
+          ok: false,
+          rawError: err.message || String(err),
+          analysis: '该中转站或官方接口未开放 Key 查余额权限，属于正常现象，请直接登录中转站网页查看。'
         });
       });
   }
@@ -745,7 +849,7 @@
     }
 
     msgEl.className = 'api-test-msg show';
-    msgEl.textContent = '正在测试连接（仅查接口，不扣对话额度）...';
+    msgEl.textContent = '正在测试连接（仅查接口，0 扣费）...';
     var start = Date.now();
 
     var endpoint = '';
@@ -810,9 +914,9 @@
     if (delPresetBtn) {
       e.stopPropagation();
       var delId = delPresetBtn.getAttribute('data-del-preset');
-      var list = loadLlmPresets().filter(function (p) { return p.id !== delId; });
-      saveLlmPresets(list);
-      if (configs.llm.activePresetId === delId) configs.llm.activePresetId = '';
+      var list = loadBundlePresets().filter(function (p) { return p.id !== delId; });
+      saveBundlePresets(list);
+      if (configs._activeBundleId === delId) configs._activeBundleId = '';
       saveAllConfigs(configs);
       renderAll();
       return;
@@ -821,14 +925,18 @@
     var loadPresetBtn = e.target.closest('[data-load-preset]');
     if (loadPresetBtn) {
       var pid = loadPresetBtn.getAttribute('data-load-preset');
-      var hit = loadLlmPresets().find(function (p) { return p.id === pid; });
-      if (hit) {
-        configs.llm = {
-          activePresetId: hit.id,
-          primary: Object.assign(createEmptySlot('llm'), hit.primary || {}),
-          backupEnabled: !!hit.backupEnabled,
-          backup: Object.assign(createEmptySlot('llm'), hit.backup || {})
-        };
+      var hit = loadBundlePresets().find(function (p) { return p.id === pid; });
+      if (hit && hit.modules) {
+        ['llm', 'voice', 'image'].forEach(function (k) {
+          if (hit.modules[k]) {
+            configs[k] = {
+              primary: Object.assign(createEmptySlot(k), hit.modules[k].primary || {}),
+              backupEnabled: !!hit.modules[k].backupEnabled,
+              backup: Object.assign(createEmptySlot(k), hit.modules[k].backup || {})
+            };
+          }
+        });
+        configs._activeBundleId = hit.id;
         saveAllConfigs(configs);
         renderAll();
         var msgEl = document.getElementById('api_msg_presets');
@@ -841,39 +949,55 @@
     }
 
     if (e.target.closest('#apiSavePresetBtn')) {
-      syncInputsToState('llm');
-      var nameEl = document.getElementById('apiLlmPresetName');
+      syncAllOpenInputs();
+      var bundleMods = {};
+      ['llm', 'voice', 'image'].forEach(function (k) {
+        var p = configs[k].primary;
+        if ((p.url && p.url.trim()) || (p.key && p.key.trim())) {
+          bundleMods[k] = JSON.parse(JSON.stringify(configs[k]));
+        }
+      });
+
+      var nameEl = document.getElementById('apiBundleName');
       var pName = nameEl ? nameEl.value.trim() : '';
-      if (!pName) {
-        var prov = getProviderObj('llm', configs.llm.primary.type);
-        pName = prov.label + (configs.llm.primary.model ? ' · ' + configs.llm.primary.model : '');
+      if (!Object.keys(bundleMods).length) {
+        var warnEl = document.getElementById('api_msg_presets');
+        if (warnEl) {
+          warnEl.className = 'api-test-msg show err';
+          warnEl.textContent = '请先在上面至少填写一个模型的地址或 Key';
+        }
+        return;
       }
-      var presets = loadLlmPresets();
-      var newId = 'llm_' + Date.now();
+      if (!pName) {
+        var firstK = Object.keys(bundleMods)[0];
+        var prov = getProviderObj(firstK, bundleMods[firstK].primary.type);
+        pName = prov.label + (bundleMods[firstK].primary.model ? ' · ' + bundleMods[firstK].primary.model : '');
+      }
+
+      var presets = loadBundlePresets();
+      var newId = 'b_' + Date.now();
       presets.unshift({
         id: newId,
         name: pName,
-        primary: JSON.parse(JSON.stringify(configs.llm.primary)),
-        backupEnabled: configs.llm.backupEnabled,
-        backup: JSON.parse(JSON.stringify(configs.llm.backup))
+        modules: bundleMods
       });
-      saveLlmPresets(presets);
-      configs.llm.activePresetId = newId;
+      saveBundlePresets(presets);
+      configs._activeBundleId = newId;
       saveAllConfigs(configs);
       renderAll();
       var lMsg = document.getElementById('api_msg_presets');
       if (lMsg) {
         lMsg.className = 'api-test-msg show ok';
-        lMsg.textContent = '已保存新配置组「' + pName + '」';
+        lMsg.textContent = '已保存配置组「' + pName + '」';
       }
       return;
     }
 
     var head = e.target.closest('[data-toggle-card]');
     if (head) {
-      if (openKey && openKey !== 'logs' && openKey !== 'presets') syncInputsToState(openKey);
+      syncAllOpenInputs();
       var k = head.getAttribute('data-toggle-card');
-      openKey = openKey === k ? '' : k;
+      openCards[k] = !openCards[k];
       renderAll();
       return;
     }
@@ -885,7 +1009,7 @@
       var val = typeBtn.getAttribute('data-val');
       syncInputsToState(mk);
       configs[mk][sl].type = val;
-      if (mk === 'llm') configs.llm.activePresetId = '';
+      configs._activeBundleId = '';
       renderAll();
       return;
     }
@@ -941,6 +1065,12 @@
     var testBtn = e.target.closest('[data-test-mod]');
     if (testBtn) {
       testConnection(testBtn.getAttribute('data-test-mod'));
+      return;
+    }
+
+    var quotaBtn = e.target.closest('[data-quota-mod]');
+    if (quotaBtn) {
+      checkQuota(quotaBtn.getAttribute('data-quota-mod'));
       return;
     }
 
