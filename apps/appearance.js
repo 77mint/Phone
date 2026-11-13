@@ -119,6 +119,7 @@
     '<input type="file" id="inputAppIcon" accept="image/*" style="display:none;">';
 
   var bottomBar = document.getElementById('lgBottomBar');
+  var backBtn = root.querySelector('.app-back');
   var tabs = root.querySelectorAll('.lg-tab');
   tabs.forEach(function (tab) {
     tab.addEventListener('click', function () {
@@ -126,6 +127,7 @@
       tab.classList.add('active');
       var target = tab.getAttribute('data-tab');
       bottomBar.classList.toggle('is-icons', target === 'icons');
+      if (backBtn) backBtn.style.display = target === 'icons' ? 'none' : '';
       root.querySelectorAll('.tab-panel').forEach(function (p) {
         p.classList.toggle('active', p.id === 'panel-' + target);
       });
