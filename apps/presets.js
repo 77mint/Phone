@@ -35,7 +35,6 @@
     }
   }
 
-  // 估算中英文混合文本 Token（中文约 1.5 tok/字，英文/符号约 0.28 tok/字符）
   function estimateTokens(text) {
     if (!text) return 0;
     const str = String(text);
@@ -85,55 +84,57 @@
     if (!root) return;
 
     root.innerHTML = `
-      <div class="pr-topbar">
-        <div class="pr-topbar-left">
-          <button class="app-back" type="button" aria-label="返回">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-          </button>
-          <div class="pr-title">预设</div>
-        </div>
-        <div class="pr-topbar-actions">
-          <button class="pr-pill-btn" id="prImportBtn" type="button">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            导入
-          </button>
-          <button class="pr-pill-btn is-dark" id="prNewBtn" type="button">+ 新建</button>
-        </div>
-      </div>
-
-      <div class="pr-scroll" id="prListScroll"></div>
-
-      <div class="pr-detail" id="prDetailView">
+      <div class="pr-wrap">
         <div class="pr-topbar">
           <div class="pr-topbar-left">
-            <input class="pr-detail-name-input" id="prDetailName" type="text" placeholder="预设名称" />
+            <button class="app-back" type="button" aria-label="返回">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <div class="pr-title">预设</div>
           </div>
           <div class="pr-topbar-actions">
-            <button class="pr-icon-btn" id="prExportBtn" type="button" aria-label="导出">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+            <button class="pr-pill-btn" id="prImportBtn" type="button">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              导入
             </button>
-            <button class="pr-icon-btn" id="prCloseDetailBtn" type="button" aria-label="关闭">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
+            <button class="pr-pill-btn is-dark" id="prNewBtn" type="button">+ 新建</button>
           </div>
         </div>
-        <div class="pr-scroll" id="prDetailScroll"></div>
-      </div>
 
-      <div class="pr-modal-mask" id="prNewModal">
-        <div class="pr-modal">
-          <div class="pr-modal-head">
-            <div class="pr-modal-title">新建预设</div>
-            <button class="pr-icon-btn" id="prCloseModalBtn" type="button" aria-label="关闭">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
+        <div class="pr-scroll" id="prListScroll"></div>
+
+        <div class="pr-detail" id="prDetailView">
+          <div class="pr-topbar">
+            <div class="pr-topbar-left">
+              <input class="pr-detail-name-input" id="prDetailName" type="text" placeholder="预设名称" />
+            </div>
+            <div class="pr-topbar-actions">
+              <button class="pr-icon-btn" id="prExportBtn" type="button" aria-label="导出">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+              </button>
+              <button class="pr-icon-btn" id="prCloseDetailBtn" type="button" aria-label="关闭">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
           </div>
-          <input class="pr-input" id="prNewNameInput" type="text" placeholder="输入预设名称" />
-          <button class="pr-modal-submit" id="prCreateConfirmBtn" type="button">创建</button>
+          <div class="pr-scroll" id="prDetailScroll"></div>
         </div>
-      </div>
 
-      <input type="file" id="prImportFile" accept=".json,application/json" style="display:none" />
+        <div class="pr-modal-mask" id="prNewModal">
+          <div class="pr-modal">
+            <div class="pr-modal-head">
+              <div class="pr-modal-title">新建预设</div>
+              <button class="pr-icon-btn" id="prCloseModalBtn" type="button" aria-label="关闭">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <input class="pr-input" id="prNewNameInput" type="text" placeholder="输入预设名称" />
+            <button class="pr-modal-submit" id="prCreateConfirmBtn" type="button">创建</button>
+          </div>
+        </div>
+
+        <input type="file" id="prImportFile" accept=".json,application/json" style="display:none" />
+      </div>
     `;
 
     bindBaseEvents(root);
@@ -141,13 +142,6 @@
   }
 
   function bindBaseEvents(root) {
-    const backBtn = root.querySelector('.app-back');
-    if (backBtn) {
-      backBtn.addEventListener('click', () => {
-        if (typeof window.closeApp === 'function') window.closeApp();
-      });
-    }
-
     const newBtn = root.querySelector('#prNewBtn');
     const newModal = root.querySelector('#prNewModal');
     const newInput = root.querySelector('#prNewNameInput');
@@ -582,7 +576,6 @@
     });
   }
 
-  // 解析 SillyTavern 预设 JSON
   function parseSTPreset(json, fallbackName) {
     const rawPrompts = Array.isArray(json.prompts) ? json.prompts : [];
     const promptMap = {};
@@ -609,7 +602,7 @@
             id: uid('ent'),
             name: item.name || o.identifier,
             role: ['system', 'user', 'assistant'].includes(item.role) ? item.role : 'system',
-            slot: item.marker && markerMap[item.marker ? o.identifier : ''] ? markerMap[o.identifier] : (markerMap[o.identifier] || 'text'),
+            slot: markerMap[o.identifier] || 'text',
             content: item.content || '',
             enabled: o.enabled !== false
           });
@@ -686,7 +679,6 @@
     URL.revokeObjectURL(url);
   }
 
-  // 对外接口：供 iMessage / 线下 App 调用
   window.PhonePresets = {
     getPresets: () => presets.slice(),
     getActivePreset: () => presets.find(p => p.id === activeId) || presets[0] || null,
