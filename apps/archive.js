@@ -3,16 +3,21 @@
   if (!root) return;
 
   var CHARS_KEY = 'phone_archive_chars';
+  var GROUPS_KEY = 'phone_archive_groups';
 
   var charAvatarCache = {};
+  var npcAvatarCache = {};
   var editingCharId = '';
   var tempCharAvatar = '';
   var currentSubTab = 'info';
   var tempGender = '女';
+  var tempGroup = 'Default';
   var tempNpcs = [];
   var openNpcIds = {};
+  var activeGroupFilter = '全部';
   var netCharId = '';
   var selectedNpcId = '';
+  var pickingNpcAvatarId = '';
 
   var SUB_TAB_INDEX = { info: 0, mask: 1, social: 2 };
   var HANDLE_PREFIX = ['velvet', 'noir', 'mori', 'echo', 'luna', 'soren', 'mint', 'ash', 'kuro', 'vivi', 'lune', 'zen', 'iris', 'sol'];
@@ -34,6 +39,21 @@
     return out;
   }
 
+  function getGroups() {
+    try {
+      var arr = JSON.parse(localStorage.getItem(GROUPS_KEY) || '["Default"]');
+      if (!Array.isArray(arr) || !arr.length) return ['Default'];
+      if (arr.indexOf('Default') === -1) arr.unshift('Default');
+      return arr;
+    } catch (e) {
+      return ['Default'];
+    }
+  }
+
+  function saveGroups(list) {
+    localStorage.setItem(GROUPS_KEY, JSON.stringify(list));
+  }
+
   function getChars() {
     try {
       var arr = JSON.parse(localStorage.getItem(CHARS_KEY) || '[]');
@@ -49,6 +69,7 @@
 
   window.PhoneArchive = {
     getChars: getChars,
+    getGroups: getGroups,
     getCharById: function (id) {
       return getChars().find(function (c) { return c.id === id; }) || null;
     }
@@ -83,6 +104,7 @@
 
       '<div class="ar-body">' +
         '<div class="ar-home-panel active" id="arPanelChar">' +
+          '<div class="ar-pills-row" id="arGroupFilterBar"></div>' +
           '<div class="ar-list" id="arCharList"></div>' +
         '</div>' +
         '<div class="ar-home-panel" id="arPanelNetwork">' +
@@ -137,6 +159,14 @@
                     '<div class="ar-rand-btn" id="arRandPwdBtn">随机</div>' +
                   '</div>' +
                 '</div>' +
+                '<div>' +
+                  '<div class="ar-field-label">分组</div>' +
+                  '<div class="ar-group-chips" id="arEditorGroupChips"></div>' +
+                  '<div class="ar-input-box">' +
+                    '<input type="text" class="ar-input" id="arNewGroupInput" placeholder="输入新分组名">' +
+                    '<div class="ar-rand-btn" id="arAddGroupBtn">+ 添加</div>' +
+                  '</div>' +
+                '</div>' +
               '</div>' +
             '</div>' +
 
@@ -183,6 +213,7 @@
 
       '<div class="ar-toast" id="arToast"></div>' +
       '<input type="file" id="arInputCharAvatar" accept="image/*" style="display:none;">' +
+      '<input type="file" id="arInputNpcAvatar" accept="image/*" style="display:none;">' +
     '</div>';
 
   var toastTimer = null;
@@ -198,17 +229,28 @@
 
   function renderCharsList() {
     var list = getChars();
+    var groups = getGroups();
+    var filterBar = document.getElementById('arGroupFilterBar');
+    filterBar.innerHTML = ['全部'].concat(groups).map(function (g) {
+      var on = activeGroupFilter === g ? ' active' : '';
+      return '<div class="ar-pill-btn' + on + '" data-filter-group="' + escapeHtml(g) + '">' + escapeHtml(g) + '</div>';
+    }).join('');
+
+    var filtered = activeGroupFilter === '全部'
+      ? list
+      : list.filter(function (c) { return (c.group || 'Default') === activeGroupFilter; });
+
     var box = document.getElementById('arCharList');
-    if (!list.length) {
+    if (!filtered.length) {
       box.innerHTML =
         '<div class="ar-empty">' +
-          '<div class="ar-empty-title">还没有角色档案</div>' +
-          '<div class="ar-empty-sub">点击右上角「+ 新建」添加第一个角色</div>' +
+          '<div class="ar-empty-title">' + (list.length ? '该分组暂无角色' : '还没有角色档案') + '</div>' +
+          '<div class="ar-empty-sub">点击右上角「+ 新建」添加角色</div>' +
         '</div>';
       return;
     }
 
-    box.innerHTML = list.map(function (c) {
+    box.innerHTML = filtered.map(function (c) {
       var av = charAvatarCache[c.id] || '';
       var avCls = 'ar-avatar' + (av ? ' has-img' : '');
       var avStyle = av ? ' style="background-image:url(\'' + av + '\')"' : '';
@@ -222,7 +264,7 @@
           '<div class="ar-card-info">' +
             '<div class="ar-card-top">' +
               '<div class="ar-card-name">' + escapeHtml(displayName) + '</div>' +
-              (c.handle ? '<span class="ar-card-tag">' + escapeHtml(c.handle) + '</span>' : '') +
+              '<span class="ar-card-tag">' + escapeHtml(c.group || 'Default') + '</span>' +
             '</div>' +
             '<div class="ar-card-sub">' + escapeHtml(sub) + '</div>' +
           '</div>' +
@@ -249,38 +291,48 @@
     var npcs = Array.isArray(activeChar.npcs) ? activeChar.npcs : [];
 
     var pillsHtml = list.length > 1
-      ? '<div class="ar-net-pills">' + list.map(function (c) {
+      ? '<div class="ar-pills-row">' + list.map(function (c) {
           var cname = c.name || c.nickname || '未命名';
           var on = c.id === activeChar.id ? ' active' : '';
-          return '<div class="ar-net-pill' + on + '" data-net-char="' + escapeHtml(c.id) + '">' + escapeHtml(cname) + '</div>';
+          return '<div class="ar-pill-btn' + on + '" data-net-char="' + escapeHtml(c.id) + '">' + escapeHtml(cname) + '</div>';
         }).join('') + '</div>'
       : '';
 
     var centerName = activeChar.name || activeChar.nickname || '主角';
     var centerAv = charAvatarCache[activeChar.id] || '';
-    var centerStyle = 'left:50%;top:50%;';
     var centerCircleStyle = centerAv ? 'background-image:url(\'' + centerAv + '\');' : '';
 
     var linesSvg = '';
+    var relLabelsHtml = '';
     var nodesHtml =
-      '<div class="ar-net-node is-center" style="' + centerStyle + '" data-net-center="' + escapeHtml(activeChar.id) + '">' +
+      '<div class="ar-net-node is-center" style="left:50%;top:50%;" data-net-center="' + escapeHtml(activeChar.id) + '">' +
         '<div class="ar-net-circle' + (centerAv ? ' has-img' : '') + '" style="' + centerCircleStyle + '">' + escapeHtml(centerName.slice(0, 1)) + '</div>' +
         '<div class="ar-net-label">' + escapeHtml(centerName) + '</div>' +
       '</div>';
 
     npcs.forEach(function (npc, idx) {
       var angle = (Math.PI * 2 * idx) / npcs.length - Math.PI / 2;
-      var rx = 34;
-      var ry = 34;
+      var rx = 36;
+      var ry = 36;
       var xPct = 50 + rx * Math.cos(angle);
       var yPct = 50 + ry * Math.sin(angle);
+      var midX = (50 + xPct) / 2;
+      var midY = (50 + yPct) / 2;
       var sel = selectedNpcId === npc.id ? ' selected' : '';
       var nName = npc.name || 'NPC';
+      var nAv = npc.hasSocial ? (npcAvatarCache[npc.id] || '') : '';
+      var nAvStyle = nAv ? 'background-image:url(\'' + nAv + '\');' : '';
 
       linesSvg += '<line x1="50%" y1="50%" x2="' + xPct.toFixed(1) + '%" y2="' + yPct.toFixed(1) + '%" stroke="#d1d1d6" stroke-width="1.5" stroke-dasharray="4 3" />';
+      if (npc.relation) {
+        relLabelsHtml += '<div class="ar-net-rel" style="left:' + midX.toFixed(1) + '%;top:' + midY.toFixed(1) + '%;">' + escapeHtml(npc.relation) + '</div>';
+      }
       nodesHtml +=
         '<div class="ar-net-node' + sel + '" style="left:' + xPct.toFixed(1) + '%;top:' + yPct.toFixed(1) + '%;" data-net-npc="' + escapeHtml(npc.id) + '">' +
-          '<div class="ar-net-circle">' + escapeHtml(nName.slice(0, 1)) + '</div>' +
+          '<div class="ar-net-circle' + (nAv ? ' has-img' : '') + '" style="' + nAvStyle + '">' +
+            escapeHtml(nName.slice(0, 1)) +
+            (npc.hasSocial ? '<span class="ar-net-social-dot"></span>' : '') +
+          '</div>' +
           '<div class="ar-net-label">' + escapeHtml(nName) + '</div>' +
         '</div>';
     });
@@ -289,15 +341,22 @@
     if (!npcs.length) {
       detailHtml =
         '<div class="ar-net-detail">' +
-          '<div class="ar-net-detail-title">' + escapeHtml(centerName) + ' 的交际圈</div>' +
+          '<div class="ar-net-detail-head"><div class="ar-net-detail-title">' + escapeHtml(centerName) + ' 的关系网</div></div>' +
           '<div class="ar-net-detail-desc">该角色暂未添加 NPC，去「Char → 交际」里添加后会自动连线到这里。</div>' +
         '</div>';
     } else {
       var targetNpc = npcs.find(function (n) { return n.id === selectedNpcId; }) || npcs[0];
       selectedNpcId = targetNpc.id;
+      var socialMeta = targetNpc.hasSocial
+        ? ('已开通社媒 · ' + (targetNpc.handle || '@未填ID') + (targetNpc.bio ? (' · ' + targetNpc.bio) : ''))
+        : '未设置社交账号（不可在社媒交互）';
       detailHtml =
         '<div class="ar-net-detail">' +
-          '<div class="ar-net-detail-title">' + escapeHtml(targetNpc.name || '未命名 NPC') + '</div>' +
+          '<div class="ar-net-detail-head">' +
+            '<div class="ar-net-detail-title">' + escapeHtml(targetNpc.name || '未命名 NPC') + '</div>' +
+            (targetNpc.relation ? '<span class="ar-card-tag">' + escapeHtml(targetNpc.relation) + '</span>' : '') +
+          '</div>' +
+          '<div class="ar-net-detail-meta">' + escapeHtml(socialMeta) + '</div>' +
           '<div class="ar-net-detail-desc">' + escapeHtml(targetNpc.desc || '暂无详细关系描述') + '</div>' +
         '</div>';
     }
@@ -307,10 +366,19 @@
       '<div class="ar-net-card">' +
         '<div class="ar-net-stage">' +
           '<svg class="ar-net-svg">' + linesSvg + '</svg>' +
+          relLabelsHtml +
           nodesHtml +
         '</div>' +
       '</div>' +
       detailHtml;
+  }
+
+  function renderEditorGroups() {
+    var groups = getGroups();
+    document.getElementById('arEditorGroupChips').innerHTML = groups.map(function (g) {
+      var on = tempGroup === g ? ' active' : '';
+      return '<div class="ar-group-chip' + on + '" data-pick-group="' + escapeHtml(g) + '">' + escapeHtml(g) + '</div>';
+    }).join('');
   }
 
   function syncGenderUI() {
@@ -332,9 +400,15 @@
   function syncNpcInputs() {
     tempNpcs.forEach(function (npc) {
       var nEl = document.getElementById('ar_npc_name_' + npc.id);
+      var rEl = document.getElementById('ar_npc_rel_' + npc.id);
       var dEl = document.getElementById('ar_npc_desc_' + npc.id);
+      var hEl = document.getElementById('ar_npc_handle_' + npc.id);
+      var bEl = document.getElementById('ar_npc_bio_' + npc.id);
       if (nEl) npc.name = nEl.value.trim();
+      if (rEl) npc.relation = rEl.value.trim();
       if (dEl) npc.desc = dEl.value;
+      if (hEl) npc.handle = hEl.value.trim();
+      if (bEl) npc.bio = bEl.value.trim();
     });
   }
 
@@ -346,16 +420,43 @@
     }
     box.innerHTML = tempNpcs.map(function (npc) {
       var isOpen = !!openNpcIds[npc.id];
+      var nAv = npcAvatarCache[npc.id] || '';
+      var nAvCls = 'ar-avatar-lg sm' + (nAv ? ' has-img' : '');
+      var nAvStyle = nAv ? ' style="background-image:url(\'' + nAv + '\')"' : '';
+
       return (
         '<div class="ar-npc-card' + (isOpen ? ' open' : '') + '">' +
           '<div class="ar-npc-head" data-toggle-npc="' + escapeHtml(npc.id) + '">' +
-            '<div class="ar-npc-name">' + escapeHtml(npc.name || '未命名 NPC') + '</div>' +
+            '<div class="ar-npc-head-left">' +
+              '<div class="ar-npc-name">' + escapeHtml(npc.name || '未命名 NPC') + '</div>' +
+              (npc.relation ? '<span class="ar-card-tag">' + escapeHtml(npc.relation) + '</span>' : '') +
+            '</div>' +
             '<svg class="ar-npc-chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></svg>' +
           '</div>' +
           '<div class="ar-npc-body">' +
             '<div class="ar-input-box"><input type="text" class="ar-input" id="ar_npc_name_' + escapeHtml(npc.id) + '" value="' + escapeHtml(npc.name) + '" placeholder="NPC 名字"></div>' +
-            '<div class="ar-input-box"><textarea class="ar-textarea" style="min-height:110px;" id="ar_npc_desc_' + escapeHtml(npc.id) + '" placeholder="写下该 NPC 的身份、性格与和主角的关系...">' + escapeHtml(npc.desc) + '</textarea></div>' +
-            '<div class="ar-npc-del" data-del-npc="' + escapeHtml(npc.id) + '">删除该 NPC</div>' +
+            '<div class="ar-input-box"><input type="text" class="ar-input" id="ar_npc_rel_' + escapeHtml(npc.id) + '" value="' + escapeHtml(npc.relation || '') + '" placeholder="关系（如：父女、青梅竹马、宿敌）"></div>' +
+            '<div class="ar-input-box"><textarea class="ar-textarea" style="min-height:105px;" id="ar_npc_desc_' + escapeHtml(npc.id) + '" placeholder="写下该 NPC 的身份、性格与和主角的故事...">' + escapeHtml(npc.desc) + '</textarea></div>' +
+            '<div class="ar-npc-social-box' + (npc.hasSocial ? ' open' : '') + '">' +
+              '<div class="ar-avatar-picker">' +
+                '<div class="' + nAvCls + '" data-npc-avatar="' + escapeHtml(npc.id) + '"' + nAvStyle + '>' + SVG_USER + '</div>' +
+                '<div class="ar-avatar-hint">点击上传 NPC 头像</div>' +
+              '</div>' +
+              '<div class="ar-input-box">' +
+                '<input type="text" class="ar-input" id="ar_npc_handle_' + escapeHtml(npc.id) + '" value="' + escapeHtml(npc.handle || '') + '" placeholder="@社媒ID">' +
+                '<div class="ar-rand-btn" data-npc-rand="' + escapeHtml(npc.id) + '">随机</div>' +
+              '</div>' +
+              '<div class="ar-input-box">' +
+                '<input type="text" class="ar-input" id="ar_npc_bio_' + escapeHtml(npc.id) + '" value="' + escapeHtml(npc.bio || '') + '" placeholder="社媒个性签名">' +
+              '</div>' +
+            '</div>' +
+            '<div class="ar-npc-foot">' +
+              '<div class="ar-npc-del" data-del-npc="' + escapeHtml(npc.id) + '">删除该 NPC</div>' +
+              '<div class="ar-switch-inline" data-toggle-npc-social="' + escapeHtml(npc.id) + '">' +
+                '<span class="ar-switch-inline-label">设置社交账号</span>' +
+                '<div class="ar-switch' + (npc.hasSocial ? ' on' : '') + '"><div class="ar-switch-thumb"></div></div>' +
+              '</div>' +
+            '</div>' +
           '</div>' +
         '</div>'
       );
@@ -364,11 +465,20 @@
 
   function initLoad() {
     var list = getChars();
-    Promise.all(list.map(function (c) {
-      return PhoneDB.get('archive_char_avatar_' + c.id).then(function (u) {
+    var tasks = [];
+    list.forEach(function (c) {
+      tasks.push(PhoneDB.get('archive_char_avatar_' + c.id).then(function (u) {
         if (u) charAvatarCache[c.id] = u;
-      });
-    })).then(function () {
+      }));
+      if (Array.isArray(c.npcs)) {
+        c.npcs.forEach(function (n) {
+          tasks.push(PhoneDB.get('archive_npc_avatar_' + n.id).then(function (u) {
+            if (u) npcAvatarCache[n.id] = u;
+          }));
+        });
+      }
+    });
+    Promise.all(tasks).then(function () {
       renderCharsList();
       renderNetwork();
     });
@@ -405,6 +515,7 @@
     editingCharId = charObj ? charObj.id : '';
     tempCharAvatar = charObj ? (charAvatarCache[charObj.id] || '') : '';
     tempGender = (charObj && charObj.gender) ? charObj.gender : '女';
+    tempGroup = (charObj && charObj.group) ? charObj.group : 'Default';
     tempNpcs = (charObj && Array.isArray(charObj.npcs)) ? JSON.parse(JSON.stringify(charObj.npcs)) : [];
     openNpcIds = {};
 
@@ -417,6 +528,7 @@
     document.getElementById('arCharAge').value = charObj ? (charObj.age || '') : '';
     document.getElementById('arCharPersona').value = charObj ? (charObj.persona || '') : '';
     syncGenderUI();
+    renderEditorGroups();
 
     document.getElementById('arDeleteCharBtn').style.display = charObj ? 'flex' : 'none';
 
@@ -457,6 +569,35 @@
     document.getElementById('arCharPassword').value = genPassword();
   });
 
+  document.getElementById('arEditorGroupChips').addEventListener('click', function (e) {
+    var chip = e.target.closest('[data-pick-group]');
+    if (!chip) return;
+    tempGroup = chip.getAttribute('data-pick-group');
+    renderEditorGroups();
+  });
+
+  document.getElementById('arAddGroupBtn').addEventListener('click', function () {
+    var inp = document.getElementById('arNewGroupInput');
+    var name = inp.value.trim();
+    if (!name) return;
+    var groups = getGroups();
+    if (groups.indexOf(name) === -1) {
+      groups.push(name);
+      saveGroups(groups);
+    }
+    tempGroup = name;
+    inp.value = '';
+    renderEditorGroups();
+    showToast('已添加分组「' + name + '」');
+  });
+
+  document.getElementById('arGroupFilterBar').addEventListener('click', function (e) {
+    var pill = e.target.closest('[data-filter-group]');
+    if (!pill) return;
+    activeGroupFilter = pill.getAttribute('data-filter-group');
+    renderCharsList();
+  });
+
   document.getElementById('arGenderSeg').addEventListener('click', function (e) {
     var btn = e.target.closest('[data-gender]');
     if (!btn) return;
@@ -467,7 +608,7 @@
   document.getElementById('arAddNpcBtn').addEventListener('click', function () {
     syncNpcInputs();
     var nid = 'npc_' + Date.now();
-    tempNpcs.push({ id: nid, name: '新 NPC', desc: '' });
+    tempNpcs.push({ id: nid, name: '新 NPC', relation: '', desc: '', hasSocial: false, handle: genHandle(), bio: '' });
     openNpcIds[nid] = true;
     renderNpcList();
   });
@@ -482,6 +623,31 @@
       renderNpcList();
       return;
     }
+    var socialToggle = e.target.closest('[data-toggle-npc-social]');
+    if (socialToggle) {
+      syncNpcInputs();
+      var sid = socialToggle.getAttribute('data-toggle-npc-social');
+      var target = tempNpcs.find(function (n) { return n.id === sid; });
+      if (target) {
+        target.hasSocial = !target.hasSocial;
+        if (target.hasSocial && !target.handle) target.handle = genHandle();
+        renderNpcList();
+      }
+      return;
+    }
+    var randBtn = e.target.closest('[data-npc-rand]');
+    if (randBtn) {
+      var rid = randBtn.getAttribute('data-npc-rand');
+      var hEl = document.getElementById('ar_npc_handle_' + rid);
+      if (hEl) hEl.value = genHandle();
+      return;
+    }
+    var avBtn = e.target.closest('[data-npc-avatar]');
+    if (avBtn) {
+      pickingNpcAvatarId = avBtn.getAttribute('data-npc-avatar');
+      document.getElementById('arInputNpcAvatar').click();
+      return;
+    }
     var head = e.target.closest('[data-toggle-npc]');
     if (head) {
       syncNpcInputs();
@@ -489,6 +655,21 @@
       openNpcIds[tid] = !openNpcIds[tid];
       renderNpcList();
     }
+  });
+
+  document.getElementById('arInputNpcAvatar').addEventListener('change', function () {
+    var file = this.files && this.files[0];
+    if (!file || !pickingNpcAvatarId) return;
+    var nid = pickingNpcAvatarId;
+    var reader = new FileReader();
+    reader.onload = function () {
+      npcAvatarCache[nid] = reader.result;
+      PhoneDB.set('archive_npc_avatar_' + nid, reader.result);
+      syncNpcInputs();
+      renderNpcList();
+    };
+    reader.readAsDataURL(file);
+    this.value = '';
   });
 
   document.getElementById('arCharList').addEventListener('click', function (e) {
@@ -548,6 +729,7 @@
       bio: document.getElementById('arCharBio').value.trim(),
       handle: document.getElementById('arCharHandle').value.trim(),
       password: document.getElementById('arCharPassword').value.trim(),
+      group: tempGroup || 'Default',
       name: name,
       age: document.getElementById('arCharAge').value.trim(),
       gender: tempGender,
