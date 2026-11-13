@@ -10,6 +10,7 @@
 <title>小手机</title>
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="apps/appearance.css">
+<link rel="stylesheet" href="apps/api.css">
 </head>
 <body>
 <div class="phone" id="phone">
@@ -19,6 +20,10 @@
       <div class="app" data-app="appearance">
         <div class="app-icon has-custom-icon" data-default-icon="icons/A7EE88CF-C100-4741-A665-F0CBF7255BB9.jpeg" style="background-image: url('icons/A7EE88CF-C100-4741-A665-F0CBF7255BB9.jpeg');"></div>
         <div class="app-name">外观</div>
+      </div>
+      <div class="app" data-app="api">
+        <div class="app-icon bg-5">🔌</div>
+        <div class="app-name">API</div>
       </div>
     </div>
     <div class="dock glass">
@@ -37,6 +42,7 @@
     </div>
   </div>
   <div class="app-screen" id="app-appearance"></div>
+  <div class="app-screen" id="app-api"></div>
   <div class="lock-screen" id="lockScreen">
     <div class="lock-wallpaper" id="lockWallpaper"></div>
     <div class="lock-clock">
@@ -51,5 +57,6 @@
 </div>
 <script src="app.js"></script>
 <script src="apps/appearance.js"></script>
+<script src="apps/api.js"></script>
 </body>
 </html>
