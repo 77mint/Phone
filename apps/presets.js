@@ -103,7 +103,7 @@
       <div class="pr-wrap">
         <div class="pr-topbar">
           <div class="pr-topbar-left">
-            <button class="app-back" id="prBackBtn" type="button" aria-label="返回">
+            <button class="app-back" id="prBackBtn" data-close-app type="button" aria-label="返回">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
             </button>
             <div class="pr-title" id="prPageTitle">预设</div>
@@ -120,14 +120,8 @@
         <div class="pr-scroll" id="prListScroll"></div>
 
         <div class="pr-bottom-bar">
-          <button class="pr-tab-btn is-active" data-tab="online" type="button">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-            线上
-          </button>
-          <button class="pr-tab-btn" data-tab="offline" type="button">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-            线下
-          </button>
+          <button class="pr-tab-btn is-active" data-tab="online" type="button">线上</button>
+          <button class="pr-tab-btn" data-tab="offline" type="button">线下</button>
         </div>
 
         <div class="pr-detail" id="prDetailView">
@@ -823,9 +817,9 @@
   };
 
   loadData();
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', renderDOM);
-  } else {
+  if (document.getElementById('app-presets')) {
     renderDOM();
+  } else {
+    document.addEventListener('DOMContentLoaded', renderDOM);
   }
 })();
