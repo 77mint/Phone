@@ -84,11 +84,43 @@ window.applyCustomFont = function (buf, familyId) {
   } catch (e) {}
 };
 
+window.applyAppIcon = function (appId, url) {
+  var icons = document.querySelectorAll('.app[data-app="' + appId + '"] .app-icon');
+  icons.forEach(function (el) {
+    if (url) {
+      el.style.backgroundImage = 'url("' + url + '")';
+      el.classList.add('has-custom-icon');
+    } else {
+      el.style.backgroundImage = '';
+      el.classList.remove('has-custom-icon');
+    }
+  });
+};
+
+window.applyHomeScreenIcon = function (url) {
+  var link = document.querySelector('link[rel="apple-touch-icon"]');
+  if (!link) {
+    link = document.createElement('link');
+    link.rel = 'apple-touch-icon';
+    document.head.appendChild(link);
+  }
+  if (url) link.href = url;
+  else link.removeAttribute('href');
+};
+
 (function initTheme() {
   var size = localStorage.getItem('phone_font_size');
   if (size) document.documentElement.style.setProperty('--app-font-size', size + 'px');
   PhoneDB.get('home_wallpaper').then(window.applyHomeWallpaper);
   PhoneDB.get('lock_wallpaper').then(window.applyLockWallpaper);
+  PhoneDB.get('home_screen_icon').then(function (url) {
+    if (url) window.applyHomeScreenIcon(url);
+  });
+  ['appearance', 'chat', 'photos', 'music', 'settings'].forEach(function (id) {
+    PhoneDB.get('icon_' + id).then(function (url) {
+      if (url) window.applyAppIcon(id, url);
+    });
+  });
   var activeFontId = localStorage.getItem('phone_active_font_id');
   if (activeFontId) {
     PhoneDB.get('font_' + activeFontId).then(function (buf) {
