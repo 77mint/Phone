@@ -4,11 +4,11 @@
 
   var APPS_LIST = [
     { id: 'appearance', name: '外观', emoji: '🎨', bg: 'bg-1', defaultIcon: 'icons/A7EE88CF-C100-4741-A665-F0CBF7255BB9.jpeg' },
-    { id: 'api', name: 'API', emoji: '🔌', bg: 'bg-5' },
+    { id: 'api', name: 'API', emoji: '🔌', bg: 'bg-5', defaultIcon: 'icons/44338454-03E6-44C1-B306-57D7206E0E1F.png' },
     { id: 'chat', name: '聊天', emoji: '💬', bg: 'bg-2' },
     { id: 'photos', name: '相册', emoji: '🖼️', bg: 'bg-3' },
     { id: 'music', name: '音乐', emoji: '🎵', bg: 'bg-4' },
-    { id: 'settings', name: '设置', emoji: '⚙️', bg: 'bg-5' }
+    { id: 'settings', name: '设置', emoji: '⚙️', bg: 'bg-5', defaultIcon: 'icons/0344588B-36B5-4191-BB45-8C3B4D3D3C11.png' }
   ];
 
   root.innerHTML =
