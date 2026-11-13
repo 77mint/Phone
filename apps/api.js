@@ -170,6 +170,7 @@
     logs.unshift({
       time: hh + ':' + mm + ':' + ss,
       module: entry.module || 'LLM',
+      source: entry.source || '接口调用',
       ok: !!entry.ok,
       raw: raw,
       analysis: analysis
@@ -260,28 +261,57 @@
     return list.find(function (x) { return x.id === typeId; }) || list[0];
   }
 
-  function buildLlmPresetsBar(c) {
+  function buildPresetsCard() {
     var presets = loadLlmPresets();
-    var chips = presets.map(function (p) {
-      var on = c.activePresetId === p.id ? ' active' : '';
-      return (
-        '<div class="api-preset-chip' + on + '" data-load-preset="' + escapeHtml(p.id) + '">' +
-          '<span>' + escapeHtml(p.name) + '</span>' +
-          '<span class="api-preset-del" data-del-preset="' + escapeHtml(p.id) + '">×</span>' +
-        '</div>'
-      );
-    }).join('');
+    var isOpen = openKey === 'presets';
+    var activePreset = presets.find(function (p) { return p.id === configs.llm.activePresetId; });
+    var subText = presets.length
+      ? ('共 ' + presets.length + ' 组' + (activePreset ? (' · 当前：' + activePreset.name) : ''))
+      : '暂无保存组（点击展开保存当前配置）';
+
+    var listHtml = !presets.length
+      ? '<div class="api-switch-sub" style="padding:10px 0 4px;">在上方「语言模型」填好地址和 Key 后，起个名字就能存成一组。</div>'
+      : '<div class="api-preset-list">' + presets.map(function (p) {
+          var isAct = configs.llm.activePresetId === p.id;
+          var prov = getProviderObj('llm', (p.primary && p.primary.type) || 'openai');
+          var meta = prov.label + (p.primary && p.primary.model ? ' · ' + p.primary.model : '') + (p.backupEnabled ? ' · 含副API' : '');
+          return (
+            '<div class="api-preset-row' + (isAct ? ' active' : '') + '">' +
+              '<div class="api-preset-info">' +
+                '<div class="api-preset-name">' + escapeHtml(p.name) + '</div>' +
+                '<div class="api-preset-meta">' + escapeHtml(meta) + '</div>' +
+              '</div>' +
+              '<div class="api-preset-btns">' +
+                '<div class="api-preset-use" data-load-preset="' + escapeHtml(p.id) + '">' + (isAct ? '已启用' : '启用') + '</div>' +
+                '<div class="api-preset-del" data-del-preset="' + escapeHtml(p.id) + '">×</div>' +
+              '</div>' +
+            '</div>'
+          );
+        }).join('') + '</div>';
+
+    var bodyHtml =
+      listHtml +
+      '<div class="api-preset-save-row" style="padding-top:6px;">' +
+        '<div class="api-input-box" style="flex:1;">' +
+          '<input type="text" class="api-input" id="apiLlmPresetName" placeholder="新配置组名称（如：Kiro反代）">' +
+        '</div>' +
+        '<div class="api-mini-action" id="apiSavePresetBtn" style="padding:10px 14px;border-radius:14px;">存为新组</div>' +
+      '</div>' +
+      '<div class="api-test-msg" id="api_msg_presets"></div>';
 
     return (
-      '<div class="api-preset-bar">' +
-        '<div class="api-field-label">已保存配置组</div>' +
-        (chips ? '<div class="api-preset-chips">' + chips + '</div>' : '<div class="api-switch-sub">暂无保存组，填好下方后起个名字保存即可</div>') +
-        '<div class="api-preset-save-row">' +
-          '<div class="api-input-box" style="flex:1;">' +
-            '<input type="text" class="api-input" id="apiLlmPresetName" placeholder="配置组名称（如：Kiro反代）">' +
+      '<div class="api-card' + (isOpen ? ' open' : '') + '" data-card="presets">' +
+        '<div class="api-card-head" data-toggle-card="presets">' +
+          '<div class="api-card-main">' +
+            '<div class="api-card-title-row">' +
+              '<span class="api-card-title">已保存配置组</span>' +
+              '<span class="api-card-tag">PRESETS</span>' +
+            '</div>' +
+            '<div class="api-card-sub' + (presets.length ? ' configured' : '') + '">' + escapeHtml(subText) + '</div>' +
           '</div>' +
-          '<div class="api-mini-action" id="apiSavePresetBtn" style="padding:10px 14px;border-radius:14px;">存为组</div>' +
+          SVG_CHEVRON +
         '</div>' +
+        '<div class="api-card-body">' + bodyHtml + '</div>' +
       '</div>'
     );
   }
@@ -336,7 +366,7 @@
           '</div>' +
         '</div>';
     } else {
-      html += buildSlotFields('translate', 'primary', slot, true);
+      html += buildSlotFields('translate', 'primary', slot);
     }
 
     html += '</div>';
@@ -352,14 +382,14 @@
         '</div>' +
         '<div class="api-sub-section' + (c.backupEnabled ? ' open' : '') + '">' +
           '<div class="api-sub-badge">副 API 配置</div>' +
-          buildSlotFields('translate', 'backup', c.backup, true) +
+          buildSlotFields('translate', 'backup', c.backup) +
         '</div>';
     }
 
     return html;
   }
 
-  function buildSlotFields(modKey, prefix, slot, skipTranslateExtras) {
+  function buildSlotFields(modKey, prefix, slot) {
     var provList = PROVIDERS[modKey] || PROVIDERS.llm;
     var prov = getProviderObj(modKey, slot.type);
 
@@ -471,7 +501,8 @@
     var logs = loadLogs();
     var listEl = document.getElementById('apiAccordionList');
 
-    var html = MODULES.map(function (m) {
+    var html = '';
+    MODULES.forEach(function (m) {
       var c = configs[m.key];
       var isOpen = openKey === m.key;
       var prov = getProviderObj(m.key, c.primary.type);
@@ -502,8 +533,7 @@
         bodyInner = buildTranslateBody(c);
       } else {
         bodyInner =
-          (m.key === 'llm' ? buildLlmPresetsBar(c) : '') +
-          buildSlotFields(m.key, 'primary', c.primary, false) +
+          buildSlotFields(m.key, 'primary', c.primary) +
           '<div class="api-switch-row">' +
             '<div>' +
               '<div class="api-switch-text">副 API</div>' +
@@ -513,13 +543,13 @@
           '</div>' +
           '<div class="api-sub-section' + (c.backupEnabled ? ' open' : '') + '">' +
             '<div class="api-sub-badge">副 API 配置</div>' +
-            buildSlotFields(m.key, 'backup', c.backup, false) +
+            buildSlotFields(m.key, 'backup', c.backup) +
           '</div>';
       }
 
       var testLabel = (m.key === 'translate' && c.primary.mode === 'free') ? '测试翻译' : '测试连接';
 
-      return (
+      html +=
         '<div class="api-card' + (isOpen ? ' open' : '') + '" data-card="' + m.key + '">' +
           '<div class="api-card-head" data-toggle-card="' + m.key + '">' +
             '<div class="api-card-main">' +
@@ -539,14 +569,18 @@
               '<div class="api-btn-primary" data-save-mod="' + m.key + '">保存配置</div>' +
             '</div>' +
           '</div>' +
-        '</div>'
-      );
-    }).join('');
+        '</div>';
+
+      // 紧接在「语言模型 LLM」下面插入独立的「已保存配置组」板块
+      if (m.key === 'llm') {
+        html += buildPresetsCard();
+      }
+    });
 
     var logsOpen = openKey === 'logs';
     var logSub = logs.length ? ('最近 ' + logs.length + ' 条 · 最新 ' + logs[0].time) : '暂无记录';
     var logBodyHtml = !logs.length
-      ? '<div class="api-log-empty">暂无调用记录</div>'
+      ? '<div class="api-log-empty">暂无调用记录（每次真实请求都会记在这里，防止暗中扣费）</div>'
       : '<div class="api-log-list">' + logs.map(function (l) {
           return (
             '<div class="api-log-item">' +
@@ -554,6 +588,7 @@
                 '<span class="api-log-mod' + (l.ok ? '' : ' err') + '">' + escapeHtml(l.module) + ' · ' + (l.ok ? '成功' : '失败') + '</span>' +
                 '<span class="api-log-time">' + escapeHtml(l.time) + '</span>' +
               '</div>' +
+              (l.source ? '<div class="api-log-source">来源：' + escapeHtml(l.source) + '</div>' : '') +
               '<div class="api-log-raw">' + (l.ok ? escapeHtml(l.raw) : ('原报错：' + escapeHtml(l.raw))) + '</div>' +
               (l.analysis ? '<div class="api-log-analysis">分析：' + escapeHtml(l.analysis) + '</div>' : '') +
             '</div>'
@@ -610,7 +645,7 @@
     }
 
     msgEl.className = 'api-test-msg show';
-    msgEl.textContent = '正在拉取模型列表...';
+    msgEl.textContent = '正在拉取模型列表（仅查列表，不扣对话额度）...';
 
     var endpoint = '';
     var headers = {};
@@ -653,6 +688,7 @@
         msgEl.textContent = '拉取失败：' + err.message;
         appendLog({
           module: modKey.toUpperCase(),
+          source: '拉取模型列表',
           ok: false,
           rawError: err.message
         });
@@ -677,8 +713,9 @@
           msgEl.textContent = '译文：' + resText + '（' + ms + 'ms）';
           appendLog({
             module: 'TRANSLATE',
+            source: '免费内置翻译测试（0 扣费）',
             ok: true,
-            rawError: '免费翻译测试成功（' + ms + 'ms）'
+            rawError: '译文：' + resText + '（' + ms + 'ms）'
           });
         })
         .catch(function (err) {
@@ -686,6 +723,7 @@
           msgEl.textContent = '翻译失败：' + err.message;
           appendLog({
             module: 'TRANSLATE',
+            source: '免费内置翻译测试',
             ok: false,
             rawError: err.message
           });
@@ -707,7 +745,7 @@
     }
 
     msgEl.className = 'api-test-msg show';
-    msgEl.textContent = '正在测试连接...';
+    msgEl.textContent = '正在测试连接（仅查接口，不扣对话额度）...';
     var start = Date.now();
 
     var endpoint = '';
@@ -734,9 +772,10 @@
         if (!r.ok) return readHttpError(r).then(function (e) { throw new Error(e); });
         var ms = Date.now() - start;
         msgEl.className = 'api-test-msg show ok';
-        msgEl.textContent = '连接成功（' + ms + 'ms）';
+        msgEl.textContent = '连接成功（' + ms + 'ms，未消耗对话额度）';
         appendLog({
           module: mod.tag,
+          source: '测试连接（仅查 /models，0 扣费）',
           ok: true,
           rawError: '测试连通成功 · ' + prov.label + ' · ' + ms + 'ms'
         });
@@ -749,6 +788,7 @@
         msgEl.textContent = '失败（' + ms + 'ms）：' + tip;
         appendLog({
           module: mod.tag,
+          source: '测试连接（仅查 /models，0 扣费）',
           ok: false,
           rawError: rawErr,
           analysis: tip
@@ -791,10 +831,10 @@
         };
         saveAllConfigs(configs);
         renderAll();
-        var msgEl = document.getElementById('api_msg_llm');
+        var msgEl = document.getElementById('api_msg_presets');
         if (msgEl) {
           msgEl.className = 'api-test-msg show ok';
-          msgEl.textContent = '已切换到配置组：' + hit.name;
+          msgEl.textContent = '已启用配置组「' + hit.name + '」';
         }
       }
       return;
@@ -821,17 +861,17 @@
       configs.llm.activePresetId = newId;
       saveAllConfigs(configs);
       renderAll();
-      var lMsg = document.getElementById('api_msg_llm');
+      var lMsg = document.getElementById('api_msg_presets');
       if (lMsg) {
         lMsg.className = 'api-test-msg show ok';
-        lMsg.textContent = '已保存配置组「' + pName + '」';
+        lMsg.textContent = '已保存新配置组「' + pName + '」';
       }
       return;
     }
 
     var head = e.target.closest('[data-toggle-card]');
     if (head) {
-      if (openKey && openKey !== 'logs') syncInputsToState(openKey);
+      if (openKey && openKey !== 'logs' && openKey !== 'presets') syncInputsToState(openKey);
       var k = head.getAttribute('data-toggle-card');
       openKey = openKey === k ? '' : k;
       renderAll();
