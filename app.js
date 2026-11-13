@@ -140,7 +140,7 @@ document.addEventListener('click', function (e) {
   if (appBtn) {
     var id = 'app-' + appBtn.getAttribute('data-app');
     var screen = document.getElementById(id);
-    if (screen) screen.classList.add('open');
+    if (screen && screen.children.length > 0) screen.classList.add('open');
     return;
   }
   var closeBtn = e.target.closest('[data-close-app]');
