@@ -128,12 +128,17 @@
   justify-content: center;
   background-size: cover;
   background-position: center;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.12);
 }
 
 .mu-rect-cover svg {
   width: 20px;
   height: 20px;
-  fill: rgba(255, 255, 255, 0.85);
+  fill: rgba(255, 255, 255, 0.9);
+}
+
+.mu-rect-cover.has-art svg {
+  display: none;
 }
 
 .mu-rect-info {
@@ -154,6 +159,9 @@
   font-size: calc(var(--app-font-size, 15px) - 3px);
   color: #8e8e93;
   margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .mu-rect-play {
@@ -195,14 +203,19 @@
   width: 104px;
   height: 104px;
   border-radius: 50%;
-  background: linear-gradient(145deg, #e5e5ea, #c7c7cc);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 30px;
   color: #ffffff;
   font-weight: 700;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+}
+
+.mu-artist-pic.has-art {
+  font-size: 0;
 }
 
 .mu-artist-name {
@@ -210,6 +223,10 @@
   font-weight: 500;
   color: #111111;
   text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
 }
 
 .mu-card {
@@ -230,17 +247,32 @@
   border-radius: 16px;
   display: flex;
   align-items: flex-end;
-  padding: 10px;
+  padding: 12px;
   color: #ffffff;
-  font-size: 13px;
-  font-weight: 600;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.10);
+  font-size: 14px;
+  font-weight: 700;
+  background-size: cover;
+  background-position: center;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
 }
 
-.mu-c1 { background: linear-gradient(145deg, #2c2c2e, #636366); }
-.mu-c2 { background: linear-gradient(145deg, #48484a, #8e8e93); }
-.mu-c3 { background: linear-gradient(145deg, #1c1c1e, #48484a); }
-.mu-c4 { background: linear-gradient(145deg, #636366, #aeaeb2); }
+.mu-cover.has-art {
+  font-size: 0;
+}
+
+.mu-c1 { background: linear-gradient(135deg, #2b3a42 0%, #8c5a3c 55%, #d4a373 100%); }
+.mu-c2 { background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 55%, #a1c4fd 100%); }
+.mu-c3 { background: linear-gradient(135deg, #1a0b1c 0%, #8e1b3a 55%, #ff4d6d 100%); }
+.mu-c4 { background: linear-gradient(135deg, #4b6cb7 0%, #182848 100%); }
+.mu-c5 { background: linear-gradient(135deg, #ff6a88 0%, #ff99ac 50%, #fcb69f 100%); }
+.mu-c6 { background: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%); }
+.mu-c7 { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+.mu-a1 { background: linear-gradient(135deg, #f6d365 0%, #fda085 100%); }
+.mu-a2 { background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%); }
+.mu-a3 { background: linear-gradient(135deg, #ff5858 0%, #f09819 100%); }
+.mu-a4 { background: linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%); }
+.mu-a5 { background: linear-gradient(135deg, #5ee7df 0%, #b490ca 100%); }
 
 .mu-card-title {
   font-size: calc(var(--app-font-size, 15px) - 1px);
@@ -391,12 +423,11 @@
   gap: 12px;
 }
 
-/* 弹窗通用 */
 .mu-modal {
   position: absolute;
   inset: 0;
-  z-index: 40;
-  background: rgba(0, 0, 0, 0.28);
+  z-index: 50;
+  background: rgba(0, 0, 0, 0.35);
   display: none;
   align-items: flex-end;
   justify-content: center;
@@ -408,6 +439,8 @@
 
 .mu-sheet {
   width: 100%;
+  max-height: 75%;
+  overflow-y: auto;
   background: #f2f2f7;
   border-radius: 28px 28px 0 0;
   padding: 20px 18px max(28px, env(safe-area-inset-bottom));
@@ -423,6 +456,7 @@
 .mu-sheet-title {
   font-size: calc(var(--app-font-size, 15px) + 1px);
   font-weight: 600;
+  color: #111111;
 }
 
 .mu-sheet-btn {
@@ -509,7 +543,12 @@
   font-weight: 600;
 }
 
-/* 悬浮迷你播放条（纯 SVG，含切歌键） */
+.mu-queue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .mu-mini-player {
   position: absolute;
   bottom: calc(max(18px, env(safe-area-inset-bottom)) + 56px);
@@ -537,6 +576,8 @@
   height: 32px;
   border-radius: 9px;
   background: #d1d1d6;
+  background-size: cover;
+  background-position: center;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -547,6 +588,10 @@
   width: 16px;
   height: 16px;
   fill: #ffffff;
+}
+
+.mu-mini-cover.has-art svg {
+  display: none;
 }
 
 .mu-mini-info {
@@ -581,7 +626,6 @@
   fill: #111111;
 }
 
-/* 底部 3 格液态玻璃胶囊 */
 .mu-bottom-bar {
   position: absolute;
   bottom: max(18px, env(safe-area-inset-bottom));
@@ -643,7 +687,6 @@
   font-weight: 600;
 }
 
-/* P4 同款全屏展开播放页 */
 .mu-player-sheet {
   position: absolute;
   inset: 0;
@@ -681,6 +724,8 @@
   margin: 0 auto;
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.08);
+  background-size: cover;
+  background-position: center;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -690,7 +735,11 @@
 .mu-ps-art svg {
   width: 96px;
   height: 96px;
-  fill: rgba(255, 255, 255, 0.28);
+  fill: rgba(255, 255, 255, 0.35);
+}
+
+.mu-ps-art.has-art svg {
+  display: none;
 }
 
 .mu-ps-meta {
@@ -756,7 +805,7 @@
 .mu-ps-btn svg {
   width: 30px;
   height: 30px;
-  fill: rgba(255, 255, 255, 0.55);
+  fill: rgba(255, 255, 255, 0.65);
 }
 
 .mu-ps-btn.main svg {
@@ -794,15 +843,23 @@
 
 .mu-ps-footer {
   display: flex;
-  justify-content: space-around;
+  justify-content: space-between;
   align-items: center;
-  padding-top: 10px;
+  padding: 10px 26px 0;
 }
 
-.mu-ps-footer svg {
-  width: 20px;
-  height: 20px;
-  stroke: rgba(255, 255, 255, 0.55);
+.mu-ps-fbtn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mu-ps-fbtn svg {
+  width: 21px;
+  height: 21px;
+  stroke: rgba(255, 255, 255, 0.65);
   stroke-width: 1.8;
   fill: none;
   stroke-linecap: round;
