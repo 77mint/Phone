@@ -77,13 +77,11 @@
         '</div>' +
       '</div>' +
       '<div class="tab-panel" id="panel-icons">' +
-        '<div class="icon-sec-title">HOME SCREEN</div>' +
         '<div class="lg-card home-icon-card">' +
           '<div class="home-icon-head">' +
             '<div class="home-icon-title">主屏图标</div>' +
-            '<div class="home-tag">HOME</div>' +
           '</div>' +
-          '<div class="home-icon-desc">更换点击「添加到主屏幕」图标。</div>' +
+          '<div class="home-icon-desc">更换「添加到主屏幕」时显示的图标。</div>' +
           '<div class="home-icon-boxes">' +
             '<div class="home-icon-slot">' +
               '<div class="icon-upload-box" id="btnUploadHomeIcon">+</div>' +
@@ -96,7 +94,7 @@
           '</div>' +
           '<div class="home-icon-note">换完需要重新「添加到主屏幕」才会在桌面生效。</div>' +
         '</div>' +
-        '<div class="icon-sec-title">ICON CHANGES</div>' +
+        '<div class="icon-sec-title">应用图标</div>' +
         '<div class="lg-card">' +
           '<div class="icon-grid" id="iconGrid"></div>' +
         '</div>' +
@@ -350,7 +348,6 @@
     this.value = '';
   });
 
-  /* 图标页逻辑 */
   var boxDefaultHomeIcon = document.getElementById('boxDefaultHomeIcon');
   var labelHomeIcon = document.getElementById('labelHomeIcon');
   var resetHomeIcon = document.getElementById('resetHomeIcon');
