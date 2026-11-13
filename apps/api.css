@@ -25,7 +25,7 @@
   flex: 1;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  padding: 6px 16px calc(env(safe-area-inset-bottom) + 32px);
+  padding: 6px 16px calc(env(safe-area-inset-bottom) + 36px);
 }
 
 .api-list {
@@ -37,18 +37,18 @@
 .api-card {
   background: #ffffff;
   border-radius: 24px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+  overflow: hidden;
+}
+
+.api-card-head {
   padding: 18px 20px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
   cursor: pointer;
-  transition: transform 0.15s ease;
-}
-
-.api-card:active {
-  transform: scale(0.985);
+  -webkit-tap-highlight-color: transparent;
 }
 
 .api-card-main {
@@ -97,96 +97,32 @@
   stroke-linecap: round;
   stroke-linejoin: round;
   flex-shrink: 0;
+  transition: transform 0.24s ease;
 }
 
-/* 居中配置白卡弹窗 */
-.api-modal {
-  position: absolute;
-  inset: 0;
-  z-index: 50;
-  background: rgba(0, 0, 0, 0.36);
-  display: none;
-  align-items: center;
-  justify-content: center;
-  padding: calc(env(safe-area-inset-top) + 16px) 16px calc(env(safe-area-inset-bottom) + 16px);
-}
-
-.api-modal.open {
-  display: flex;
-}
-
-.api-dialog {
-  position: relative;
-  width: 100%;
-  max-width: 360px;
-  max-height: 100%;
-  background: #ffffff;
-  border-radius: 26px;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.22);
-}
-
-.api-dialog-head {
-  padding: 18px 20px 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  flex-shrink: 0;
-  border-bottom: 1px solid #f2f2f7;
-}
-
-.api-dialog-title-wrap {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-}
-
-.api-dialog-title {
-  font-size: calc(var(--app-font-size, 15px) + 1px);
-  font-weight: 700;
-  color: #111111;
-}
-
-.api-dialog-tag {
-  font-size: calc(var(--app-font-size, 15px) - 3px);
-  color: #8e8e93;
-  font-weight: 500;
-}
-
-.api-dialog-close {
-  position: absolute;
-  top: 14px;
-  right: 14px;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: #f2f2f7;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-
-.api-dialog-close svg {
-  width: 13px;
-  height: 13px;
+.api-card.open .api-chevron {
+  transform: rotate(90deg);
   stroke: #111111;
-  fill: none;
-  stroke-width: 2.3;
-  stroke-linecap: round;
 }
 
-.api-dialog-body {
-  flex: 1;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  padding: 14px 18px 18px;
-  display: flex;
+/* 原地展开面板 */
+.api-card-body {
+  display: none;
+  padding: 4px 18px 18px;
+  border-top: 1px solid #f2f2f7;
   flex-direction: column;
   gap: 14px;
+}
+
+.api-card.open .api-card-body {
+  display: flex;
+}
+
+.api-slot-box {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 10px;
 }
 
 .api-field-label {
@@ -196,34 +132,28 @@
   margin-bottom: 6px;
 }
 
-/* 4 选 1 类型胶囊 */
-.api-type-seg {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 4px;
-  background: #f2f2f7;
-  padding: 3px;
-  border-radius: 12px;
+/* 选项胶囊组 */
+.api-seg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
-.api-type-btn {
-  text-align: center;
-  padding: 7px 2px;
-  border-radius: 9px;
+.api-seg-btn {
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: #f2f2f7;
   font-size: 12px;
   font-weight: 500;
-  color: #6e6e73;
+  color: #3a3a3c;
   cursor: pointer;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
-.api-type-btn.active {
-  background: #ffffff;
-  color: #111111;
+.api-seg-btn.active {
+  background: #111111;
+  color: #ffffff;
   font-weight: 600;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
 }
 
 .api-input-box {
@@ -278,7 +208,6 @@
   stroke-linejoin: round;
 }
 
-/* 模型候选下拉列表 */
 .api-model-chips {
   display: none;
   flex-wrap: wrap;
@@ -306,7 +235,7 @@
   color: #ffffff;
 }
 
-/* 副 API 开关行 */
+/* 副 API 开关 */
 .api-switch-row {
   display: flex;
   align-items: center;
@@ -376,12 +305,10 @@
   color: #111111;
 }
 
-.api-dialog-foot {
-  padding: 12px 18px 18px;
+.api-actions {
   display: flex;
   gap: 10px;
-  border-top: 1px solid #f2f2f7;
-  flex-shrink: 0;
+  padding-top: 4px;
 }
 
 .api-btn-secondary {
@@ -433,17 +360,20 @@
   color: #d70015;
 }
 
-/* 调用日志列表 */
+/* 日志列表 */
 .api-log-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
+  padding-top: 10px;
+  max-height: 280px;
+  overflow-y: auto;
 }
 
 .api-log-item {
   background: #f2f2f7;
-  border-radius: 16px;
-  padding: 12px 14px;
+  border-radius: 14px;
+  padding: 10px 12px;
 }
 
 .api-log-top {
@@ -451,7 +381,7 @@
   align-items: center;
   justify-content: space-between;
   font-size: 12px;
-  margin-bottom: 4px;
+  margin-bottom: 3px;
 }
 
 .api-log-mod {
@@ -464,7 +394,7 @@
 }
 
 .api-log-detail {
-  font-size: 13px;
+  font-size: 12px;
   color: #3a3a3c;
   word-break: break-all;
 }
@@ -472,6 +402,6 @@
 .api-log-empty {
   text-align: center;
   color: #8e8e93;
-  padding: 28px 0;
+  padding: 18px 0 8px;
   font-size: calc(var(--app-font-size, 15px) - 2px);
 }
