@@ -199,3 +199,8 @@ body {
   border-radius: 999px;
   background: rgba(17, 17, 17, 0.25);
 }
+.app-icon.has-custom-icon {
+  font-size: 0;
+  background-size: cover;
+  background-position: center;
+}
