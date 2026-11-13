@@ -441,7 +441,7 @@
   width: 100%;
   max-height: 75%;
   overflow-y: auto;
-  background: #f2f2f7;
+  background: #ffffff;
   border-radius: 28px 28px 0 0;
   padding: 20px 18px max(28px, env(safe-area-inset-bottom));
 }
@@ -450,7 +450,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 18px;
+  margin-bottom: 14px;
 }
 
 .mu-sheet-title {
@@ -500,7 +500,7 @@
 }
 
 .mu-input-card {
-  background: #ffffff;
+  background: #f2f2f7;
   border-radius: 18px;
   padding: 13px 16px;
   margin-bottom: 12px;
@@ -510,6 +510,7 @@
   width: 100%;
   border: none;
   outline: none;
+  background: transparent;
   font-family: inherit;
   font-size: var(--app-font-size, 15px);
   color: #111111;
@@ -543,10 +544,73 @@
   font-weight: 600;
 }
 
+/* 正常通栏播放列表（非小卡片） */
 .mu-queue-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+}
+
+.mu-q-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 2px;
+  border-bottom: 0.5px solid rgba(0, 0, 0, 0.08);
+}
+
+.mu-q-row:last-child {
+  border-bottom: none;
+}
+
+.mu-q-cover {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-size: cover;
+  background-position: center;
+}
+
+.mu-q-cover svg {
+  width: 18px;
+  height: 18px;
+  fill: rgba(255, 255, 255, 0.9);
+}
+
+.mu-q-cover.has-art svg {
+  display: none;
+}
+
+.mu-q-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.mu-q-title {
+  font-size: var(--app-font-size, 15px);
+  font-weight: 500;
+  color: #111111;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mu-q-row.playing .mu-q-title {
+  font-weight: 700;
+}
+
+.mu-q-sub {
+  font-size: calc(var(--app-font-size, 15px) - 3px);
+  color: #8e8e93;
+  margin-top: 2px;
+}
+
+.mu-q-badge {
+  font-size: 12px;
+  color: #8e8e93;
 }
 
 .mu-mini-player {
@@ -687,16 +751,17 @@
   font-weight: 600;
 }
 
+/* 纯白全屏播放页 + 匀称间距 + 歌词切换 */
 .mu-player-sheet {
   position: absolute;
   inset: 0;
   z-index: 45;
-  background: linear-gradient(180deg, #5c5a60 0%, #3d3c40 100%);
-  color: #ffffff;
+  background: #ffffff;
+  color: #111111;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: calc(env(safe-area-inset-top) + 14px) 28px max(28px, env(safe-area-inset-bottom));
+  padding: calc(env(safe-area-inset-top) + 10px) 28px max(26px, env(safe-area-inset-bottom));
   transform: translateY(100%);
   transition: transform 0.32s cubic-bezier(0.32, 0.72, 0, 1);
 }
@@ -708,48 +773,83 @@
 .mu-ps-grab-wrap {
   display: flex;
   justify-content: center;
-  padding: 4px 0 12px;
+  padding: 4px 0 8px;
 }
 
 .mu-ps-grab {
   width: 40px;
   height: 5px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.35);
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.mu-ps-stage {
+  position: relative;
+  width: 100%;
+  max-width: 288px;
+  height: 288px;
+  margin: 0 auto;
 }
 
 .mu-ps-art {
-  width: 248px;
-  height: 248px;
-  margin: 0 auto;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.08);
+  width: 100%;
+  height: 100%;
+  border-radius: 20px;
+  background: #f2f2f7;
   background-size: cover;
   background-position: center;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.14);
 }
 
 .mu-ps-art svg {
   width: 96px;
   height: 96px;
-  fill: rgba(255, 255, 255, 0.35);
+  fill: rgba(0, 0, 0, 0.15);
 }
 
 .mu-ps-art.has-art svg {
   display: none;
 }
 
+.mu-ps-lyrics {
+  position: absolute;
+  inset: 0;
+  background: #ffffff;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px 6px;
+  display: none;
+  text-align: center;
+}
+
+.mu-ps-lyrics.show {
+  display: block;
+}
+
+.mu-lyric-line {
+  font-size: calc(var(--app-font-size, 15px) + 1px);
+  line-height: 2.1;
+  color: #aeaeb2;
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.mu-lyric-line.active {
+  color: #111111;
+  font-weight: 700;
+  transform: scale(1.03);
+}
+
 .mu-ps-meta {
-  margin-top: 26px;
+  margin-top: 22px;
 }
 
 .mu-ps-title {
   font-size: 21px;
   font-weight: 700;
-  color: #ffffff;
+  color: #111111;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -757,33 +857,33 @@
 
 .mu-ps-sub {
   font-size: 16px;
-  color: rgba(255, 255, 255, 0.65);
+  color: #8e8e93;
   margin-top: 3px;
 }
 
 .mu-ps-prog {
-  margin-top: 18px;
+  margin-top: 16px;
 }
 
 .mu-ps-bar {
   width: 100%;
-  height: 5px;
+  height: 6px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.22);
+  background: rgba(0, 0, 0, 0.10);
   overflow: hidden;
 }
 
 .mu-ps-bar-fill {
   width: 0%;
   height: 100%;
-  background: rgba(255, 255, 255, 0.85);
+  background: #111111;
 }
 
 .mu-ps-times {
   display: flex;
   justify-content: space-between;
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.45);
+  color: #8e8e93;
   margin-top: 6px;
 }
 
@@ -791,7 +891,7 @@
   display: flex;
   align-items: center;
   justify-content: space-around;
-  padding: 14px 10px;
+  padding: 6px 10px 10px;
 }
 
 .mu-ps-btn {
@@ -805,52 +905,61 @@
 .mu-ps-btn svg {
   width: 30px;
   height: 30px;
-  fill: rgba(255, 255, 255, 0.65);
+  fill: #333333;
 }
 
 .mu-ps-btn.main svg {
   width: 44px;
   height: 44px;
-  fill: #ffffff;
+  fill: #111111;
 }
 
 .mu-ps-vol {
   display: flex;
   align-items: center;
   gap: 10px;
+  padding: 4px 0;
 }
 
 .mu-ps-vol svg {
   width: 16px;
   height: 16px;
-  fill: rgba(255, 255, 255, 0.55);
+  fill: #8e8e93;
   flex-shrink: 0;
 }
 
-.mu-ps-vol-track {
+.mu-vol-range {
+  -webkit-appearance: none;
+  appearance: none;
   flex: 1;
   height: 5px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.22);
-  overflow: hidden;
+  background: rgba(0, 0, 0, 0.12);
+  outline: none;
 }
 
-.mu-ps-vol-fill {
-  width: 45%;
-  height: 100%;
-  background: rgba(255, 255, 255, 0.85);
+.mu-vol-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 0.5px solid rgba(0, 0, 0, 0.12);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22);
 }
 
 .mu-ps-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 26px 0;
+  padding: 10px 22px 0;
 }
 
 .mu-ps-fbtn {
-  width: 36px;
-  height: 36px;
+  position: relative;
+  width: 38px;
+  height: 38px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -859,11 +968,20 @@
 .mu-ps-fbtn svg {
   width: 21px;
   height: 21px;
-  stroke: rgba(255, 255, 255, 0.65);
-  stroke-width: 1.8;
+  stroke: #555555;
+  stroke-width: 1.9;
   fill: none;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.mu-mode-badge {
+  position: absolute;
+  top: 4px;
+  right: 2px;
+  font-size: 9px;
+  font-weight: 700;
+  color: #111111;
 }
 
 .has-art {
