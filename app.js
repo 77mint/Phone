@@ -69,13 +69,17 @@ window.applyLockWallpaper = function (url) {
   if (lwp) lwp.style.backgroundImage = url ? 'url("' + url + '")' : '';
 };
 
-window.applyCustomFont = function (buf) {
-  if (!buf) return;
+window.applyCustomFont = function (buf, familyId) {
+  if (!buf) {
+    document.documentElement.style.removeProperty('--app-font');
+    return;
+  }
+  var name = familyId || 'CustomUserFont';
   try {
-    var face = new FontFace('CustomUserFont', buf);
+    var face = new FontFace(name, buf);
     face.load().then(function (loaded) {
       document.fonts.add(loaded);
-      document.documentElement.style.setProperty('--app-font', '"CustomUserFont", -apple-system, "PingFang SC", sans-serif');
+      document.documentElement.style.setProperty('--app-font', '"' + name + '", -apple-system, "PingFang SC", sans-serif');
     }).catch(function () {});
   } catch (e) {}
 };
@@ -85,7 +89,12 @@ window.applyCustomFont = function (buf) {
   if (size) document.documentElement.style.setProperty('--app-font-size', size + 'px');
   PhoneDB.get('home_wallpaper').then(window.applyHomeWallpaper);
   PhoneDB.get('lock_wallpaper').then(window.applyLockWallpaper);
-  PhoneDB.get('custom_font').then(window.applyCustomFont);
+  var activeFontId = localStorage.getItem('phone_active_font_id');
+  if (activeFontId) {
+    PhoneDB.get('font_' + activeFontId).then(function (buf) {
+      if (buf) window.applyCustomFont(buf, activeFontId);
+    });
+  }
 })();
 
 document.addEventListener('click', function (e) {
