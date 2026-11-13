@@ -91,8 +91,14 @@ window.applyAppIcon = function (appId, url) {
       el.style.backgroundImage = 'url("' + url + '")';
       el.classList.add('has-custom-icon');
     } else {
-      el.style.backgroundImage = '';
-      el.classList.remove('has-custom-icon');
+      var def = el.getAttribute('data-default-icon') || '';
+      if (def) {
+        el.style.backgroundImage = 'url("' + def + '")';
+        el.classList.add('has-custom-icon');
+      } else {
+        el.style.backgroundImage = '';
+        el.classList.remove('has-custom-icon');
+      }
     }
   });
 };
