@@ -13,7 +13,7 @@
   var SVG_NEXT = '<svg viewBox="0 0 24 24"><polygon points="5 4 15 12 5 20 5 4"></polygon><rect x="17" y="4" width="2.5" height="16" rx="1"></rect></svg>';
   var SVG_PREV = '<svg viewBox="0 0 24 24"><polygon points="19 4 9 12 19 20 19 4"></polygon><rect x="4.5" y="4" width="2.5" height="16" rx="1"></rect></svg>';
   var SVG_REPEAT = '<svg viewBox="0 0 24 24"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>';
-  var SVG_SHUFFLE = '<svg viewBox="0 0 24 24"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line></svg>';
+  var SVG_SHUFFLE = '<svg viewBox="0 0 24 24"><path d="M16 3h5v5"></path><path d="M4 20L21 3"></path><path d="M21 16v5h-5"></path><path d="M15 15l6 6"></path><path d="M4 4l5 5"></path></svg>';
 
   var START_SONGS = [
     { title: '红尘客栈', sub: '周杰伦', cls: 'mu-c1', id: '', pic: '' },
@@ -153,7 +153,7 @@
             '<div class="mu-login-row">' +
               '<div class="mu-profile-info">' +
                 '<div class="mu-profile-name">登录网易云音乐</div>' +
-                '<div class="mu-profile-sub" id="muLoginSub">未登录（点击扫码登录）</div>' +
+                '<div class="mu-profile-sub" id="muLoginSub">未登录（点击登录）</div>' +
               '</div>' +
               '<svg class="mu-arrow" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></svg>' +
             '</div>' +
@@ -217,13 +217,10 @@
         '<div class="mu-queue-list" id="muQueueList"></div>' +
       '</div>' +
     '</div>' +
-    '<div class="mu-modal" id="muProfileModal">' +
-      '<div class="mu-sheet">' +
-        '<div class="mu-sheet-head">' +
-          '<div class="mu-sheet-btn" id="muCancelProfile">取消</div>' +
-          '<div class="mu-sheet-title">编辑资料</div>' +
-          '<div class="mu-sheet-btn primary" id="muSaveProfile">保存</div>' +
-        '</div>' +
+    '<div class="mu-modal center" id="muProfileModal">' +
+      '<div class="mu-dialog">' +
+        '<div class="mu-dialog-close" id="muCancelProfile">×</div>' +
+        '<div class="mu-dialog-title">编辑资料</div>' +
         '<div class="mu-sheet-avatar-wrap">' +
           '<div class="mu-sheet-avatar" id="muSheetAvatar">' + SVG_NOTE + '</div>' +
           '<div class="mu-profile-sub">点击头像从相册上传</div>' +
@@ -231,23 +228,44 @@
         '<div class="mu-input-card">' +
           '<input type="text" class="mu-text-input" id="muNameInput" placeholder="输入你的名字">' +
         '</div>' +
+        '<div class="mu-primary-btn" id="muSaveProfile">保存</div>' +
       '</div>' +
     '</div>' +
-    '<div class="mu-modal" id="muLoginModal">' +
-      '<div class="mu-sheet">' +
-        '<div class="mu-sheet-head">' +
-          '<div class="mu-sheet-btn" id="muCloseLogin">关闭</div>' +
-          '<div class="mu-sheet-title">扫码登录网易云</div>' +
-          '<div class="mu-sheet-btn primary" id="muLogoutBtn">退出</div>' +
+    '<div class="mu-modal center" id="muLoginModal">' +
+      '<div class="mu-dialog">' +
+        '<div class="mu-dialog-close" id="muCloseLogin">×</div>' +
+        '<div class="mu-dialog-title">登录网易云音乐</div>' +
+        '<div class="mu-seg-4" id="muLoginTabs">' +
+          '<div class="mu-seg-tab active" data-ltab="sms">验证码</div>' +
+          '<div class="mu-seg-tab" data-ltab="pwd">密码</div>' +
+          '<div class="mu-seg-tab" data-ltab="cookie">Cookie</div>' +
+          '<div class="mu-seg-tab" data-ltab="qr">扫码</div>' +
         '</div>' +
-        '<div class="mu-qr-box">' +
-          '<img class="mu-qr-img" id="muQrImg">' +
-          '<div class="mu-profile-sub" id="muQrStatus">点击下方获取网易云二维码</div>' +
-          '<div class="mu-qr-btn" id="muGetQrBtn">获取登录二维码</div>' +
+        '<div class="mu-login-panel active" id="ltab-sms">' +
+          '<div class="mu-input-card"><input type="tel" class="mu-text-input" id="muSmsPhone" placeholder="手机号"></div>' +
+          '<div class="mu-input-card">' +
+            '<input type="text" class="mu-text-input" id="muSmsCode" placeholder="短信验证码">' +
+            '<div class="mu-code-btn" id="muSendCodeBtn">获取验证码</div>' +
+          '</div>' +
+          '<div class="mu-primary-btn" id="muSmsLoginBtn">登录</div>' +
         '</div>' +
-        '<div class="mu-input-card" style="margin-top:8px;">' +
-          '<input type="text" class="mu-text-input" id="muApiInput" placeholder="接口地址（已内置默认）">' +
+        '<div class="mu-login-panel" id="ltab-pwd">' +
+          '<div class="mu-input-card"><input type="tel" class="mu-text-input" id="muPwdPhone" placeholder="手机号"></div>' +
+          '<div class="mu-input-card"><input type="password" class="mu-text-input" id="muPwdPass" placeholder="密码"></div>' +
+          '<div class="mu-primary-btn" id="muPwdLoginBtn">登录</div>' +
         '</div>' +
+        '<div class="mu-login-panel" id="ltab-cookie">' +
+          '<div class="mu-input-card"><input type="text" class="mu-text-input" id="muCookieInput" placeholder="粘贴网易云 Cookie"></div>' +
+          '<div class="mu-primary-btn" id="muCookieLoginBtn">保存登录</div>' +
+        '</div>' +
+        '<div class="mu-login-panel" id="ltab-qr">' +
+          '<div class="mu-qr-box">' +
+            '<img class="mu-qr-img" id="muQrImg">' +
+            '<div class="mu-primary-btn" id="muGetQrBtn">获取登录二维码</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="mu-dialog-tip" id="muLoginTip">未注册的手机号将自动创建账号</div>' +
+        '<div class="mu-dialog-tip" id="muLogoutBtn" style="color:#111;display:none;">退出当前账号</div>' +
       '</div>' +
     '</div>' +
     '<input type="file" id="muAvatarInput" accept="image/*" style="display:none;">' +
@@ -279,6 +297,7 @@
   var miniTitle = document.getElementById('muMiniTitle');
   var miniCover = document.getElementById('muMiniCover');
   var miniPlay = document.getElementById('muMiniPlay');
+  var psStage = document.getElementById('muPsStage');
   var psArt = document.getElementById('muPsArt');
   var psLyrics = document.getElementById('muPsLyrics');
   var psTitle = document.getElementById('muPsTitle');
@@ -362,8 +381,8 @@
       });
   }
 
-  document.getElementById('muPsStage').addEventListener('click', function () {
-    psLyrics.classList.toggle('show');
+  psStage.addEventListener('click', function () {
+    psStage.classList.toggle('lyrics-on');
   });
 
   function syncPlayIcons() {
@@ -469,8 +488,7 @@
     if (plEl) {
       var pid = plEl.getAttribute('data-playlist-id');
       if (!pid) return;
-      var base = getApiBase();
-      fetch(base + '/playlist/track/all?id=' + pid + '&limit=15')
+      fetch(getApiBase() + '/playlist/track/all?id=' + pid + '&limit=15')
         .then(function (r) { return r.json(); })
         .then(function (res) {
           var tracks = res.songs || [];
@@ -556,7 +574,7 @@
       lrcEls.forEach(function (el, idx) {
         var on = idx === activeIdx;
         el.classList.toggle('active', on);
-        if (on && psLyrics.classList.contains('show')) {
+        if (on && psStage.classList.contains('lyrics-on')) {
           el.scrollIntoView({ block: 'center', behavior: 'smooth' });
         }
       });
@@ -711,21 +729,53 @@
     muProfileModal.classList.remove('open');
   });
 
+  /* 仿 p4 居中网易云登录弹窗 */
   var muLoginModal = document.getElementById('muLoginModal');
-  var muApiInput = document.getElementById('muApiInput');
-  var muQrImg = document.getElementById('muQrImg');
-  var muQrStatus = document.getElementById('muQrStatus');
+  var muLoginTip = document.getElementById('muLoginTip');
   var muLoginSub = document.getElementById('muLoginSub');
+  var muLogoutBtn = document.getElementById('muLogoutBtn');
+  var muQrImg = document.getElementById('muQrImg');
   var qrTimer = null;
 
   function syncLoginStatus() {
     var cookie = localStorage.getItem('music_netease_cookie');
-    muLoginSub.textContent = cookie ? '已登录网易云音乐' : '未登录（点击扫码登录）';
+    muLoginSub.textContent = cookie ? '已登录网易云音乐' : '未登录（点击登录）';
+    muLogoutBtn.style.display = cookie ? 'block' : 'none';
   }
   syncLoginStatus();
 
+  function finishLogin(ck) {
+    localStorage.setItem('music_netease_cookie', ck);
+    syncLoginStatus();
+    muLoginTip.textContent = '登录成功！';
+    fetch(getApiBase() + '/login/status?cookie=' + encodeURIComponent(ck))
+      .then(function (r) { return r.json(); })
+      .then(function (st) {
+        var prof = st.data && st.data.profile;
+        if (prof) {
+          if (!localStorage.getItem('music_user_name') && prof.nickname) {
+            localStorage.setItem('music_user_name', prof.nickname);
+          }
+          var av = prof.avatarUrl ? prof.avatarUrl.replace(/^http:\/\//, 'https://') : '';
+          syncProfileUI(localStorage.getItem('music_user_name') || prof.nickname, tempAvatarUrl || av);
+        }
+      }).catch(function () {});
+    setTimeout(function () { muLoginModal.classList.remove('open'); }, 800);
+  }
+
+  root.querySelectorAll('.mu-seg-tab').forEach(function (t) {
+    t.addEventListener('click', function () {
+      root.querySelectorAll('.mu-seg-tab').forEach(function (x) { x.classList.remove('active'); });
+      t.classList.add('active');
+      var target = t.getAttribute('data-ltab');
+      root.querySelectorAll('.mu-login-panel').forEach(function (p) {
+        p.classList.toggle('active', p.id === 'ltab-' + target);
+      });
+    });
+  });
+
   document.getElementById('muCardLogin').addEventListener('click', function () {
-    muApiInput.value = getApiBase();
+    muLoginTip.textContent = '未注册的手机号将自动创建账号';
     muLoginModal.classList.add('open');
   });
 
@@ -734,20 +784,61 @@
     muLoginModal.classList.remove('open');
   });
 
-  document.getElementById('muLogoutBtn').addEventListener('click', function () {
+  muLogoutBtn.addEventListener('click', function () {
     clearInterval(qrTimer);
     localStorage.removeItem('music_netease_cookie');
     muQrImg.style.display = 'none';
-    muQrStatus.textContent = '已退出登录';
+    muLoginTip.textContent = '已退出登录';
     syncLoginStatus();
   });
 
-  document.getElementById('muGetQrBtn').addEventListener('click', function () {
-    var base = (muApiInput.value.trim() || DEFAULT_API_BASE).replace(/\/+$/, '');
-    localStorage.setItem('music_api_base', base);
-    clearInterval(qrTimer);
-    muQrStatus.textContent = '正在获取二维码...';
+  document.getElementById('muSendCodeBtn').addEventListener('click', function () {
+    var phoneNum = document.getElementById('muSmsPhone').value.trim();
+    if (!phoneNum) { muLoginTip.textContent = '请先输入手机号'; return; }
+    muLoginTip.textContent = '正在发送验证码...';
+    fetch(getApiBase() + '/captcha/sent?phone=' + encodeURIComponent(phoneNum))
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        muLoginTip.textContent = res.code === 200 ? '验证码已发送' : (res.message || '发送失败，可改用扫码或Cookie');
+      }).catch(function () { muLoginTip.textContent = '发送失败'; });
+  });
 
+  document.getElementById('muSmsLoginBtn').addEventListener('click', function () {
+    var phoneNum = document.getElementById('muSmsPhone').value.trim();
+    var code = document.getElementById('muSmsCode').value.trim();
+    if (!phoneNum || !code) { muLoginTip.textContent = '请输入手机号和验证码'; return; }
+    muLoginTip.textContent = '正在登录...';
+    fetch(getApiBase() + '/login/cellphone?phone=' + encodeURIComponent(phoneNum) + '&captcha=' + encodeURIComponent(code))
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (res.code === 200 && res.cookie) finishLogin(res.cookie);
+        else muLoginTip.textContent = res.message || '登录失败，建议改用扫码或Cookie';
+      }).catch(function () { muLoginTip.textContent = '登录请求失败'; });
+  });
+
+  document.getElementById('muPwdLoginBtn').addEventListener('click', function () {
+    var phoneNum = document.getElementById('muPwdPhone').value.trim();
+    var pass = document.getElementById('muPwdPass').value;
+    if (!phoneNum || !pass) { muLoginTip.textContent = '请输入手机号和密码'; return; }
+    muLoginTip.textContent = '正在登录...';
+    fetch(getApiBase() + '/login/cellphone?phone=' + encodeURIComponent(phoneNum) + '&password=' + encodeURIComponent(pass))
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (res.code === 200 && res.cookie) finishLogin(res.cookie);
+        else muLoginTip.textContent = res.message || '登录失败，建议改用扫码或Cookie';
+      }).catch(function () { muLoginTip.textContent = '登录请求失败'; });
+  });
+
+  document.getElementById('muCookieLoginBtn').addEventListener('click', function () {
+    var ck = document.getElementById('muCookieInput').value.trim();
+    if (!ck) { muLoginTip.textContent = '请粘贴 Cookie'; return; }
+    finishLogin(ck);
+  });
+
+  document.getElementById('muGetQrBtn').addEventListener('click', function () {
+    var base = getApiBase();
+    clearInterval(qrTimer);
+    muLoginTip.textContent = '正在获取二维码...';
     fetch(base + '/login/qr/key?timestamp=' + Date.now())
       .then(function (r) { return r.json(); })
       .then(function (res) {
@@ -758,40 +849,23 @@
           .then(function (qrRes) {
             muQrImg.src = qrRes.data.qrimg;
             muQrImg.style.display = 'block';
-            muQrStatus.textContent = '请用网易云音乐 App 扫码确认';
+            muLoginTip.textContent = '请用网易云音乐 App 扫码确认';
             qrTimer = setInterval(function () {
               fetch(base + '/login/qr/check?key=' + key + '&timestamp=' + Date.now())
                 .then(function (r) { return r.json(); })
                 .then(function (chk) {
                   if (chk.code === 800) {
                     clearInterval(qrTimer);
-                    muQrStatus.textContent = '二维码已过期，请重新点击获取';
+                    muLoginTip.textContent = '二维码已过期，请重新获取';
                   } else if (chk.code === 802) {
-                    muQrStatus.textContent = '已扫码，请在手机上点击确认';
+                    muLoginTip.textContent = '已扫码，请在手机上点击确认';
                   } else if (chk.code === 803) {
                     clearInterval(qrTimer);
-                    var ck = chk.cookie || '1';
-                    localStorage.setItem('music_netease_cookie', ck);
-                    muQrStatus.textContent = '登录成功！';
-                    syncLoginStatus();
-                    fetch(base + '/login/status?cookie=' + encodeURIComponent(ck))
-                      .then(function (r) { return r.json(); })
-                      .then(function (st) {
-                        var prof = st.data && st.data.profile;
-                        if (prof) {
-                          if (!localStorage.getItem('music_user_name') && prof.nickname) {
-                            localStorage.setItem('music_user_name', prof.nickname);
-                          }
-                          var av = prof.avatarUrl ? prof.avatarUrl.replace(/^http:\/\//, 'https://') : '';
-                          syncProfileUI(localStorage.getItem('music_user_name') || prof.nickname, tempAvatarUrl || av);
-                        }
-                      }).catch(function () {});
+                    finishLogin(chk.cookie || '1');
                   }
                 }).catch(function () {});
             }, 2500);
           });
-      }).catch(function () {
-        muQrStatus.textContent = '接口连接失败，请稍后重试';
-      });
+      }).catch(function () { muLoginTip.textContent = '二维码获取失败'; });
   });
 })();
