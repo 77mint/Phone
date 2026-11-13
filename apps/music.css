@@ -6,13 +6,6 @@
   padding-top: calc(env(safe-area-inset-top) + 8px);
 }
 
-.mu-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 18px 10px;
-}
-
 .mu-body {
   flex: 1;
   overflow-y: auto;
@@ -28,11 +21,51 @@
   display: block;
 }
 
-/* 主页：仿 p1 */
+/* 主页顶部：缩小返回键 + 胶囊同一行 */
+.mu-top-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 18px 14px;
+}
+
+.mu-back-sm {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0.14) 55%, rgba(255, 255, 255, 0.26) 100%);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow:
+    0 6px 16px rgba(0, 0, 0, 0.10),
+    inset 0 1.5px 1px rgba(255, 255, 255, 1),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.06);
+  transition: transform 0.15s ease;
+}
+
+.mu-back-sm:active {
+  transform: scale(0.92);
+}
+
+.mu-back-sm svg {
+  width: 15px;
+  height: 15px;
+  stroke: #111111;
+  stroke-width: 2.2;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .mu-pills {
   display: flex;
   gap: 8px;
-  padding: 4px 18px 14px;
+  flex: 1;
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -64,6 +97,69 @@
   padding: 6px 18px 12px;
 }
 
+/* 开始收听：3 首长方形卡片 */
+.mu-listen-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 18px 20px;
+}
+
+.mu-rect-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 10px 14px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: transform 0.15s ease;
+}
+
+.mu-rect-card:active {
+  transform: scale(0.985);
+}
+
+.mu-rect-cover {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.mu-rect-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.mu-rect-title {
+  font-size: var(--app-font-size, 15px);
+  font-weight: 600;
+  color: #111111;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mu-rect-sub {
+  font-size: calc(var(--app-font-size, 15px) - 3px);
+  color: #8e8e93;
+  margin-top: 2px;
+}
+
+.mu-rect-play {
+  font-size: 13px;
+  color: #8e8e93;
+  padding: 4px 6px;
+}
+
+/* 横向推荐栏 */
 .mu-shelf {
   display: flex;
   gap: 14px;
@@ -77,7 +173,7 @@
 }
 
 .mu-artist {
-  width: 112px;
+  width: 104px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -86,14 +182,14 @@
 }
 
 .mu-artist-pic {
-  width: 112px;
-  height: 112px;
+  width: 104px;
+  height: 104px;
   border-radius: 50%;
   background: linear-gradient(145deg, #e5e5ea, #c7c7cc);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 32px;
+  font-size: 30px;
   color: #ffffff;
   font-weight: 700;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
@@ -155,9 +251,9 @@
   text-overflow: ellipsis;
 }
 
-/* 搜索：仿 p2（无中间广告） */
+/* 搜索：无返回键、无中间卡片 */
 .mu-search-wrap {
-  padding: 0 18px;
+  padding: 14px 18px 0;
 }
 
 .mu-big-title {
@@ -174,7 +270,7 @@
   background: #ffffff;
   border-radius: 14px;
   padding: 10px 14px;
-  margin-bottom: 18px;
+  margin-bottom: 16px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
 }
 
@@ -197,27 +293,15 @@
   color: #111111;
 }
 
-.mu-cat-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-}
-
-.mu-cat-card {
-  height: 106px;
-  border-radius: 18px;
-  padding: 14px;
+.mu-search-results {
   display: flex;
-  align-items: flex-end;
-  color: #ffffff;
-  font-size: var(--app-font-size, 15px);
-  font-weight: 600;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+  flex-direction: column;
+  gap: 10px;
 }
 
 /* 我的：外观卡片风 */
 .mu-mine-wrap {
-  padding: 4px 16px 0;
+  padding: 14px 16px 0;
 }
 
 .mu-mine-card {
