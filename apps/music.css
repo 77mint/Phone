@@ -21,7 +21,6 @@
   display: block;
 }
 
-/* 主页顶部：缩小返回键 + 胶囊同一行 */
 .mu-top-bar {
   display: flex;
   align-items: center;
@@ -97,7 +96,6 @@
   padding: 6px 18px 12px;
 }
 
-/* 开始收听：3 首长方形卡片 */
 .mu-listen-list {
   display: flex;
   flex-direction: column;
@@ -128,9 +126,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #ffffff;
-  font-size: 16px;
-  font-weight: 600;
+  background-size: cover;
+  background-position: center;
+}
+
+.mu-rect-cover svg {
+  width: 20px;
+  height: 20px;
+  fill: rgba(255, 255, 255, 0.85);
 }
 
 .mu-rect-info {
@@ -154,12 +157,19 @@
 }
 
 .mu-rect-play {
-  font-size: 13px;
-  color: #8e8e93;
-  padding: 4px 6px;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-/* 横向推荐栏 */
+.mu-rect-play svg {
+  width: 14px;
+  height: 14px;
+  fill: #8e8e93;
+}
+
 .mu-shelf {
   display: flex;
   gap: 14px;
@@ -231,8 +241,6 @@
 .mu-c2 { background: linear-gradient(145deg, #48484a, #8e8e93); }
 .mu-c3 { background: linear-gradient(145deg, #1c1c1e, #48484a); }
 .mu-c4 { background: linear-gradient(145deg, #636366, #aeaeb2); }
-.mu-c5 { background: linear-gradient(145deg, #3a3a3c, #7c7c80); }
-.mu-c6 { background: linear-gradient(145deg, #525255, #98989d); }
 
 .mu-card-title {
   font-size: calc(var(--app-font-size, 15px) - 1px);
@@ -251,7 +259,6 @@
   text-overflow: ellipsis;
 }
 
-/* 搜索：无返回键、无中间卡片 */
 .mu-search-wrap {
   padding: 14px 18px 0;
 }
@@ -299,7 +306,6 @@
   gap: 10px;
 }
 
-/* 我的：外观卡片风 */
 .mu-mine-wrap {
   padding: 14px 16px 0;
 }
@@ -333,13 +339,17 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
-  color: #8e8e93;
   flex-shrink: 0;
 }
 
-.mu-avatar.has-img {
-  font-size: 0;
+.mu-avatar svg {
+  width: 24px;
+  height: 24px;
+  fill: #8e8e93;
+}
+
+.mu-avatar.has-img svg {
+  display: none;
 }
 
 .mu-profile-info {
@@ -381,7 +391,7 @@
   gap: 12px;
 }
 
-/* 资料编辑弹窗 */
+/* 弹窗通用 */
 .mu-modal {
   position: absolute;
   inset: 0;
@@ -443,18 +453,23 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 28px;
-  color: #8e8e93;
 }
 
-.mu-sheet-avatar.has-img {
-  font-size: 0;
+.mu-sheet-avatar svg {
+  width: 30px;
+  height: 30px;
+  fill: #8e8e93;
+}
+
+.mu-sheet-avatar.has-img svg {
+  display: none;
 }
 
 .mu-input-card {
   background: #ffffff;
   border-radius: 18px;
   padding: 13px 16px;
+  margin-bottom: 12px;
 }
 
 .mu-text-input {
@@ -466,7 +481,35 @@
   color: #111111;
 }
 
-/* 悬浮迷你播放条 + 底部 3 格液态玻璃胶囊 */
+.mu-qr-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+}
+
+.mu-qr-img {
+  width: 168px;
+  height: 168px;
+  border-radius: 16px;
+  background: #ffffff;
+  padding: 8px;
+  display: none;
+}
+
+.mu-qr-btn {
+  width: 100%;
+  text-align: center;
+  padding: 13px;
+  border-radius: 16px;
+  background: #111111;
+  color: #ffffff;
+  font-size: var(--app-font-size, 15px);
+  font-weight: 600;
+}
+
+/* 悬浮迷你播放条（纯 SVG，含切歌键） */
 .mu-mini-player {
   position: absolute;
   bottom: calc(max(18px, env(safe-area-inset-bottom)) + 56px);
@@ -476,7 +519,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 14px;
+  padding: 8px 12px;
   border-radius: 999px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.36) 0%, rgba(255, 255, 255, 0.08) 50%, rgba(255, 255, 255, 0.22) 100%);
   -webkit-backdrop-filter: none;
@@ -490,16 +533,20 @@
 }
 
 .mu-mini-cover {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
   background: #d1d1d6;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
-  color: #ffffff;
   flex-shrink: 0;
+}
+
+.mu-mini-cover svg {
+  width: 16px;
+  height: 16px;
+  fill: #ffffff;
 }
 
 .mu-mini-info {
@@ -513,16 +560,28 @@
   text-overflow: ellipsis;
 }
 
+.mu-mini-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
 .mu-mini-ctrl {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
-  color: #111111;
 }
 
+.mu-mini-ctrl svg {
+  width: 18px;
+  height: 18px;
+  fill: #111111;
+}
+
+/* 底部 3 格液态玻璃胶囊 */
 .mu-bottom-bar {
   position: absolute;
   bottom: max(18px, env(safe-area-inset-bottom));
@@ -582,4 +641,170 @@
 .mu-tab.active {
   color: #111111;
   font-weight: 600;
+}
+
+/* P4 同款全屏展开播放页 */
+.mu-player-sheet {
+  position: absolute;
+  inset: 0;
+  z-index: 45;
+  background: linear-gradient(180deg, #5c5a60 0%, #3d3c40 100%);
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: calc(env(safe-area-inset-top) + 14px) 28px max(28px, env(safe-area-inset-bottom));
+  transform: translateY(100%);
+  transition: transform 0.32s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.mu-player-sheet.open {
+  transform: translateY(0);
+}
+
+.mu-ps-grab-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 4px 0 12px;
+}
+
+.mu-ps-grab {
+  width: 40px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.mu-ps-art {
+  width: 248px;
+  height: 248px;
+  margin: 0 auto;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+}
+
+.mu-ps-art svg {
+  width: 96px;
+  height: 96px;
+  fill: rgba(255, 255, 255, 0.28);
+}
+
+.mu-ps-meta {
+  margin-top: 26px;
+}
+
+.mu-ps-title {
+  font-size: 21px;
+  font-weight: 700;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mu-ps-sub {
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.65);
+  margin-top: 3px;
+}
+
+.mu-ps-prog {
+  margin-top: 18px;
+}
+
+.mu-ps-bar {
+  width: 100%;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  overflow: hidden;
+}
+
+.mu-ps-bar-fill {
+  width: 0%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.mu-ps-times {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.45);
+  margin-top: 6px;
+}
+
+.mu-ps-ctrls {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 14px 10px;
+}
+
+.mu-ps-btn {
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mu-ps-btn svg {
+  width: 30px;
+  height: 30px;
+  fill: rgba(255, 255, 255, 0.55);
+}
+
+.mu-ps-btn.main svg {
+  width: 44px;
+  height: 44px;
+  fill: #ffffff;
+}
+
+.mu-ps-vol {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mu-ps-vol svg {
+  width: 16px;
+  height: 16px;
+  fill: rgba(255, 255, 255, 0.55);
+  flex-shrink: 0;
+}
+
+.mu-ps-vol-track {
+  flex: 1;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  overflow: hidden;
+}
+
+.mu-ps-vol-fill {
+  width: 45%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.mu-ps-footer {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding-top: 10px;
+}
+
+.mu-ps-footer svg {
+  width: 20px;
+  height: 20px;
+  stroke: rgba(255, 255, 255, 0.55);
+  stroke-width: 1.8;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
