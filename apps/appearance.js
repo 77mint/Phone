@@ -4,6 +4,7 @@
 
   var APPS_LIST = [
     { id: 'appearance', name: '外观', emoji: '🎨', bg: 'bg-1', defaultIcon: 'icons/A7EE88CF-C100-4741-A665-F0CBF7255BB9.jpeg' },
+    { id: 'api', name: 'API', emoji: '🔌', bg: 'bg-5' },
     { id: 'chat', name: '聊天', emoji: '💬', bg: 'bg-2' },
     { id: 'photos', name: '相册', emoji: '🖼️', bg: 'bg-3' },
     { id: 'music', name: '音乐', emoji: '🎵', bg: 'bg-4' },
