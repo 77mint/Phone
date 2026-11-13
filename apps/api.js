@@ -6,6 +6,7 @@
   var PRESETS_KEY = 'phone_api_bundle_presets';
   var OLD_LLM_PRESETS_KEY = 'phone_api_llm_presets';
   var LOGS_KEY = 'phone_api_logs';
+  var MAX_LOGS = 30;
 
   var MODULES = [
     { key: 'llm', title: '语言模型', tag: 'LLM' },
@@ -95,6 +96,9 @@
       out[m.key] = {
         primary: Object.assign(createEmptySlot(m.key), item.primary || {}),
         backupEnabled: !!item.backupEnabled,
+        autoRetry: !!item.autoRetry,
+        stream: item.stream !== undefined ? !!item.stream : true,
+        temperature: typeof item.temperature === 'number' ? item.temperature : 0.8,
         backup: Object.assign(createEmptySlot(m.key), item.backup || {})
       };
       if (m.key === 'translate' && !out[m.key].primary.mode) {
@@ -119,7 +123,6 @@
       if (!Array.isArray(arr)) arr = [];
     } catch (e) { arr = []; }
 
-    // 兼容迁移旧版仅 LLM 的配置组
     if (!arr.length) {
       try {
         var oldArr = JSON.parse(localStorage.getItem(OLD_LLM_PRESETS_KEY) || '[]');
@@ -132,6 +135,9 @@
                 llm: {
                   primary: Object.assign(createEmptySlot('llm'), o.primary || {}),
                   backupEnabled: !!o.backupEnabled,
+                  autoRetry: !!o.autoRetry,
+                  stream: true,
+                  temperature: 0.8,
                   backup: Object.assign(createEmptySlot('llm'), o.backup || {})
                 }
               }
@@ -151,7 +157,7 @@
   function loadLogs() {
     try {
       var arr = JSON.parse(localStorage.getItem(LOGS_KEY) || '[]');
-      return Array.isArray(arr) ? arr.slice(0, 10) : [];
+      return Array.isArray(arr) ? arr.slice(0, MAX_LOGS) : [];
     } catch (e) {
       return [];
     }
@@ -199,7 +205,7 @@
       raw: raw,
       analysis: analysis
     });
-    if (logs.length > 10) logs = logs.slice(0, 10);
+    if (logs.length > MAX_LOGS) logs = logs.slice(0, MAX_LOGS);
     localStorage.setItem(LOGS_KEY, JSON.stringify(logs));
   }
 
@@ -258,18 +264,29 @@
   var SVG_EYE = '<svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
 
   root.innerHTML =
-    '<div class="api-shell">' +
+    '<div class="api-shell" id="apiShell">' +
       '<div class="api-header">' +
         '<div class="app-back" data-close-app>' +
           '<svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg>' +
         '</div>' +
+        '<div class="api-header-title">API调用日志</div>' +
+        '<div class="api-clear-top" id="apiClearLogsBtn">清空</div>' +
       '</div>' +
       '<div class="api-body">' +
-        '<div class="api-list" id="apiAccordionList"></div>' +
+        '<div class="api-panel active" id="apiPanelConfig">' +
+          '<div class="api-list" id="apiAccordionList"></div>' +
+        '</div>' +
+        '<div class="api-panel" id="apiPanelLogs">' +
+          '<div class="api-logs-page" id="apiLogsPageList"></div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="lg-bottom-bar api-bottom-bar" id="apiBottomBar">' +
+        '<div class="api-tab-indicator"></div>' +
+        '<div class="api-tab active" data-api-tab="config">配置</div>' +
+        '<div class="api-tab" data-api-tab="logs">日志</div>' +
       '</div>' +
     '</div>';
 
-  // 支持多张卡片同时展开
   var openCards = {};
   var configs = loadAllConfigs();
 
@@ -296,7 +313,7 @@
 
     var listHtml = !presets.length
       ? '<div class="api-switch-sub" style="padding:4px 0;">填好上面的语言、语音或生图模型后，在这里起个名字就能打包存成一组（没填的模块不会空覆盖）。</div>'
-      : '<div class="api-preset-list" style="padding-top:4px;">' + presets.map(function (p) {
+      : '<div class="api-preset-list">' + presets.map(function (p) {
           var isAct = configs._activeBundleId === p.id;
           var mods = p.modules || {};
           var tags = [];
@@ -532,11 +549,32 @@
     });
   }
 
-  function renderAll() {
+  function renderLogsTab() {
     var logs = loadLogs();
-    var listEl = document.getElementById('apiAccordionList');
+    var container = document.getElementById('apiLogsPageList');
+    if (!logs.length) {
+      container.innerHTML = '<div class="api-log-empty-card">暂无调用记录（最近 30 条真实请求与报错分析会显示在这里）</div>';
+      return;
+    }
+    container.innerHTML = logs.map(function (l) {
+      return (
+        '<div class="api-log-card">' +
+          '<div class="api-log-top">' +
+            '<span class="api-log-mod' + (l.ok ? '' : ' err') + '">' + escapeHtml(l.module) + ' · ' + (l.ok ? '成功' : '失败') + '</span>' +
+            '<span class="api-log-time">' + escapeHtml(l.time) + '</span>' +
+          '</div>' +
+          (l.source ? '<div class="api-log-source">来源：' + escapeHtml(l.source) + '</div>' : '') +
+          '<div class="api-log-raw">' + (l.ok ? escapeHtml(l.raw) : ('原报错：' + escapeHtml(l.raw))) + '</div>' +
+          (l.analysis ? '<div class="api-log-analysis">分析：' + escapeHtml(l.analysis) + '</div>' : '') +
+        '</div>'
+      );
+    }).join('');
+  }
 
+  function renderAll() {
+    var listEl = document.getElementById('apiAccordionList');
     var html = '';
+
     MODULES.forEach(function (m) {
       var c = configs[m.key];
       var isOpen = !!openCards[m.key];
@@ -567,8 +605,30 @@
       if (m.key === 'translate') {
         bodyInner = buildTranslateBody(c);
       } else {
+        var llmExtra = '';
+        if (m.key === 'llm') {
+          var tempVal = Number(c.temperature !== undefined ? c.temperature : 0.8).toFixed(1);
+          llmExtra =
+            '<div class="api-switch-row" style="flex-direction:column;align-items:stretch;gap:8px;">' +
+              '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+                '<div class="api-switch-text">温度（Temperature）</div>' +
+                '<div class="api-switch-text" id="apiLlmTempVal">' + tempVal + '</div>' +
+              '</div>' +
+              '<input type="range" id="apiLlmTempRange" min="0" max="2" step="0.1" value="' + tempVal + '" style="width:100%;accent-color:#111111;">' +
+              '<div class="api-switch-sub" style="margin-top:0;">越低越严谨，越高越有想象力（推荐 0.7 ~ 1.0）</div>' +
+            '</div>' +
+            '<div class="api-switch-row">' +
+              '<div>' +
+                '<div class="api-switch-text">流式输出</div>' +
+                '<div class="api-switch-sub">开启后回复实时逐字显示</div>' +
+              '</div>' +
+              '<div class="api-switch' + (c.stream ? ' on' : '') + '" data-toggle-stream="llm"><div class="api-switch-thumb"></div></div>' +
+            '</div>';
+        }
+
         bodyInner =
           buildSlotFields(m.key, 'primary', c.primary) +
+          llmExtra +
           '<div class="api-switch-row">' +
             '<div>' +
               '<div class="api-switch-text">副 API</div>' +
@@ -579,6 +639,13 @@
           '<div class="api-sub-section' + (c.backupEnabled ? ' open' : '') + '">' +
             '<div class="api-sub-badge">副 API 配置</div>' +
             buildSlotFields(m.key, 'backup', c.backup) +
+          '</div>' +
+          '<div class="api-switch-row">' +
+            '<div>' +
+              '<div class="api-switch-text">失败自动重试</div>' +
+              '<div class="api-switch-sub">主接口报错时仅重试 1 次（有副 API 优先切副 API）</div>' +
+            '</div>' +
+            '<div class="api-switch' + (c.autoRetry ? ' on' : '') + '" data-toggle-retry="' + m.key + '"><div class="api-switch-thumb"></div></div>' +
           '</div>';
       }
 
@@ -607,47 +674,11 @@
             '</div>' +
           '</div>' +
         '</div>';
-
-      // 把「已保存配置组」放在「生图模型 IMAGE」下面
-      if (m.key === 'image') {
-        html += buildPresetsCard();
-      }
     });
 
-    var logsOpen = !!openCards.logs;
-    var logSub = logs.length ? ('最近 ' + logs.length + ' 条 · 最新 ' + logs[0].time) : '暂无记录';
-    var logBodyHtml = !logs.length
-      ? '<div class="api-log-empty">暂无调用记录（每次真实请求都会记在这里，防止暗中扣费）</div>'
-      : '<div class="api-log-list">' + logs.map(function (l) {
-          return (
-            '<div class="api-log-item">' +
-              '<div class="api-log-top">' +
-                '<span class="api-log-mod' + (l.ok ? '' : ' err') + '">' + escapeHtml(l.module) + ' · ' + (l.ok ? '成功' : '失败') + '</span>' +
-                '<span class="api-log-time">' + escapeHtml(l.time) + '</span>' +
-              '</div>' +
-              (l.source ? '<div class="api-log-source">来源：' + escapeHtml(l.source) + '</div>' : '') +
-              '<div class="api-log-raw">' + (l.ok ? escapeHtml(l.raw) : ('原报错：' + escapeHtml(l.raw))) + '</div>' +
-              (l.analysis ? '<div class="api-log-analysis">分析：' + escapeHtml(l.analysis) + '</div>' : '') +
-            '</div>'
-          );
-        }).join('') + '</div>' +
-        '<div class="api-actions"><div class="api-btn-secondary" id="apiClearLogsBtn">清空日志</div></div>';
-
-    html +=
-      '<div class="api-card' + (logsOpen ? ' open' : '') + '" data-card="logs">' +
-        '<div class="api-card-head" data-toggle-card="logs">' +
-          '<div class="api-card-main">' +
-            '<div class="api-card-title-row">' +
-              '<span class="api-card-title">API调用日志</span>' +
-            '</div>' +
-            '<div class="api-card-sub">' + escapeHtml(logSub) + '</div>' +
-          '</div>' +
-          SVG_CHEVRON +
-        '</div>' +
-        '<div class="api-card-body">' + logBodyHtml + '</div>' +
-      '</div>';
-
+    html += buildPresetsCard();
     listEl.innerHTML = html;
+    renderLogsTab();
   }
 
   function normalizeBaseUrl(raw, type) {
@@ -729,6 +760,7 @@
           ok: false,
           rawError: err.message
         });
+        renderLogsTab();
       });
   }
 
@@ -784,6 +816,7 @@
               ok: true,
               rawError: txt
             });
+            renderLogsTab();
           });
       })
       .catch(function (err) {
@@ -796,6 +829,7 @@
           rawError: err.message || String(err),
           analysis: '该中转站或官方接口未开放 Key 查余额权限，属于正常现象，请直接登录中转站网页查看。'
         });
+        renderLogsTab();
       });
   }
 
@@ -821,6 +855,7 @@
             ok: true,
             rawError: '译文：' + resText + '（' + ms + 'ms）'
           });
+          renderLogsTab();
         })
         .catch(function (err) {
           msgEl.className = 'api-test-msg show err';
@@ -831,6 +866,7 @@
             ok: false,
             rawError: err.message
           });
+          renderLogsTab();
         });
       return;
     }
@@ -883,6 +919,7 @@
           ok: true,
           rawError: '测试连通成功 · ' + prov.label + ' · ' + ms + 'ms'
         });
+        renderLogsTab();
       })
       .catch(function (err) {
         var ms = Date.now() - start;
@@ -897,14 +934,44 @@
           rawError: rawErr,
           analysis: tip
         });
+        renderLogsTab();
       });
   }
 
   renderAll();
 
+  // 底栏切换（配置 / 日志）
+  var shellEl = document.getElementById('apiShell');
+  var bottomBar = document.getElementById('apiBottomBar');
+  root.querySelectorAll('.api-tab').forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      var target = tab.getAttribute('data-api-tab');
+      var isLogs = target === 'logs';
+      root.querySelectorAll('.api-tab').forEach(function (t) { t.classList.remove('active'); });
+      tab.classList.add('active');
+      bottomBar.classList.toggle('is-logs', isLogs);
+      shellEl.classList.toggle('is-subtab', isLogs);
+      document.getElementById('apiPanelConfig').classList.toggle('active', !isLogs);
+      document.getElementById('apiPanelLogs').classList.toggle('active', isLogs);
+      if (isLogs) renderLogsTab();
+    });
+  });
+
+  root.addEventListener('input', function (e) {
+    if (e.target && e.target.id === 'apiLlmTempRange') {
+      var val = parseFloat(e.target.value);
+      configs.llm.temperature = isNaN(val) ? 0.8 : val;
+      var txtEl = document.getElementById('apiLlmTempVal');
+      if (txtEl) txtEl.textContent = configs.llm.temperature.toFixed(1);
+    }
+  });
+
   root.addEventListener('change', function (e) {
     if (e.target && e.target.id === 'apiTranslateLangSelect') {
       configs.translate.primary.targetLang = e.target.value;
+      saveAllConfigs(configs);
+    }
+    if (e.target && e.target.id === 'apiLlmTempRange') {
       saveAllConfigs(configs);
     }
   });
@@ -932,6 +999,9 @@
             configs[k] = {
               primary: Object.assign(createEmptySlot(k), hit.modules[k].primary || {}),
               backupEnabled: !!hit.modules[k].backupEnabled,
+              autoRetry: !!hit.modules[k].autoRetry,
+              stream: hit.modules[k].stream !== undefined ? !!hit.modules[k].stream : true,
+              temperature: typeof hit.modules[k].temperature === 'number' ? hit.modules[k].temperature : 0.8,
               backup: Object.assign(createEmptySlot(k), hit.modules[k].backup || {})
             };
           }
@@ -1026,11 +1096,30 @@
       return;
     }
 
+    var stSwitch = e.target.closest('[data-toggle-stream]');
+    if (stSwitch) {
+      syncInputsToState('llm');
+      configs.llm.stream = !configs.llm.stream;
+      saveAllConfigs(configs);
+      renderAll();
+      return;
+    }
+
     var bkSwitch = e.target.closest('[data-toggle-backup]');
     if (bkSwitch) {
       var bMk = bkSwitch.getAttribute('data-toggle-backup');
       syncInputsToState(bMk);
       configs[bMk].backupEnabled = !configs[bMk].backupEnabled;
+      renderAll();
+      return;
+    }
+
+    var rtSwitch = e.target.closest('[data-toggle-retry]');
+    if (rtSwitch) {
+      var rMk = rtSwitch.getAttribute('data-toggle-retry');
+      syncInputsToState(rMk);
+      configs[rMk].autoRetry = !configs[rMk].autoRetry;
+      saveAllConfigs(configs);
       renderAll();
       return;
     }
@@ -1090,7 +1179,7 @@
 
     if (e.target.closest('#apiClearLogsBtn')) {
       localStorage.setItem(LOGS_KEY, '[]');
-      renderAll();
+      renderLogsTab();
     }
   });
 })();
