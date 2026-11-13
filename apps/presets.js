@@ -200,8 +200,6 @@
         id: uid('pr'),
         scene: currentTab,
         name: name,
-        maxContext: 8192,
-        maxTokens: 2048,
         temperature: 0.85,
         topP: 0.95,
         entries: []
@@ -288,7 +286,6 @@
           <div class="pr-item-meta">
             <span class="pr-token-chip">${tokens.toLocaleString()} tok</span>
             <span>启用 ${enabledCount}/${totalCount} 项</span>
-            <span>上下文 ${p.maxContext || 8192}</span>
           </div>
         </div>
       `;
@@ -336,8 +333,6 @@
 
     const scene = p.scene || 'online';
     const totalTok = calcPresetTokens(p);
-    const maxCtx = Number(p.maxContext) || 8192;
-    const maxReply = Number(p.maxTokens) || 2048;
     const isActive = p.id === getActiveIdForScene(scene);
 
     scroll.innerHTML = `
@@ -356,14 +351,6 @@
         </div>
 
         <div class="pr-param-grid">
-          <div class="pr-param-box">
-            <div class="pr-param-label">上下文上限 (Context)</div>
-            <input class="pr-param-input" data-param="maxContext" type="number" step="512" value="${maxCtx}" />
-          </div>
-          <div class="pr-param-box">
-            <div class="pr-param-label">最大回复 (Max Tokens)</div>
-            <input class="pr-param-input" data-param="maxTokens" type="number" step="128" value="${maxReply}" />
-          </div>
           <div class="pr-param-box">
             <div class="pr-param-label">Temperature (0 - 2)</div>
             <input class="pr-param-input" data-param="temperature" type="number" step="0.05" min="0" max="2" value="${p.temperature ?? 0.85}" />
@@ -747,8 +734,6 @@
       id: uid('pr'),
       scene: scene || (json.scene === 'offline' ? 'offline' : 'online'),
       name: json.name || fallbackName || '导入的预设',
-      maxContext: Number(json.openai_max_context) || 8192,
-      maxTokens: Number(json.openai_max_tokens) || 2048,
       temperature: json.temperature !== undefined ? Number(json.temperature) : 0.85,
       topP: json.top_p !== undefined ? Number(json.top_p) : 0.95,
       entries: ordered
@@ -787,8 +772,6 @@
       scene: p.scene || 'online',
       temperature: p.temperature,
       top_p: p.topP,
-      openai_max_context: p.maxContext,
-      openai_max_tokens: p.maxTokens,
       prompts: prompts,
       prompt_order: [{ character_id: 100001, order: order }]
     };
