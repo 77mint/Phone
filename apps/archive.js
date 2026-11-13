@@ -16,6 +16,7 @@
   var openNpcIds = {};
   var activeGroupFilter = '全部';
   var netCharId = '';
+  var selectedNpcId = '';
   var pickingNpcAvatarId = '';
 
   var SUB_TAB_INDEX = { info: 0, mask: 1, social: 2 };
@@ -582,6 +583,7 @@
     }
 
     netCharId = newId;
+    selectedNpcId = '';
     renderCharsList();
     renderNetwork();
     showToast('已导入「' + (newChar.name || newChar.nickname) + '」');
@@ -641,7 +643,7 @@
       box.innerHTML =
         '<div class="ar-empty">' +
           '<div class="ar-empty-title">暂无关系网</div>' +
-          '<div class="ar-empty-sub">先在「Char」页面新建并保存角色，这里会自动显示关联人物</div>' +
+          '<div class="ar-empty-sub">先在「Char」页面新建并保存角色，这里会自动生成关系图谱</div>' +
         '</div>';
       return;
     }
@@ -659,32 +661,53 @@
       : '';
 
     var centerName = activeChar.name || activeChar.nickname || '主角';
-    var detailHtml = '';
-    if (!npcs.length) {
-      detailHtml =
-        '<div class="ar-net-detail">' +
-          '<div class="ar-net-detail-head"><div class="ar-net-detail-title">' + escapeHtml(centerName) + ' 的关系网</div></div>' +
-          '<div class="ar-net-detail-desc">该角色暂未添加 NPC，去「Char → 交际」里添加后会自动显示在这里。</div>' +
-        '</div>';
-    } else {
-      detailHtml = npcs.map(function (npc) {
-        var socialMeta = npc.hasSocial
-          ? ('已开通社媒 · ' + (npc.handle || '@未填ID') + (npc.bio ? (' · ' + npc.bio) : ''))
-          : '未设置社交账号（不可在社媒交互）';
-        return (
-          '<div class="ar-net-detail">' +
-            '<div class="ar-net-detail-head">' +
-              '<div class="ar-net-detail-title">' + escapeHtml(npc.name || '未命名 NPC') + '</div>' +
-              (npc.relation ? '<span class="ar-card-tag">' + escapeHtml(npc.relation) + '</span>' : '') +
-            '</div>' +
-            '<div class="ar-net-detail-meta">' + escapeHtml(socialMeta) + '</div>' +
-            '<div class="ar-net-detail-desc">' + escapeHtml(npc.desc || '暂无详细关系描述') + '</div>' +
-          '</div>'
-        );
-      }).join('');
-    }
+    var centerAv = charAvatarCache[activeChar.id] || '';
+    var centerCircleStyle = centerAv ? 'background-image:url(\'' + centerAv + '\');' : '';
 
-    box.innerHTML = pillsHtml + '<div class="ar-list">' + detailHtml + '</div>';
+    var linesSvg = '';
+    var relLabelsHtml = '';
+    var nodesHtml =
+      '<div class="ar-net-node is-center" style="left:50%;top:50%;" data-net-center="' + escapeHtml(activeChar.id) + '">' +
+        '<div class="ar-net-circle' + (centerAv ? ' has-img' : '') + '" style="' + centerCircleStyle + '">' + escapeHtml(centerName.slice(0, 1)) + '</div>' +
+        '<div class="ar-net-label">' + escapeHtml(centerName) + '</div>' +
+      '</div>';
+
+    npcs.forEach(function (npc, idx) {
+      var angle = (Math.PI * 2 * idx) / npcs.length - Math.PI / 2;
+      var rx = 36;
+      var ry = 36;
+      var xPct = 50 + rx * Math.cos(angle);
+      var yPct = 50 + ry * Math.sin(angle);
+      var midX = (50 + xPct) / 2;
+      var midY = (50 + yPct) / 2;
+      var sel = selectedNpcId === npc.id ? ' selected' : '';
+      var nName = npc.name || 'NPC';
+      var nAv = npc.hasSocial ? (npcAvatarCache[npc.id] || '') : '';
+      var nAvStyle = nAv ? 'background-image:url(\'' + nAv + '\');' : '';
+
+      linesSvg += '<line x1="50%" y1="50%" x2="' + xPct.toFixed(1) + '%" y2="' + yPct.toFixed(1) + '%" stroke="#d1d1d6" stroke-width="1.5" stroke-dasharray="4 3" />';
+      if (npc.relation) {
+        relLabelsHtml += '<div class="ar-net-rel" style="left:' + midX.toFixed(1) + '%;top:' + midY.toFixed(1) + '%;">' + escapeHtml(npc.relation) + '</div>';
+      }
+      nodesHtml +=
+        '<div class="ar-net-node' + sel + '" style="left:' + xPct.toFixed(1) + '%;top:' + yPct.toFixed(1) + '%;" data-net-npc="' + escapeHtml(npc.id) + '">' +
+          '<div class="ar-net-circle' + (nAv ? ' has-img' : '') + '" style="' + nAvStyle + '">' +
+            escapeHtml(nName.slice(0, 1)) +
+            (npc.hasSocial ? '<span class="ar-net-social-dot"></span>' : '') +
+          '</div>' +
+          '<div class="ar-net-label">' + escapeHtml(nName) + '</div>' +
+        '</div>';
+    });
+
+    box.innerHTML =
+      pillsHtml +
+      '<div class="ar-net-card">' +
+        '<div class="ar-net-stage">' +
+          '<svg class="ar-net-svg">' + linesSvg + '</svg>' +
+          relLabelsHtml +
+          nodesHtml +
+        '</div>' +
+      '</div>';
   }
 
   function renderEditorGroups() {
@@ -1049,6 +1072,13 @@
     var pill = e.target.closest('[data-net-char]');
     if (pill) {
       netCharId = pill.getAttribute('data-net-char');
+      selectedNpcId = '';
+      renderNetwork();
+      return;
+    }
+    var npcNode = e.target.closest('[data-net-npc]');
+    if (npcNode) {
+      selectedNpcId = npcNode.getAttribute('data-net-npc');
       renderNetwork();
     }
   });
@@ -1106,6 +1136,7 @@
       PhoneDB.set('archive_char_avatar_' + id, tempCharAvatar);
     }
     netCharId = id;
+    selectedNpcId = '';
     editorEl.classList.remove('open');
     renderCharsList();
     renderNetwork();
