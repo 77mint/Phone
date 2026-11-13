@@ -18,14 +18,56 @@
   padding: calc(env(safe-area-inset-top) + 12px) 18px 10px;
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  min-height: 54px;
   flex-shrink: 0;
+}
+
+.api-shell.is-subtab .app-back {
+  display: none;
+}
+
+.api-header-title {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: #111111;
+  display: none;
+}
+
+.api-shell.is-subtab .api-header-title {
+  display: block;
+}
+
+.api-clear-top {
+  display: none;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #111111;
+  font-size: calc(var(--app-font-size, 15px) - 2px);
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  cursor: pointer;
+}
+
+.api-shell.is-subtab .api-clear-top {
+  display: inline-flex;
 }
 
 .api-body {
   flex: 1;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  padding: 6px 16px calc(env(safe-area-inset-bottom) + 36px);
+  padding: 6px 16px calc(env(safe-area-inset-bottom) + 96px);
+}
+
+.api-panel {
+  display: none;
+}
+
+.api-panel.active {
+  display: block;
 }
 
 .api-list {
@@ -137,7 +179,7 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding-top: 10px;
+  padding-top: 4px;
 }
 
 .api-preset-row {
@@ -326,11 +368,12 @@
   color: #ffffff;
 }
 
-/* 副 API 开关 */
+/* 开关行 */
 .api-switch-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
   padding: 10px 14px;
   background: #f2f2f7;
   border-radius: 16px;
@@ -346,6 +389,7 @@
   font-size: 12px;
   color: #8e8e93;
   margin-top: 2px;
+  line-height: 1.35;
 }
 
 .api-switch {
@@ -398,7 +442,7 @@
 
 .api-actions {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   padding-top: 4px;
 }
 
@@ -417,7 +461,7 @@
 }
 
 .api-btn-primary {
-  flex: 1.2;
+  flex: 1.15;
   height: 42px;
   border-radius: 999px;
   background: #111111;
@@ -452,21 +496,21 @@
   color: #d70015;
 }
 
-/* 日志列表 */
-.api-log-list {
+/* 第二页：最近 30 条日志 */
+.api-logs-page {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding-top: 10px;
+  gap: 12px;
 }
 
-.api-log-item {
-  background: #f2f2f7;
-  border-radius: 16px;
-  padding: 12px 14px;
+.api-log-card {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 14px 16px;
   display: flex;
   flex-direction: column;
   gap: 6px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
 }
 
 .api-log-top {
@@ -490,18 +534,18 @@
 }
 
 .api-log-source {
-  font-size: 11px;
+  font-size: 12px;
   color: #6e6e73;
 }
 
 .api-log-raw {
   font-size: 12px;
   color: #3a3a3c;
-  background: #ffffff;
+  background: #f2f2f7;
   border-radius: 10px;
-  padding: 7px 10px;
+  padding: 8px 10px;
   word-break: break-all;
-  line-height: 1.4;
+  line-height: 1.45;
 }
 
 .api-log-analysis {
@@ -510,9 +554,61 @@
   line-height: 1.45;
 }
 
-.api-log-empty {
+.api-log-empty-card {
+  background: #ffffff;
+  border-radius: 24px;
   text-align: center;
   color: #8e8e93;
-  padding: 18px 0 8px;
+  padding: 44px 20px;
   font-size: calc(var(--app-font-size, 15px) - 2px);
+}
+
+/* 底部双格液态玻璃胶囊 */
+#app-api .api-bottom-bar {
+  position: absolute;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom) + 18px);
+  transform: translateX(-50%);
+  width: 210px;
+  height: 52px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  z-index: 20;
+}
+
+#app-api .api-tab-indicator {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: calc(50% - 4px);
+  height: calc(100% - 8px);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.08);
+  transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+  pointer-events: none;
+}
+
+#app-api .api-bottom-bar.is-logs .api-tab-indicator {
+  transform: translateX(100%);
+}
+
+#app-api .api-tab {
+  position: relative;
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(var(--app-font-size, 15px) - 1px);
+  font-weight: 600;
+  color: #6e6e73;
+  cursor: pointer;
+  z-index: 2;
+  transition: color 0.2s ease;
+}
+
+#app-api .api-tab.active {
+  color: #111111;
 }
