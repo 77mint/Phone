@@ -135,7 +135,7 @@
   padding: 2px 8px;
   border-radius: 999px;
   background: #f2f2f7;
-  color: #3a3a3c;
+  color: #6e6e73;
   font-size: 11px;
   font-weight: 600;
 }
@@ -179,6 +179,103 @@
   color: #8e8e93;
 }
 
+/* 满屏新建/编辑页 */
+.ar-editor {
+  position: absolute;
+  inset: 0;
+  z-index: 45;
+  background: #f2f2f7;
+  display: flex;
+  flex-direction: column;
+  transform: translateY(100%);
+  transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.ar-editor.open {
+  transform: translateY(0);
+}
+
+.ar-editor-head {
+  padding: calc(env(safe-area-inset-top) + 10px) 18px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* 左上角三格切换：ID / 人设 / NPC */
+.ar-top-tabs {
+  display: inline-flex;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 999px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.ar-top-tab {
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: calc(var(--app-font-size, 15px) - 2px);
+  font-weight: 600;
+  color: #6e6e73;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.ar-top-tab.active {
+  background: #ffffff;
+  color: #111111;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.ar-close-circle {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.ar-close-circle svg {
+  width: 14px;
+  height: 14px;
+  stroke: #111111;
+  fill: none;
+  stroke-width: 2.3;
+  stroke-linecap: round;
+}
+
+.ar-editor-body {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 6px 16px 20px;
+}
+
+.ar-page {
+  display: none;
+}
+
+.ar-page.active {
+  display: block;
+}
+
+.ar-form-card {
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 18px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+}
+
 .ar-avatar-picker {
   display: flex;
   flex-direction: column;
@@ -188,8 +285,8 @@
 }
 
 .ar-avatar-lg {
-  width: 76px;
-  height: 76px;
+  width: 78px;
+  height: 78px;
   border-radius: 50%;
   background: #e5e5ea;
   color: #6e6e73;
@@ -226,6 +323,9 @@
 }
 
 .ar-input-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   background: #f2f2f7;
   border-radius: 14px;
   padding: 10px 12px;
@@ -233,6 +333,8 @@
 
 .ar-input,
 .ar-textarea {
+  flex: 1;
+  min-width: 0;
   width: 100%;
   border: none;
   outline: none;
@@ -244,13 +346,150 @@
 }
 
 .ar-textarea {
-  min-height: 76px;
-  line-height: 1.45;
+  min-height: 150px;
+  line-height: 1.5;
+}
+
+.ar-rand-btn {
+  padding: 5px 10px;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #111111;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  flex-shrink: 0;
+}
+
+.ar-seg {
+  display: flex;
+  gap: 8px;
+}
+
+.ar-seg-btn {
+  flex: 1;
+  text-align: center;
+  padding: 9px 0;
+  border-radius: 12px;
+  background: #f2f2f7;
+  font-size: calc(var(--app-font-size, 15px) - 1px);
+  font-weight: 500;
+  color: #3a3a3c;
+  cursor: pointer;
+}
+
+.ar-seg-btn.active {
+  background: #111111;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+/* 第三面：NPC */
+.ar-npc-add {
+  width: 100%;
+  height: 46px;
+  border-radius: 18px;
+  background: #ffffff;
+  color: #111111;
+  font-size: var(--app-font-size, 15px);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+  cursor: pointer;
+  margin-bottom: 12px;
+}
+
+.ar-npc-add svg {
+  width: 15px;
+  height: 15px;
+  stroke: #111111;
+  fill: none;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+
+.ar-npc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ar-npc-card {
+  background: #ffffff;
+  border-radius: 20px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+  overflow: hidden;
+}
+
+.ar-npc-head {
+  padding: 15px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+}
+
+.ar-npc-name {
+  font-size: var(--app-font-size, 15px);
+  font-weight: 600;
+  color: #111111;
+}
+
+.ar-npc-chevron {
+  width: 15px;
+  height: 15px;
+  stroke: #8e8e93;
+  fill: none;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 0.2s ease;
+}
+
+.ar-npc-card.open .ar-npc-chevron {
+  transform: rotate(90deg);
+  stroke: #111111;
+}
+
+.ar-npc-body {
+  display: none;
+  padding: 0 16px 16px;
+  border-top: 1px solid #f2f2f7;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ar-npc-card.open .ar-npc-body {
+  display: flex;
+  padding-top: 12px;
+}
+
+.ar-npc-del {
+  align-self: flex-end;
+  font-size: 12px;
+  color: #d70015;
+  font-weight: 600;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+/* 满屏底部操作栏 */
+.ar-editor-foot {
+  padding: 12px 18px calc(env(safe-area-inset-bottom) + 16px);
+  background: #f2f2f7;
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
 }
 
 .ar-primary-btn {
-  width: 100%;
-  height: 44px;
+  flex: 1.4;
+  height: 46px;
   border-radius: 999px;
   background: #111111;
   color: #ffffff;
@@ -264,9 +503,9 @@
 
 .ar-danger-btn {
   flex: 0.8;
-  height: 44px;
+  height: 46px;
   border-radius: 999px;
-  background: #f2f2f7;
+  background: #ffffff;
   color: #d70015;
   font-size: var(--app-font-size, 15px);
   font-weight: 600;
@@ -276,94 +515,10 @@
   cursor: pointer;
 }
 
-/* 居中新建/编辑弹窗 */
-.ar-modal {
-  position: absolute;
-  inset: 0;
-  z-index: 50;
-  background: rgba(0, 0, 0, 0.36);
-  display: none;
-  align-items: center;
-  justify-content: center;
-  padding: calc(env(safe-area-inset-top) + 16px) 16px calc(env(safe-area-inset-bottom) + 16px);
-}
-
-.ar-modal.open {
-  display: flex;
-}
-
-.ar-dialog {
-  position: relative;
-  width: 100%;
-  max-width: 360px;
-  max-height: 100%;
-  background: #ffffff;
-  border-radius: 26px;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.22);
-}
-
-.ar-dialog-head {
-  padding: 18px 20px 12px;
-  text-align: center;
-  position: relative;
-  border-bottom: 1px solid #f2f2f7;
-  flex-shrink: 0;
-}
-
-.ar-dialog-title {
-  font-size: calc(var(--app-font-size, 15px) + 1px);
-  font-weight: 700;
-  color: #111111;
-}
-
-.ar-dialog-close {
-  position: absolute;
-  top: 14px;
-  right: 14px;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: #f2f2f7;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-
-.ar-dialog-close svg {
-  width: 13px;
-  height: 13px;
-  stroke: #111111;
-  fill: none;
-  stroke-width: 2.3;
-  stroke-linecap: round;
-}
-
-.ar-dialog-body {
-  flex: 1;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  padding: 16px 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.ar-dialog-foot {
-  padding: 12px 18px 18px;
-  display: flex;
-  gap: 10px;
-  border-top: 1px solid #f2f2f7;
-  flex-shrink: 0;
-}
-
 .ar-toast {
   position: absolute;
   left: 50%;
-  bottom: calc(env(safe-area-inset-bottom) + 32px);
+  bottom: calc(env(safe-area-inset-bottom) + 74px);
   transform: translateX(-50%) translateY(10px);
   background: rgba(17, 17, 17, 0.88);
   color: #ffffff;
