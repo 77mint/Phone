@@ -3,7 +3,7 @@
   if (!root) return;
 
   var APPS_LIST = [
-    { id: 'appearance', name: '外观', emoji: '🎨', bg: 'bg-1' },
+    { id: 'appearance', name: '外观', emoji: '🎨', bg: 'bg-1', defaultIcon: 'icons/A7EE88CF-C100-4741-A665-F0CBF7255BB9.jpeg' },
     { id: 'chat', name: '聊天', emoji: '💬', bg: 'bg-2' },
     { id: 'photos', name: '相册', emoji: '🖼️', bg: 'bg-3' },
     { id: 'music', name: '音乐', emoji: '🎵', bg: 'bg-4' },
@@ -393,6 +393,22 @@
   var inputAppIcon = document.getElementById('inputAppIcon');
   var editingAppId = '';
 
+  function setGridBoxPreview(box, app, url) {
+    if (url) {
+      box.style.backgroundImage = 'url("' + url + '")';
+      box.style.fontSize = '0';
+      box.classList.add('has-img');
+    } else if (app && app.defaultIcon) {
+      box.style.backgroundImage = 'url("' + app.defaultIcon + '")';
+      box.style.fontSize = '0';
+      box.classList.remove('has-img');
+    } else {
+      box.style.backgroundImage = '';
+      box.style.fontSize = '';
+      box.classList.remove('has-img');
+    }
+  }
+
   function renderIconGrid() {
     var html = '';
     APPS_LIST.forEach(function (app) {
@@ -410,14 +426,7 @@
     APPS_LIST.forEach(function (app) {
       PhoneDB.get('icon_' + app.id).then(function (url) {
         var box = document.getElementById('gridIcon-' + app.id);
-        if (!box) return;
-        if (url) {
-          box.style.backgroundImage = 'url("' + url + '")';
-          box.classList.add('has-img');
-        } else {
-          box.style.backgroundImage = '';
-          box.classList.remove('has-img');
-        }
+        if (box) setGridBoxPreview(box, app, url);
       });
     });
   }
@@ -431,10 +440,8 @@
       PhoneDB.del('icon_' + resetId);
       if (window.applyAppIcon) window.applyAppIcon(resetId, '');
       var box = document.getElementById('gridIcon-' + resetId);
-      if (box) {
-        box.style.backgroundImage = '';
-        box.classList.remove('has-img');
-      }
+      var appObj = APPS_LIST.find(function (a) { return a.id === resetId; });
+      if (box) setGridBoxPreview(box, appObj, '');
       return;
     }
     var item = e.target.closest('.icon-grid-item');
@@ -452,10 +459,8 @@
       PhoneDB.set('icon_' + targetId, url);
       if (window.applyAppIcon) window.applyAppIcon(targetId, url);
       var box = document.getElementById('gridIcon-' + targetId);
-      if (box) {
-        box.style.backgroundImage = 'url("' + url + '")';
-        box.classList.add('has-img');
-      }
+      var appObj = APPS_LIST.find(function (a) { return a.id === targetId; });
+      if (box) setGridBoxPreview(box, appObj, url);
     });
     this.value = '';
   });
