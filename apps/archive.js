@@ -7,6 +7,29 @@
   var charAvatarCache = {};
   var editingCharId = '';
   var tempCharAvatar = '';
+  var currentSubTab = 'id';
+  var tempGender = '女';
+  var tempNpcs = [];
+  var openNpcIds = {};
+
+  var HANDLE_PREFIX = ['velvet', 'noir', 'mori', 'echo', 'luna', 'soren', 'mint', 'ash', 'kuro', 'vivi', 'lune', 'zen', 'iris', 'sol'];
+  var HANDLE_SUFFIX = ['09x', '404', 'k2', '77', '99', '01', 'v8', '33', 'x7', '24'];
+
+  function genHandle() {
+    var p = HANDLE_PREFIX[Math.floor(Math.random() * HANDLE_PREFIX.length)];
+    var s = HANDLE_SUFFIX[Math.floor(Math.random() * HANDLE_SUFFIX.length)];
+    var sep = Math.random() > 0.5 ? '.' : '_';
+    return '@' + p + sep + s;
+  }
+
+  function genPassword() {
+    var chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789@#';
+    var out = '';
+    for (var i = 0; i < 8; i++) {
+      out += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return out;
+  }
 
   function getChars() {
     try {
@@ -59,46 +82,85 @@
         '<div class="ar-list" id="arCharList"></div>' +
       '</div>' +
 
-      '<div class="ar-modal" id="arCharModal">' +
-        '<div class="ar-dialog">' +
-          '<div class="ar-dialog-head">' +
-            '<div class="ar-dialog-title" id="arModalTitle">新建角色</div>' +
-            '<div class="ar-dialog-close" id="arCloseModal">' + SVG_CLOSE + '</div>' +
+      '<div class="ar-editor" id="arEditor">' +
+        '<div class="ar-editor-head">' +
+          '<div class="ar-top-tabs" id="arTopTabs">' +
+            '<div class="ar-top-tab active" data-ar-page="id">ID</div>' +
+            '<div class="ar-top-tab" data-ar-page="persona">人设</div>' +
+            '<div class="ar-top-tab" data-ar-page="npc">NPC</div>' +
           '</div>' +
-          '<div class="ar-dialog-body">' +
-            '<div class="ar-avatar-picker">' +
-              '<div class="ar-avatar-lg" id="arCharAvatarBox">' + SVG_USER + '</div>' +
-              '<div class="ar-avatar-hint">点击上传角色头像</div>' +
-            '</div>' +
-            '<div>' +
-              '<div class="ar-field-label">姓名</div>' +
-              '<div class="ar-input-box"><input type="text" class="ar-input" id="arCharName" placeholder="输入角色名字"></div>' +
-            '</div>' +
-            '<div>' +
-              '<div class="ar-field-label">昵称 / 称呼</div>' +
-              '<div class="ar-input-box"><input type="text" class="ar-input" id="arCharAlias" placeholder="小名、英文名或备注称呼"></div>' +
-            '</div>' +
-            '<div>' +
-              '<div class="ar-field-label">身份 / 关系</div>' +
-              '<div class="ar-input-box"><input type="text" class="ar-input" id="arCharRelation" placeholder="例如：室友、青梅竹马、上司"></div>' +
-            '</div>' +
-            '<div>' +
-              '<div class="ar-field-label">性格与人设</div>' +
-              '<div class="ar-input-box"><textarea class="ar-textarea" id="arCharPersona" placeholder="性格、说话语气、外貌特征"></textarea></div>' +
-            '</div>' +
-            '<div>' +
-              '<div class="ar-field-label">背景故事</div>' +
-              '<div class="ar-input-box"><textarea class="ar-textarea" id="arCharBg" placeholder="过往经历、与你的渊源"></textarea></div>' +
-            '</div>' +
-            '<div>' +
-              '<div class="ar-field-label">备注 / 禁忌</div>' +
-              '<div class="ar-input-box"><textarea class="ar-textarea" id="arCharNotes" placeholder="雷点、口癖、特殊设定等"></textarea></div>' +
+          '<div class="ar-close-circle" id="arCloseEditor">' + SVG_CLOSE + '</div>' +
+        '</div>' +
+
+        '<div class="ar-editor-body">' +
+          '<div class="ar-page active" id="arPageId">' +
+            '<div class="ar-form-card">' +
+              '<div class="ar-avatar-picker">' +
+                '<div class="ar-avatar-lg" id="arCharAvatarBox">' + SVG_USER + '</div>' +
+                '<div class="ar-avatar-hint">点击上传头像</div>' +
+              '</div>' +
+              '<div>' +
+                '<div class="ar-field-label">网名</div>' +
+                '<div class="ar-input-box"><input type="text" class="ar-input" id="arCharNickname" placeholder="社媒展示昵称"></div>' +
+              '</div>' +
+              '<div>' +
+                '<div class="ar-field-label">签名</div>' +
+                '<div class="ar-input-box"><input type="text" class="ar-input" id="arCharBio" placeholder="个人简介 / 个性签名"></div>' +
+              '</div>' +
+              '<div>' +
+                '<div class="ar-field-label">账号</div>' +
+                '<div class="ar-input-box">' +
+                  '<input type="text" class="ar-input" id="arCharHandle" placeholder="@handle">' +
+                  '<div class="ar-rand-btn" id="arRandHandleBtn">随机</div>' +
+                '</div>' +
+              '</div>' +
+              '<div>' +
+                '<div class="ar-field-label">密码</div>' +
+                '<div class="ar-input-box">' +
+                  '<input type="text" class="ar-input" id="arCharPassword" placeholder="登录密码">' +
+                  '<div class="ar-rand-btn" id="arRandPwdBtn">随机</div>' +
+                '</div>' +
+              '</div>' +
             '</div>' +
           '</div>' +
-          '<div class="ar-dialog-foot">' +
-            '<div class="ar-danger-btn" id="arDeleteCharBtn" style="display:none;">删除</div>' +
-            '<div class="ar-primary-btn" id="arSaveCharBtn" style="flex:1.4;">保存档案</div>' +
+
+          '<div class="ar-page" id="arPagePersona">' +
+            '<div class="ar-form-card">' +
+              '<div>' +
+                '<div class="ar-field-label">姓名</div>' +
+                '<div class="ar-input-box"><input type="text" class="ar-input" id="arCharName" placeholder="角色真实姓名"></div>' +
+              '</div>' +
+              '<div>' +
+                '<div class="ar-field-label">年龄</div>' +
+                '<div class="ar-input-box"><input type="text" class="ar-input" id="arCharAge" placeholder="例如：23"></div>' +
+              '</div>' +
+              '<div>' +
+                '<div class="ar-field-label">性别</div>' +
+                '<div class="ar-seg" id="arGenderSeg">' +
+                  '<div class="ar-seg-btn" data-gender="男">男</div>' +
+                  '<div class="ar-seg-btn active" data-gender="女">女</div>' +
+                  '<div class="ar-seg-btn" data-gender="其他">其他</div>' +
+                '</div>' +
+              '</div>' +
+              '<div>' +
+                '<div class="ar-field-label">人设</div>' +
+                '<div class="ar-input-box"><textarea class="ar-textarea" id="arCharPersona" placeholder="外貌特征、性格、说话语气、背景故事等"></textarea></div>' +
+              '</div>' +
+            '</div>' +
           '</div>' +
+
+          '<div class="ar-page" id="arPageNpc">' +
+            '<div class="ar-npc-add" id="arAddNpcBtn">' +
+              '<svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>' +
+              '<span>添加 NPC</span>' +
+            '</div>' +
+            '<div class="ar-npc-list" id="arNpcList"></div>' +
+          '</div>' +
+        '</div>' +
+
+        '<div class="ar-editor-foot">' +
+          '<div class="ar-danger-btn" id="arDeleteCharBtn" style="display:none;">删除</div>' +
+          '<div class="ar-primary-btn" id="arSaveCharBtn">保存档案</div>' +
         '</div>' +
       '</div>' +
 
@@ -133,20 +195,70 @@
       var av = charAvatarCache[c.id] || '';
       var avCls = 'ar-avatar' + (av ? ' has-img' : '');
       var avStyle = av ? ' style="background-image:url(\'' + av + '\')"' : '';
-      var firstChar = (c.name || '?').slice(0, 1);
-      var sub = c.persona || c.background || '点击编辑角色设定';
+      var displayName = c.name || c.nickname || '未命名';
+      var firstChar = displayName.slice(0, 1);
+      var sub = c.bio || c.persona || '点击编辑档案';
 
       return (
         '<div class="ar-card" data-edit-char="' + escapeHtml(c.id) + '">' +
           '<div class="' + avCls + '"' + avStyle + '>' + escapeHtml(firstChar) + '</div>' +
           '<div class="ar-card-info">' +
             '<div class="ar-card-top">' +
-              '<div class="ar-card-name">' + escapeHtml(c.name) + '</div>' +
-              (c.relation ? '<span class="ar-card-tag">' + escapeHtml(c.relation) + '</span>' : '') +
+              '<div class="ar-card-name">' + escapeHtml(displayName) + '</div>' +
+              (c.handle ? '<span class="ar-card-tag">' + escapeHtml(c.handle) + '</span>' : '') +
             '</div>' +
             '<div class="ar-card-sub">' + escapeHtml(sub) + '</div>' +
           '</div>' +
           SVG_CHEVRON +
+        '</div>'
+      );
+    }).join('');
+  }
+
+  function syncGenderUI() {
+    root.querySelectorAll('#arGenderSeg .ar-seg-btn').forEach(function (btn) {
+      btn.classList.toggle('active', btn.getAttribute('data-gender') === tempGender);
+    });
+  }
+
+  function switchSubTab(page) {
+    currentSubTab = page;
+    root.querySelectorAll('#arTopTabs .ar-top-tab').forEach(function (t) {
+      t.classList.toggle('active', t.getAttribute('data-ar-page') === page);
+    });
+    document.getElementById('arPageId').classList.toggle('active', page === 'id');
+    document.getElementById('arPagePersona').classList.toggle('active', page === 'persona');
+    document.getElementById('arPageNpc').classList.toggle('active', page === 'npc');
+  }
+
+  function syncNpcInputs() {
+    tempNpcs.forEach(function (npc) {
+      var nEl = document.getElementById('ar_npc_name_' + npc.id);
+      var dEl = document.getElementById('ar_npc_desc_' + npc.id);
+      if (nEl) npc.name = nEl.value.trim();
+      if (dEl) npc.desc = dEl.value;
+    });
+  }
+
+  function renderNpcList() {
+    var box = document.getElementById('arNpcList');
+    if (!tempNpcs.length) {
+      box.innerHTML = '<div class="ar-empty" style="padding:32px 20px;"><div class="ar-empty-sub">暂无关联 NPC，点击上方添加</div></div>';
+      return;
+    }
+    box.innerHTML = tempNpcs.map(function (npc) {
+      var isOpen = !!openNpcIds[npc.id];
+      return (
+        '<div class="ar-npc-card' + (isOpen ? ' open' : '') + '">' +
+          '<div class="ar-npc-head" data-toggle-npc="' + escapeHtml(npc.id) + '">' +
+            '<div class="ar-npc-name">' + escapeHtml(npc.name || '未命名 NPC') + '</div>' +
+            '<svg class="ar-npc-chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></svg>' +
+          '</div>' +
+          '<div class="ar-npc-body">' +
+            '<div class="ar-input-box"><input type="text" class="ar-input" id="ar_npc_name_' + escapeHtml(npc.id) + '" value="' + escapeHtml(npc.name) + '" placeholder="NPC 名字"></div>' +
+            '<div class="ar-input-box"><textarea class="ar-textarea" style="min-height:110px;" id="ar_npc_desc_' + escapeHtml(npc.id) + '" placeholder="写下该 NPC 的身份、性格与和主角的关系...">' + escapeHtml(npc.desc) + '</textarea></div>' +
+            '<div class="ar-npc-del" data-del-npc="' + escapeHtml(npc.id) + '">删除该 NPC</div>' +
+          '</div>' +
         '</div>'
       );
     }).join('');
@@ -163,17 +275,24 @@
 
   initLoad();
 
-  var charModal = document.getElementById('arCharModal');
-  function openCharModal(charObj) {
+  var editorEl = document.getElementById('arEditor');
+  function openEditor(charObj) {
     editingCharId = charObj ? charObj.id : '';
     tempCharAvatar = charObj ? (charAvatarCache[charObj.id] || '') : '';
-    document.getElementById('arModalTitle').textContent = charObj ? '编辑角色' : '新建角色';
+    tempGender = (charObj && charObj.gender) ? charObj.gender : '女';
+    tempNpcs = (charObj && Array.isArray(charObj.npcs)) ? JSON.parse(JSON.stringify(charObj.npcs)) : [];
+    openNpcIds = {};
+
+    document.getElementById('arCharNickname').value = charObj ? (charObj.nickname || '') : '';
+    document.getElementById('arCharBio').value = charObj ? (charObj.bio || '') : '';
+    document.getElementById('arCharHandle').value = charObj ? (charObj.handle || genHandle()) : genHandle();
+    document.getElementById('arCharPassword').value = charObj ? (charObj.password || genPassword()) : genPassword();
+
     document.getElementById('arCharName').value = charObj ? (charObj.name || '') : '';
-    document.getElementById('arCharAlias').value = charObj ? (charObj.alias || '') : '';
-    document.getElementById('arCharRelation').value = charObj ? (charObj.relation || '') : '';
+    document.getElementById('arCharAge').value = charObj ? (charObj.age || '') : '';
     document.getElementById('arCharPersona').value = charObj ? (charObj.persona || '') : '';
-    document.getElementById('arCharBg').value = charObj ? (charObj.background || '') : '';
-    document.getElementById('arCharNotes').value = charObj ? (charObj.notes || '') : '';
+    syncGenderUI();
+
     document.getElementById('arDeleteCharBtn').style.display = charObj ? 'flex' : 'none';
 
     var avBox = document.getElementById('arCharAvatarBox');
@@ -184,15 +303,67 @@
       avBox.style.backgroundImage = '';
       avBox.classList.remove('has-img');
     }
-    charModal.classList.add('open');
+
+    renderNpcList();
+    switchSubTab('id');
+    editorEl.classList.add('open');
   }
 
   document.getElementById('arAddCharBtn').addEventListener('click', function () {
-    openCharModal(null);
+    openEditor(null);
   });
 
-  document.getElementById('arCloseModal').addEventListener('click', function () {
-    charModal.classList.remove('open');
+  document.getElementById('arCloseEditor').addEventListener('click', function () {
+    editorEl.classList.remove('open');
+  });
+
+  document.getElementById('arTopTabs').addEventListener('click', function (e) {
+    var tab = e.target.closest('[data-ar-page]');
+    if (!tab) return;
+    if (currentSubTab === 'npc') syncNpcInputs();
+    switchSubTab(tab.getAttribute('data-ar-page'));
+  });
+
+  document.getElementById('arRandHandleBtn').addEventListener('click', function () {
+    document.getElementById('arCharHandle').value = genHandle();
+  });
+
+  document.getElementById('arRandPwdBtn').addEventListener('click', function () {
+    document.getElementById('arCharPassword').value = genPassword();
+  });
+
+  document.getElementById('arGenderSeg').addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-gender]');
+    if (!btn) return;
+    tempGender = btn.getAttribute('data-gender');
+    syncGenderUI();
+  });
+
+  document.getElementById('arAddNpcBtn').addEventListener('click', function () {
+    syncNpcInputs();
+    var nid = 'npc_' + Date.now();
+    tempNpcs.push({ id: nid, name: '新 NPC', desc: '' });
+    openNpcIds[nid] = true;
+    renderNpcList();
+  });
+
+  document.getElementById('arNpcList').addEventListener('click', function (e) {
+    var delBtn = e.target.closest('[data-del-npc]');
+    if (delBtn) {
+      syncNpcInputs();
+      var did = delBtn.getAttribute('data-del-npc');
+      tempNpcs = tempNpcs.filter(function (n) { return n.id !== did; });
+      delete openNpcIds[did];
+      renderNpcList();
+      return;
+    }
+    var head = e.target.closest('[data-toggle-npc]');
+    if (head) {
+      syncNpcInputs();
+      var tid = head.getAttribute('data-toggle-npc');
+      openNpcIds[tid] = !openNpcIds[tid];
+      renderNpcList();
+    }
   });
 
   document.getElementById('arCharList').addEventListener('click', function (e) {
@@ -200,7 +371,7 @@
     if (!card) return;
     var cid = card.getAttribute('data-edit-char');
     var target = getChars().find(function (c) { return c.id === cid; });
-    if (target) openCharModal(target);
+    if (target) openEditor(target);
   });
 
   document.getElementById('arCharAvatarBox').addEventListener('click', function () {
@@ -222,21 +393,26 @@
   });
 
   document.getElementById('arSaveCharBtn').addEventListener('click', function () {
+    syncNpcInputs();
+    var nickname = document.getElementById('arCharNickname').value.trim();
     var name = document.getElementById('arCharName').value.trim();
-    if (!name) {
-      showToast('请先填写角色姓名');
+    if (!name && !nickname) {
+      showToast('请至少填写网名或姓名');
       return;
     }
     var list = getChars();
     var id = editingCharId || ('char_' + Date.now());
     var obj = {
       id: id,
+      nickname: nickname,
+      bio: document.getElementById('arCharBio').value.trim(),
+      handle: document.getElementById('arCharHandle').value.trim(),
+      password: document.getElementById('arCharPassword').value.trim(),
       name: name,
-      alias: document.getElementById('arCharAlias').value.trim(),
-      relation: document.getElementById('arCharRelation').value.trim(),
+      age: document.getElementById('arCharAge').value.trim(),
+      gender: tempGender,
       persona: document.getElementById('arCharPersona').value.trim(),
-      background: document.getElementById('arCharBg').value.trim(),
-      notes: document.getElementById('arCharNotes').value.trim(),
+      npcs: tempNpcs,
       updatedAt: Date.now()
     };
 
@@ -249,9 +425,9 @@
       charAvatarCache[id] = tempCharAvatar;
       PhoneDB.set('archive_char_avatar_' + id, tempCharAvatar);
     }
-    charModal.classList.remove('open');
+    editorEl.classList.remove('open');
     renderCharsList();
-    showToast('角色档案已保存');
+    showToast('档案已保存');
   });
 
   document.getElementById('arDeleteCharBtn').addEventListener('click', function () {
@@ -260,8 +436,8 @@
     saveChars(list);
     delete charAvatarCache[editingCharId];
     PhoneDB.del('archive_char_avatar_' + editingCharId);
-    charModal.classList.remove('open');
+    editorEl.classList.remove('open');
     renderCharsList();
-    showToast('已删除角色');
+    showToast('已删除档案');
   });
 })();
