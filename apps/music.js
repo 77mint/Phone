@@ -2,12 +2,10 @@
   var root = document.getElementById('app-music');
   if (!root) return;
 
-  var ARTISTS = [
-    { name: '陈粒', tag: '陈' },
-    { name: '草东没有派对', tag: '草' },
-    { name: '方大同', tag: '方' },
-    { name: 'Taylor Swift', tag: 'T' },
-    { name: 'Justin Bieber', tag: 'J' }
+  var START_SONGS = [
+    { title: '红尘客栈', sub: '周杰伦', cls: 'mu-c1' },
+    { title: '太聪明', sub: '陈绮贞', cls: 'mu-c2' },
+    { title: 'Die For You', sub: 'The Weeknd', cls: 'mu-c3' }
   ];
 
   var PLAYLISTS = [
@@ -17,30 +15,29 @@
     { title: '白噪音与钢琴', sub: '专注学习歌单', cls: 'mu-c4' }
   ];
 
-  var NEW_SONGS = [
-    { title: 'AGAIN!', sub: 'LUCY · 单曲', cls: 'mu-c5' },
-    { title: '春风十里', sub: '鹿先森乐队', cls: 'mu-c6' },
-    { title: 'Love Story', sub: 'Taylor Swift', cls: 'mu-c2' },
-    { title: '特别的人', sub: '方大同', cls: 'mu-c1' }
+  var ARTISTS = [
+    { name: '周杰伦', tag: '周' },
+    { name: '陈绮贞', tag: '陈' },
+    { name: 'The Weeknd', tag: 'W' },
+    { name: '方大同', tag: '方' },
+    { name: 'Taylor Swift', tag: 'T' }
   ];
 
-  var CATEGORIES = [
-    { name: '年度艺人', cls: 'mu-c1' },
-    { name: '国语流行', cls: 'mu-c3' },
-    { name: 'K-Pop', cls: 'mu-c2' },
-    { name: '国际流行', cls: 'mu-c5' },
-    { name: '粤语经典', cls: 'mu-c4' },
-    { name: '嘻哈 / R&B', cls: 'mu-c6' }
-  ];
-
-  var artistsHtml = '';
-  ARTISTS.forEach(function (a) {
-    artistsHtml +=
-      '<div class="mu-artist">' +
-        '<div class="mu-artist-pic">' + a.tag + '</div>' +
-        '<div class="mu-artist-name">' + a.name + '</div>' +
-      '</div>';
-  });
+  function buildRectCards(list) {
+    var s = '';
+    list.forEach(function (item) {
+      s +=
+        '<div class="mu-rect-card" data-song="' + item.title + ' - ' + item.sub + '">' +
+          '<div class="mu-rect-cover ' + item.cls + '">♪</div>' +
+          '<div class="mu-rect-info">' +
+            '<div class="mu-rect-title">' + item.title + '</div>' +
+            '<div class="mu-rect-sub">' + item.sub + '</div>' +
+          '</div>' +
+          '<div class="mu-rect-play">▶</div>' +
+        '</div>';
+    });
+    return s;
+  }
 
   function buildCards(list) {
     var s = '';
@@ -55,31 +52,35 @@
     return s;
   }
 
-  var catsHtml = '';
-  CATEGORIES.forEach(function (c) {
-    catsHtml += '<div class="mu-cat-card ' + c.cls + '">' + c.name + '</div>';
+  var artistsHtml = '';
+  ARTISTS.forEach(function (a) {
+    artistsHtml +=
+      '<div class="mu-artist">' +
+        '<div class="mu-artist-pic">' + a.tag + '</div>' +
+        '<div class="mu-artist-name">' + a.name + '</div>' +
+      '</div>';
   });
 
   root.innerHTML =
-    '<div class="mu-header">' +
-      '<div class="app-back" data-close-app>' +
-        '<svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg>' +
-      '</div>' +
-    '</div>' +
     '<div class="mu-body">' +
       '<div class="mu-panel active" id="mu-panel-home">' +
-        '<div class="mu-pills">' +
-          '<div class="mu-pill active">全部</div>' +
-          '<div class="mu-pill">音乐</div>' +
-          '<div class="mu-pill">歌单</div>' +
-          '<div class="mu-pill">电台</div>' +
+        '<div class="mu-top-bar">' +
+          '<div class="mu-back-sm" data-close-app>' +
+            '<svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg>' +
+          '</div>' +
+          '<div class="mu-pills">' +
+            '<div class="mu-pill active">全部</div>' +
+            '<div class="mu-pill">音乐</div>' +
+            '<div class="mu-pill">歌单</div>' +
+            '<div class="mu-pill">电台</div>' +
+          '</div>' +
         '</div>' +
-        '<div class="mu-sec-title">推荐艺人</div>' +
-        '<div class="mu-shelf">' + artistsHtml + '</div>' +
+        '<div class="mu-sec-title">开始收听</div>' +
+        '<div class="mu-listen-list">' + buildRectCards(START_SONGS) + '</div>' +
         '<div class="mu-sec-title">精选推荐歌单</div>' +
         '<div class="mu-shelf">' + buildCards(PLAYLISTS) + '</div>' +
-        '<div class="mu-sec-title">每日新歌</div>' +
-        '<div class="mu-shelf">' + buildCards(NEW_SONGS) + '</div>' +
+        '<div class="mu-sec-title">推荐艺人</div>' +
+        '<div class="mu-shelf">' + artistsHtml + '</div>' +
       '</div>' +
       '<div class="mu-panel" id="mu-panel-search">' +
         '<div class="mu-search-wrap">' +
@@ -88,7 +89,7 @@
             '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>' +
             '<input type="text" class="mu-search-input" id="muSearchInput" placeholder="艺人、歌曲、歌词以及更多内容">' +
           '</div>' +
-          '<div class="mu-cat-grid" id="muCatGrid">' + catsHtml + '</div>' +
+          '<div class="mu-search-results" id="muSearchResults"></div>' +
         '</div>' +
       '</div>' +
       '<div class="mu-panel" id="mu-panel-mine">' +
@@ -171,9 +172,9 @@
   var isPlaying = false;
 
   root.addEventListener('click', function (e) {
-    var card = e.target.closest('.mu-card[data-song]');
-    if (card) {
-      miniTitle.textContent = card.getAttribute('data-song');
+    var songEl = e.target.closest('[data-song]');
+    if (songEl) {
+      miniTitle.textContent = songEl.getAttribute('data-song');
       isPlaying = true;
       miniPlay.textContent = '⏸';
     }
@@ -185,12 +186,19 @@
   });
 
   var muSearchInput = document.getElementById('muSearchInput');
-  var muCatGrid = document.getElementById('muCatGrid');
+  var muSearchResults = document.getElementById('muSearchResults');
+  var ALL_SONGS = START_SONGS.concat(PLAYLISTS);
+
   muSearchInput.addEventListener('input', function () {
     var kw = this.value.trim().toLowerCase();
-    muCatGrid.querySelectorAll('.mu-cat-card').forEach(function (c) {
-      c.style.display = (!kw || c.textContent.toLowerCase().indexOf(kw) !== -1) ? 'flex' : 'none';
+    if (!kw) {
+      muSearchResults.innerHTML = '';
+      return;
+    }
+    var matched = ALL_SONGS.filter(function (item) {
+      return (item.title + ' ' + item.sub).toLowerCase().indexOf(kw) !== -1;
     });
+    muSearchResults.innerHTML = matched.length ? buildRectCards(matched) : '<div class="mu-profile-sub">暂无本地匹配结果（接入接口后可搜全网）</div>';
   });
 
   var muAvatar = document.getElementById('muAvatar');
