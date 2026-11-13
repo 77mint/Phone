@@ -367,7 +367,7 @@
               id: t.id,
               title: t.name,
               sub: (t.ar || []).map(function (a) { return a.name; }).join('/'),
-              pic: t.al && t.al.picUrl ? t.al.picUrl.replace(/^http:\/\//, 'https://') + '?param=300y300' : '',
+              pic: t.al && t.al.picUrl ? t.al.picUrl.replace(/^http:\/\//, 'https://') + '?param=600y600' : '',
               cls: 'mu-c4'
             };
           });
@@ -424,7 +424,6 @@
     psDur.textContent = fmtTime(audio.duration);
   });
 
-  /* 启动自动拉取首页真实封面与歌单 */
   (function hydrateHomeFromApi() {
     var base = getApiBase();
     Promise.all(START_SONGS.map(function (s) {
@@ -435,7 +434,7 @@
           if (hit) {
             s.id = hit.id;
             if (hit.al && hit.al.picUrl) {
-              s.pic = hit.al.picUrl.replace(/^http:\/\//, 'https://') + '?param=300y300';
+              s.pic = hit.al.picUrl.replace(/^http:\/\//, 'https://') + '?param=600y600';
             }
           }
         }).catch(function () {});
@@ -454,7 +453,7 @@
             pid: p.id,
             title: p.name,
             sub: '歌单 · ' + Math.round((p.playCount || 10000) / 10000) + '万播放',
-            pic: (p.picUrl || '').replace(/^http:\/\//, 'https://') + '?param=300y300',
+            pic: (p.picUrl || '').replace(/^http:\/\//, 'https://') + '?param=600y600',
             cls: 'mu-c' + ((i % 7) + 1)
           };
         });
@@ -470,7 +469,7 @@
           return {
             name: a.name,
             tag: a.name.slice(0, 1),
-            pic: (a.img1v1Url || a.picUrl || '').replace(/^http:\/\//, 'https://') + '?param=240y240',
+            pic: (a.img1v1Url || a.picUrl || '').replace(/^http:\/\//, 'https://') + '?param=600y600',
             cls: 'mu-a' + ((i % 5) + 1)
           };
         });
@@ -504,7 +503,7 @@
               id: s.id,
               title: s.name,
               sub: (s.ar || []).map(function (a) { return a.name; }).join('/'),
-              pic: s.al && s.al.picUrl ? s.al.picUrl.replace(/^http:\/\//, 'https://') + '?param=300y300' : '',
+              pic: s.al && s.al.picUrl ? s.al.picUrl.replace(/^http:\/\//, 'https://') + '?param=600y600' : '',
               cls: 'mu-c4'
             };
           });
