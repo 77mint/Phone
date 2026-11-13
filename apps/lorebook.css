@@ -341,7 +341,6 @@
   padding: 6px 16px calc(env(safe-area-inset-bottom) + 28px);
 }
 
-/* 详情顶部设置卡：启用 / 范围(全局|局部) / 场景(通用|线上|线下) */
 .lb-meta-card {
   background: #ffffff;
   border-radius: 22px;
@@ -582,7 +581,7 @@
   cursor: pointer;
 }
 
-/* 新建世界书小弹窗 */
+/* 新建世界书弹窗（带封面上传） */
 .lb-modal {
   position: absolute;
   inset: 0;
@@ -636,6 +635,46 @@
   fill: none;
   stroke-width: 2.3;
   stroke-linecap: round;
+}
+
+.lb-new-cover-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.lb-new-cover-box {
+  width: 78px;
+  aspect-ratio: 2 / 3;
+  border-radius: 3px 7px 7px 3px;
+  background-color: #f2f2f7;
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.12);
+}
+
+.lb-new-cover-box svg {
+  width: 22px;
+  height: 22px;
+  stroke: #8e8e93;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.lb-new-cover-box.has-img svg {
+  display: none;
+}
+
+.lb-new-cover-hint {
+  font-size: 12px;
+  color: #8e8e93;
 }
 
 .lb-primary-btn {
