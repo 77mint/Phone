@@ -122,7 +122,7 @@ window.applyHomeScreenIcon = function (url) {
   PhoneDB.get('home_screen_icon').then(function (url) {
     if (url) window.applyHomeScreenIcon(url);
   });
-  ['appearance', 'api', 'books', 'chat', 'photos', 'music', 'settings'].forEach(function (id) {
+  ['appearance', 'api', 'books', 'offline', 'archive', 'imessage', 'photos', 'music', 'settings'].forEach(function (id) {
     PhoneDB.get('icon_' + id).then(function (url) {
       if (url) window.applyAppIcon(id, url);
     });
