@@ -4,12 +4,14 @@
 
   var CFG_KEY = 'phone_converter_cfg_v1';
   var cfg = loadCfg();
-  var currentTab = 'image'; // 'image' | 'font'
+  var currentTab = 'image'; // 'image' | 'font' | 'novel'
   var currentMode = cfg.mode === 'github' ? 'github' : 'catbox';
+  var novelMode = 'epub2txt'; // 'epub2txt' | 'txt2epub' | 'txtfix'
   var qualityVal = cfg.quality || 85;
   var customFontName = cfg.fontName || '';
   var lastImageResult = null;
   var lastFontResult = null;
+  var lastNovelResult = null;
   var isBusy = false;
 
   function loadCfg() {
@@ -103,6 +105,377 @@
     document.body.removeChild(ta);
   }
 
+  function downloadBlob(blob, filename) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+  }
+
+  /* ====== 原生 ZIP 读写 + EPUB / TXT 转换（零外部依赖） ====== */
+  var CRC_TABLE = (function () {
+    var t = new Uint32Array(256);
+    for (var n = 0; n < 256; n++) {
+      var c = n;
+      for (var k = 0; k < 8; k++) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+      t[n] = c >>> 0;
+    }
+    return t;
+  })();
+
+  function crc32(bytes) {
+    var c = 0xffffffff;
+    for (var i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  }
+
+  function inflateRaw(u8) {
+    if (typeof DecompressionStream === 'undefined') {
+      return Promise.reject(new Error('当前浏览器不支持解压 EPUB'));
+    }
+    var ds = new DecompressionStream('deflate-raw');
+    var writer = ds.writable.getWriter();
+    writer.write(u8);
+    writer.close();
+    return new Response(ds.readable).arrayBuffer().then(function (ab) {
+      return new Uint8Array(ab);
+    });
+  }
+
+  function readZipEntries(buffer) {
+    var bytes = new Uint8Array(buffer);
+    var dv = new DataView(buffer);
+    var eocdOffset = -1;
+    var minOff = Math.max(0, bytes.length - 65557);
+    for (var i = bytes.length - 22; i >= minOff; i--) {
+      if (dv.getUint32(i, true) === 0x06054b50) {
+        eocdOffset = i;
+        break;
+      }
+    }
+    if (eocdOffset === -1) return Promise.reject(new Error('不是有效的 EPUB/ZIP 文件'));
+
+    var totalEntries = dv.getUint16(eocdOffset + 10, true);
+    var cdOffset = dv.getUint32(eocdOffset + 16, true);
+    var pos = cdOffset;
+    var entries = [];
+
+    for (var idx = 0; idx < totalEntries; idx++) {
+      if (pos + 46 > bytes.length || dv.getUint32(pos, true) !== 0x02014b50) break;
+      var method = dv.getUint16(pos + 10, true);
+      var compSize = dv.getUint32(pos + 20, true);
+      var fnLen = dv.getUint16(pos + 28, true);
+      var exLen = dv.getUint16(pos + 30, true);
+      var cmLen = dv.getUint16(pos + 32, true);
+      var localOff = dv.getUint32(pos + 42, true);
+      var name = new TextDecoder('utf-8').decode(bytes.subarray(pos + 46, pos + 46 + fnLen));
+      entries.push({ name: name, method: method, compSize: compSize, localOff: localOff });
+      pos += 46 + fnLen + exLen + cmLen;
+    }
+
+    var map = {};
+    var tasks = entries.map(function (ent) {
+      if (ent.name.endsWith('/')) return Promise.resolve();
+      var lFnLen = dv.getUint16(ent.localOff + 26, true);
+      var lExLen = dv.getUint16(ent.localOff + 28, true);
+      var dataStart = ent.localOff + 30 + lFnLen + lExLen;
+      var slice = bytes.subarray(dataStart, dataStart + ent.compSize);
+      if (ent.method === 0) {
+        map[ent.name] = slice;
+        return Promise.resolve();
+      }
+      if (ent.method === 8) {
+        return inflateRaw(slice).then(function (out) {
+          map[ent.name] = out;
+        }).catch(function () {});
+      }
+      return Promise.resolve();
+    });
+
+    return Promise.all(tasks).then(function () { return map; });
+  }
+
+  function buildZipBlob(files) {
+    var enc = new TextEncoder();
+    var localParts = [];
+    var cdParts = [];
+    var offset = 0;
+
+    files.forEach(function (f) {
+      var nameBytes = enc.encode(f.name);
+      var dataBytes = typeof f.data === 'string' ? enc.encode(f.data) : f.data;
+      var c = crc32(dataBytes);
+
+      var lfh = new Uint8Array(30 + nameBytes.length);
+      var ldv = new DataView(lfh.buffer);
+      ldv.setUint32(0, 0x04034b50, true);
+      ldv.setUint16(4, 20, true);
+      ldv.setUint16(8, 0, true);
+      ldv.setUint32(14, c, true);
+      ldv.setUint32(18, dataBytes.length, true);
+      ldv.setUint32(22, dataBytes.length, true);
+      ldv.setUint16(26, nameBytes.length, true);
+      lfh.set(nameBytes, 30);
+
+      localParts.push(lfh, dataBytes);
+
+      var cdh = new Uint8Array(46 + nameBytes.length);
+      var cdv = new DataView(cdh.buffer);
+      cdv.setUint32(0, 0x02014b50, true);
+      cdv.setUint16(4, 20, true);
+      cdv.setUint16(6, 20, true);
+      cdv.setUint16(10, 0, true);
+      cdv.setUint32(16, c, true);
+      cdv.setUint32(20, dataBytes.length, true);
+      cdv.setUint32(24, dataBytes.length, true);
+      cdv.setUint16(28, nameBytes.length, true);
+      cdv.setUint32(42, offset, true);
+      cdh.set(nameBytes, 46);
+
+      cdParts.push(cdh);
+      offset += lfh.length + dataBytes.length;
+    });
+
+    var cdSize = cdParts.reduce(function (s, a) { return s + a.length; }, 0);
+    var eocd = new Uint8Array(22);
+    var edv = new DataView(eocd.buffer);
+    edv.setUint32(0, 0x06054b50, true);
+    edv.setUint16(8, files.length, true);
+    edv.setUint16(10, files.length, true);
+    edv.setUint32(12, cdSize, true);
+    edv.setUint32(16, offset, true);
+
+    return new Blob(localParts.concat(cdParts, [eocd]), { type: 'application/epub+zip' });
+  }
+
+  function decodeTextSmart(buffer) {
+    var u8 = new Uint8Array(buffer);
+    if (u8.length >= 3 && u8[0] === 0xef && u8[1] === 0xbb && u8[2] === 0xbf) {
+      return { text: new TextDecoder('utf-8').decode(u8.subarray(3)), encoding: 'UTF-8' };
+    }
+    var utf8 = new TextDecoder('utf-8', { fatal: false }).decode(u8);
+    var badCount = (utf8.match(/\uFFFD/g) || []).length;
+    if (badCount > 3) {
+      try {
+        return { text: new TextDecoder('gb18030').decode(u8), encoding: 'GBK/GB18030' };
+      } catch (e) {}
+    }
+    return { text: utf8, encoding: 'UTF-8' };
+  }
+
+  function extractHtmlText(htmlStr) {
+    var doc = new DOMParser().parseFromString(htmlStr, 'text/html');
+    var body = doc.body;
+    if (!body) return '';
+    body.querySelectorAll('script,style,nav').forEach(function (el) { el.remove(); });
+    var blocks = body.querySelectorAll('h1,h2,h3,h4,p,div,li,blockquote');
+    var lines = [];
+    if (blocks.length) {
+      blocks.forEach(function (el) {
+        if (el.querySelector('p,div,h1,h2,h3,h4,li')) return;
+        var t = (el.textContent || '').replace(/\s+/g, ' ').trim();
+        if (t) lines.push(t);
+      });
+    }
+    if (!lines.length) {
+      var raw = (body.textContent || '').replace(/\r/g, '');
+      lines = raw.split('\n').map(function (s) { return s.trim(); }).filter(Boolean);
+    }
+    return lines.join('\n\n');
+  }
+
+  function resolvePath(baseDir, relPath) {
+    var full = (baseDir ? baseDir + '/' : '') + relPath;
+    var parts = full.split('/');
+    var stack = [];
+    parts.forEach(function (p) {
+      if (!p || p === '.') return;
+      if (p === '..') stack.pop();
+      else stack.push(p);
+    });
+    return stack.join('/');
+  }
+
+  function convertEpubToTxt(file) {
+    return file.arrayBuffer().then(readZipEntries).then(function (filesMap) {
+      var dec = new TextDecoder('utf-8');
+      var opfPath = '';
+      if (filesMap['META-INF/container.xml']) {
+        var cXml = dec.decode(filesMap['META-INF/container.xml']);
+        var m = cXml.match(/full-path=["']([^"']+)["']/i);
+        if (m) opfPath = m[1];
+      }
+      if (!opfPath) {
+        opfPath = Object.keys(filesMap).find(function (k) { return /\.opf$/i.test(k); }) || '';
+      }
+
+      var chapterPaths = [];
+      var bookTitle = file.name.replace(/\.epub$/i, '');
+
+      if (opfPath && filesMap[opfPath]) {
+        var opfStr = dec.decode(filesMap[opfPath]);
+        var opfDoc = new DOMParser().parseFromString(opfStr, 'application/xml');
+        var titleEl = opfDoc.querySelector('title');
+        if (titleEl && titleEl.textContent.trim()) bookTitle = titleEl.textContent.trim();
+
+        var opfDir = opfPath.indexOf('/') !== -1 ? opfPath.slice(0, opfPath.lastIndexOf('/')) : '';
+        var manifest = {};
+        opfDoc.querySelectorAll('manifest > item').forEach(function (item) {
+          var id = item.getAttribute('id');
+          var href = item.getAttribute('href');
+          var mt = item.getAttribute('media-type') || '';
+          if (id && href && (/html/i.test(mt) || /\.(x?html?|htm)$/i.test(href))) {
+            manifest[id] = resolvePath(opfDir, decodeURIComponent(href));
+          }
+        });
+        opfDoc.querySelectorAll('spine > itemref').forEach(function (ref) {
+          var idref = ref.getAttribute('idref');
+          if (idref && manifest[idref]) chapterPaths.push(manifest[idref]);
+        });
+      }
+
+      if (!chapterPaths.length) {
+        chapterPaths = Object.keys(filesMap).filter(function (k) {
+          return /\.(x?html?|htm)$/i.test(k) && !/toc|nav/i.test(k);
+        }).sort();
+      }
+
+      var chapters = [];
+      chapterPaths.forEach(function (p) {
+        if (!filesMap[p]) return;
+        var txt = extractHtmlText(dec.decode(filesMap[p]));
+        if (txt) chapters.push(txt);
+      });
+
+      if (!chapters.length) throw new Error('未能从该 EPUB 中提取到正文');
+      var finalTxt = chapters.join('\n\n\n');
+      var outBlob = new Blob([finalTxt], { type: 'text/plain;charset=utf-8' });
+      return {
+        blob: outBlob,
+        filename: bookTitle + '.txt',
+        title: bookTitle,
+        meta: '提取 ' + chapters.length + ' 个章节 · ' + formatSize(outBlob.size),
+        preview: finalTxt.slice(0, 160).replace(/\n+/g, ' ')
+      };
+    });
+  }
+
+  function convertTxtToEpub(file) {
+    return file.arrayBuffer().then(function (buf) {
+      var decoded = decodeTextSmart(buf);
+      var raw = decoded.text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      var bookTitle = file.name.replace(/\.txt$/i, '').trim() || '未命名小说';
+      var lines = raw.split('\n');
+      var chapterRegex = /^\s*(第[零一二三四五六七八九十百千万两0-9]{1,8}[章回节卷集部篇].*|Chapter\s+\d+.*)$/i;
+
+      var chapters = [];
+      var curTitle = '正文';
+      var curLines = [];
+
+      lines.forEach(function (line) {
+        var trimmed = line.trim();
+        if (chapterRegex.test(trimmed) && trimmed.length <= 45) {
+          if (curLines.length) chapters.push({ title: curTitle, body: curLines });
+          curTitle = trimmed;
+          curLines = [];
+        } else if (trimmed) {
+          curLines.push(trimmed);
+        }
+      });
+      if (curLines.length) chapters.push({ title: curTitle, body: curLines });
+
+      if (chapters.length === 1 && chapters[0].body.length > 120) {
+        var allBody = chapters[0].body;
+        chapters = [];
+        for (var i = 0; i < allBody.length; i += 80) {
+          chapters.push({
+            title: '第 ' + (chapters.length + 1) + ' 节',
+            body: allBody.slice(i, i + 80)
+          });
+        }
+      }
+
+      if (!chapters.length) throw new Error('TXT 内容为空');
+
+      var uid = 'urn:uuid:' + Date.now();
+      var zipFiles = [
+        { name: 'mimetype', data: 'application/epub+zip' },
+        {
+          name: 'META-INF/container.xml',
+          data: '<?xml version="1.0" encoding="UTF-8"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>'
+        }
+      ];
+
+      var manifestItems = '<item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>';
+      var spineItems = '';
+      var navPoints = '';
+
+      chapters.forEach(function (ch, idx) {
+        var num = idx + 1;
+        var fname = 'ch_' + num + '.xhtml';
+        manifestItems += '<item id="c' + num + '" href="' + fname + '" media-type="application/xhtml+xml"/>';
+        spineItems += '<itemref idref="c' + num + '"/>';
+        navPoints += '<navPoint id="n' + num + '" playOrder="' + num + '"><navLabel><text>' + escapeHtml(ch.title) + '</text></navLabel><content src="' + fname + '"/></navPoint>';
+
+        var pHtml = ch.body.map(function (p) { return '<p>' + escapeHtml(p) + '</p>'; }).join('');
+        var xhtml =
+          '<?xml version="1.0" encoding="UTF-8"?>' +
+          '<!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml"><head><title>' + escapeHtml(ch.title) + '</title>' +
+          '<style>body{line-height:1.8;padding:4%;font-family:sans-serif;}h2{font-size:1.2em;margin-bottom:1em;}p{text-indent:2em;margin:0.6em 0;}</style>' +
+          '</head><body><h2>' + escapeHtml(ch.title) + '</h2>' + pHtml + '</body></html>';
+        zipFiles.push({ name: 'OEBPS/' + fname, data: xhtml });
+      });
+
+      var opf =
+        '<?xml version="1.0" encoding="UTF-8"?>' +
+        '<package xmlns="http://www.idpf.org/2007/opf" unique-identifier="BookId" version="2.0">' +
+        '<metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>' + escapeHtml(bookTitle) + '</dc:title><dc:language>zh-CN</dc:language><dc:identifier id="BookId">' + uid + '</dc:identifier></metadata>' +
+        '<manifest>' + manifestItems + '</manifest>' +
+        '<spine toc="ncx">' + spineItems + '</spine>' +
+        '</package>';
+
+      var ncx =
+        '<?xml version="1.0" encoding="UTF-8"?>' +
+        '<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">' +
+        '<head><meta name="dtb:uid" content="' + uid + '"/></head>' +
+        '<docTitle><text>' + escapeHtml(bookTitle) + '</text></docTitle>' +
+        '<navMap>' + navPoints + '</navMap></ncx>';
+
+      zipFiles.push({ name: 'OEBPS/content.opf', data: opf });
+      zipFiles.push({ name: 'OEBPS/toc.ncx', data: ncx });
+
+      var outBlob = buildZipBlob(zipFiles);
+      return {
+        blob: outBlob,
+        filename: bookTitle + '.epub',
+        title: bookTitle,
+        meta: '自动分出 ' + chapters.length + ' 章（原编码 ' + decoded.encoding + '）· ' + formatSize(outBlob.size),
+        preview: (chapters[0].title + '：' + (chapters[0].body[0] || '')).slice(0, 140)
+      };
+    });
+  }
+
+  function fixTxtEncoding(file) {
+    return file.arrayBuffer().then(function (buf) {
+      var decoded = decodeTextSmart(buf);
+      var clean = decoded.text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\n{3,}/g, '\n\n');
+      var outBlob = new Blob([clean], { type: 'text/plain;charset=utf-8' });
+      var base = file.name.replace(/\.txt$/i, '').trim() || 'novel';
+      return {
+        blob: outBlob,
+        filename: base + '_UTF8.txt',
+        title: base,
+        meta: '原编码 ' + decoded.encoding + ' → UTF-8 · ' + formatSize(outBlob.size),
+        preview: clean.slice(0, 160).replace(/\n+/g, ' ')
+      };
+    });
+  }
+
+  /* ====== GitHub OAuth & 上传逻辑 ====== */
   function ensureGithubRepo(token, repoNameOnly) {
     return fetch('https://api.github.com/user/repos', {
       method: 'POST',
@@ -349,17 +722,20 @@
       '<div class="cv-body">' +
         '<div class="cv-panel active" id="cvPanelImage"></div>' +
         '<div class="cv-panel" id="cvPanelFont"></div>' +
+        '<div class="cv-panel" id="cvPanelNovel"></div>' +
       '</div>' +
 
       '<div class="lg-bottom-bar cv-bottom-bar" id="cvBottomBar">' +
         '<div class="cv-tab-indicator"></div>' +
         '<div class="cv-tab active" data-cv-tab="image">图片</div>' +
         '<div class="cv-tab" data-cv-tab="font">字体</div>' +
+        '<div class="cv-tab" data-cv-tab="novel">小说</div>' +
       '</div>' +
 
       '<div class="cv-toast" id="cvToast"></div>' +
       '<input type="file" id="cvImageInput" accept="image/*" style="display:none;">' +
       '<input type="file" id="cvFontInput" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2" style="display:none;">' +
+      '<input type="file" id="cvNovelInput" accept=".epub,.txt,application/epub+zip,text/plain" style="display:none;">' +
     '</div>';
 
   function renderImagePanel() {
@@ -501,19 +877,76 @@
     }
   }
 
+  function renderNovelPanel() {
+    var box = document.getElementById('cvPanelNovel');
+    var hintText = novelMode === 'epub2txt'
+      ? '把 .epub 电子书提取成干净的 UTF-8 纯文本 .txt（方便导入小手机「图书」）。'
+      : (novelMode === 'txt2epub'
+        ? '把 .txt 按「第X章」自动分章，打包成标准 .epub（可直接放进苹果图书 / 微信读书）。'
+        : '一键把 GBK 乱码的 .txt 小说转成正常中文 UTF-8 格式。');
+
+    var acceptTip = novelMode === 'epub2txt' ? '点击选择 .epub 文件' : '点击选择 .txt 文件';
+
+    var resultHtml = '';
+    if (lastNovelResult) {
+      resultHtml =
+        '<div class="cv-card">' +
+          '<div class="cv-label">转换完成</div>' +
+          '<div class="cv-preview-wrap">' +
+            '<div class="cv-font-badge" style="font-size:16px;">书</div>' +
+            '<div class="cv-result-meta">' +
+              '<div class="cv-result-name">' + escapeHtml(lastNovelResult.filename) + '</div>' +
+              '<div class="cv-result-sub">' + escapeHtml(lastNovelResult.meta) + '</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="cv-url-box">' + escapeHtml(lastNovelResult.preview || '已生成文件') + '</div>' +
+          '<button class="cv-primary-btn" id="cvNovelDownloadBtn" type="button" style="margin-top:0;">下载 ' + escapeHtml(lastNovelResult.filename) + '</button>' +
+        '</div>';
+    }
+
+    box.innerHTML =
+      '<div class="cv-card">' +
+        '<div class="cv-label">转换方向（纯本地处理，不上传）</div>' +
+        '<div class="cv-seg is-3">' +
+          '<button class="cv-seg-btn' + (novelMode === 'epub2txt' ? ' active' : '') + '" data-novel-mode="epub2txt" type="button">EPUB → TXT</button>' +
+          '<button class="cv-seg-btn' + (novelMode === 'txt2epub' ? ' active' : '') + '" data-novel-mode="txt2epub" type="button">TXT → EPUB</button>' +
+          '<button class="cv-seg-btn' + (novelMode === 'txtfix' ? ' active' : '') + '" data-novel-mode="txtfix" type="button">TXT 修乱码</button>' +
+        '</div>' +
+        '<div class="cv-hint">' + hintText + '</div>' +
+      '</div>' +
+
+      '<div class="cv-card">' +
+        '<div class="cv-drop" id="cvPickNovelBtn">' +
+          '<div class="cv-drop-icon">' +
+            '<svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>' +
+          '</div>' +
+          '<div class="cv-drop-title">' + (isBusy ? '正在本地解析转换...' : acceptTip) + '</div>' +
+          '<div class="cv-drop-sub">自动识别 UTF-8 / GBK 编码</div>' +
+        '</div>' +
+      '</div>' +
+
+      resultHtml;
+  }
+
   function renderActivePanel() {
     if (currentTab === 'font') renderFontPanel();
+    else if (currentTab === 'novel') renderNovelPanel();
     else renderImagePanel();
   }
 
   function switchTab(tab) {
     currentTab = tab;
-    var isFont = tab === 'font';
-    document.getElementById('cvWrap').classList.toggle('is-subtab', isFont);
-    document.getElementById('cvBottomBar').classList.toggle('is-font', isFont);
-    document.getElementById('cvTitle').textContent = isFont ? '字体转换' : '转换器';
-    document.getElementById('cvPanelImage').classList.toggle('active', !isFont);
-    document.getElementById('cvPanelFont').classList.toggle('active', isFont);
+    var isSub = tab !== 'image';
+    var bar = document.getElementById('cvBottomBar');
+    document.getElementById('cvWrap').classList.toggle('is-subtab', isSub);
+    bar.classList.toggle('is-font', tab === 'font');
+    bar.classList.toggle('is-novel', tab === 'novel');
+    document.getElementById('cvTitle').textContent =
+      tab === 'font' ? '字体转换' : (tab === 'novel' ? '小说转换' : '转换器');
+
+    document.getElementById('cvPanelImage').classList.toggle('active', tab === 'image');
+    document.getElementById('cvPanelFont').classList.toggle('active', tab === 'font');
+    document.getElementById('cvPanelNovel').classList.toggle('active', tab === 'novel');
 
     root.querySelectorAll('.cv-tab').forEach(function (el) {
       el.classList.toggle('active', el.getAttribute('data-cv-tab') === tab);
@@ -533,6 +966,13 @@
     if (modeBtn && !isBusy) {
       currentMode = modeBtn.getAttribute('data-set-mode');
       saveCfg();
+      renderActivePanel();
+      return;
+    }
+
+    var nModeBtn = e.target.closest('[data-novel-mode]');
+    if (nModeBtn && !isBusy) {
+      novelMode = nModeBtn.getAttribute('data-novel-mode');
       renderActivePanel();
       return;
     }
@@ -558,6 +998,19 @@
 
     if (e.target.closest('#cvPickFontBtn')) {
       if (!isBusy) document.getElementById('cvFontInput').click();
+      return;
+    }
+
+    if (e.target.closest('#cvPickNovelBtn')) {
+      if (isBusy) return;
+      var nInput = document.getElementById('cvNovelInput');
+      nInput.setAttribute('accept', novelMode === 'epub2txt' ? '.epub,application/epub+zip' : '.txt,text/plain');
+      nInput.click();
+      return;
+    }
+
+    if (e.target.closest('#cvNovelDownloadBtn') && lastNovelResult) {
+      downloadBlob(lastNovelResult.blob, lastNovelResult.filename);
       return;
     }
 
@@ -690,6 +1143,31 @@
       isBusy = false;
       renderActivePanel();
       showToast((err && err.message) ? err.message : '字体上传失败');
+    });
+  });
+
+  document.getElementById('cvNovelInput').addEventListener('change', function () {
+    var file = this.files && this.files[0];
+    this.value = '';
+    if (!file || isBusy) return;
+
+    isBusy = true;
+    renderActivePanel();
+
+    var task = novelMode === 'epub2txt'
+      ? convertEpubToTxt(file)
+      : (novelMode === 'txt2epub' ? convertTxtToEpub(file) : fixTxtEncoding(file));
+
+    task.then(function (res) {
+      lastNovelResult = res;
+      isBusy = false;
+      renderActivePanel();
+      downloadBlob(res.blob, res.filename);
+      showToast('转换成功');
+    }).catch(function (err) {
+      isBusy = false;
+      renderActivePanel();
+      showToast((err && err.message) ? err.message : '转换失败');
     });
   });
 
