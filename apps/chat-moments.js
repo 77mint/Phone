@@ -1,21 +1,33 @@
 /* =========================================================
    Chat 朋友圈页（仿微信朋友圈独立模块）
    - 不改动 apps/chat.js / apps/chat.css，独立接管朋友圈 tab
-   - 无左上角返回键；右上角相机可发动态；封面默认白色点击可上传
+   - 封面默认白色点击可上传；右上角相机发动态；全列表选择位置/提醒/可见范围
    ========================================================= */
 (function () {
   var STORAGE_MOMENTS_KEY = 'chat_moments_v1';
   var DB_COVER_KEY = 'moments_cover';
+  var PRESET_LOCATIONS = ['北京市', '上海市', '广州市', '深圳市', '杭州市', '成都市', '新加坡', '在家', '咖啡厅', '学校', '公司', '商场'];
+
+  var SVG_HEART = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
+  var SVG_HEART_FILL = '<svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
+  var SVG_COMMENT = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+  var SVG_CHECK = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
 
   var rendering = false;
   var coverUrl = '';
   var coverLoaded = false;
   var openPopId = '';
+  var commentTargetId = '';
 
   var draftImages = [];
   var draftLocation = '';
-  var draftMention = '';
-  var draftVisibility = '公开';
+  var draftMentionIds = [];
+  var draftVisibility = '公开'; // '公开' | '私密' | '部分'
+  var draftPartialIds = [];
+
+  var pickerMode = ''; // 'location' | 'mention' | 'visibility' | 'partial'
+  var pickerKeyword = '';
+  var tempIds = [];
 
   function loadPosts() {
     try {
@@ -51,6 +63,41 @@
     return (d.getMonth() + 1) + '月' + d.getDate() + '日';
   }
 
+  function getContacts() {
+    var chars = [];
+    var ids = [];
+    try {
+      if (window.PhoneArchive && typeof window.PhoneArchive.getChars === 'function') {
+        chars = window.PhoneArchive.getChars() || [];
+      }
+      if (window.PhoneChat && typeof window.PhoneChat.getContactIds === 'function') {
+        ids = window.PhoneChat.getContactIds() || [];
+      }
+    } catch (e) {}
+    var idSet = new Set(ids);
+    return chars.filter(function (c) { return idSet.has(c.id); });
+  }
+
+  function getCharName(c) {
+    return (c && (c.name || c.nickname)) || '未命名';
+  }
+
+  function getCharAvHtml(c) {
+    var name = getCharName(c);
+    var fb = (c && c.id === 'assistant-shuixiaojiu') ? '九' : name.slice(0, 1);
+    var av = '';
+    try {
+      if (window.PhoneArchive && typeof window.PhoneArchive.getCharAvatar === 'function') {
+        av = window.PhoneArchive.getCharAvatar(c.id) || '';
+      }
+    } catch (e) {}
+    if (!av && c && c.avatar) av = c.avatar;
+    if (av) {
+      return '<div class="ctm-pick-av"><img src="' + escapeHtml(av) + '" onerror="this.parentNode.textContent=\'' + escapeHtml(fb) + '\'" alt=""></div>';
+    }
+    return '<div class="ctm-pick-av">' + escapeHtml(fb) + '</div>';
+  }
+
   function compressPhoto(file) {
     return new Promise(function (resolve) {
       var objUrl = URL.createObjectURL(file);
@@ -83,7 +130,7 @@
     return !!(tab && tab.classList.contains('active'));
   }
 
-  function ensureComposerAndInputs() {
+  function ensureUI() {
     var appEl = document.querySelector('#app-chat .ct-app');
     if (!appEl || document.getElementById('ctmComposeView')) return;
 
@@ -104,24 +151,39 @@
                 '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>' +
                 '<span>所在位置</span>' +
               '</div>' +
-              '<div class="ctm-opt-right"><span id="ctmOptLocVal"></span><span>›</span></div>' +
+              '<div class="ctm-opt-right"><span class="ctm-opt-val" id="ctmOptLocVal"></span><span>›</span></div>' +
             '</div>' +
             '<div class="ctm-opt-row" id="ctmOptMention">' +
               '<div class="ctm-opt-left">' +
                 '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94"/></svg>' +
                 '<span>提醒谁看</span>' +
               '</div>' +
-              '<div class="ctm-opt-right"><span id="ctmOptMentionVal"></span><span>›</span></div>' +
+              '<div class="ctm-opt-right"><span class="ctm-opt-val" id="ctmOptMentionVal"></span><span>›</span></div>' +
             '</div>' +
             '<div class="ctm-opt-row" id="ctmOptVisibility">' +
               '<div class="ctm-opt-left">' +
                 '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>' +
                 '<span>谁可以看</span>' +
               '</div>' +
-              '<div class="ctm-opt-right"><span id="ctmOptVisVal">公开</span><span>›</span></div>' +
+              '<div class="ctm-opt-right"><span class="ctm-opt-val" id="ctmOptVisVal">公开</span><span>›</span></div>' +
             '</div>' +
           '</div>' +
         '</div>' +
+      '</div>' +
+      '<div class="ctm-picker" id="ctmPickerView">' +
+        '<div class="ctm-picker-head">' +
+          '<button class="ctm-picker-btn" id="ctmPickerCancel">取消</button>' +
+          '<div class="ctm-picker-title" id="ctmPickerTitle"></div>' +
+          '<button class="ctm-picker-btn primary" id="ctmPickerDone">确定</button>' +
+        '</div>' +
+        '<div class="ctm-picker-search" id="ctmPickerSearchBox" style="display:none;">' +
+          '<input id="ctmPickerSearchInput" placeholder="搜索或输入地点">' +
+        '</div>' +
+        '<div class="ctm-picker-list" id="ctmPickerList"></div>' +
+      '</div>' +
+      '<div class="ctm-comment-bar" id="ctmCommentBar">' +
+        '<input class="ctm-comment-input" id="ctmCommentInput" placeholder="评论">' +
+        '<button class="ctm-comment-send" id="ctmCommentSend">发送</button>' +
       '</div>' +
       '<input type="file" id="ctmCoverInput" accept="image/*" style="display:none;">' +
       '<input type="file" id="ctmPostImgInput" accept="image/*" multiple style="display:none;">';
@@ -130,7 +192,36 @@
       appEl.appendChild(wrap.firstChild);
     }
 
-    bindComposerEvents();
+    bindStaticEvents();
+  }
+
+  function syncOptLabels() {
+    var contacts = getContacts();
+    var locEl = document.getElementById('ctmOptLocVal');
+    var menEl = document.getElementById('ctmOptMentionVal');
+    var visEl = document.getElementById('ctmOptVisVal');
+
+    if (locEl) locEl.textContent = draftLocation || '';
+
+    if (menEl) {
+      var mNames = draftMentionIds.map(function (id) {
+        var c = contacts.find(function (item) { return item.id === id; });
+        return c ? getCharName(c) : '';
+      }).filter(Boolean);
+      menEl.textContent = mNames.join('、');
+    }
+
+    if (visEl) {
+      if (draftVisibility === '部分') {
+        var pNames = draftPartialIds.map(function (id) {
+          var c = contacts.find(function (item) { return item.id === id; });
+          return c ? getCharName(c) : '';
+        }).filter(Boolean);
+        visEl.textContent = pNames.length ? ('部分（' + pNames.slice(0, 2).join('、') + (pNames.length > 2 ? '等' : '') + '）') : '部分';
+      } else {
+        visEl.textContent = draftVisibility;
+      }
+    }
   }
 
   function syncSendBtn() {
@@ -156,20 +247,123 @@
   }
 
   function openComposer() {
-    ensureComposerAndInputs();
+    ensureUI();
     draftImages = [];
     draftLocation = '';
-    draftMention = '';
+    draftMentionIds = [];
     draftVisibility = '公开';
+    draftPartialIds = [];
     document.getElementById('ctmComposeText').value = '';
-    document.getElementById('ctmOptLocVal').textContent = '';
-    document.getElementById('ctmOptMentionVal').textContent = '';
-    document.getElementById('ctmOptVisVal').textContent = '公开';
+    syncOptLabels();
     renderDraftImages();
     document.getElementById('ctmComposeView').classList.add('open');
   }
 
-  function bindComposerEvents() {
+  function openPicker(mode) {
+    pickerMode = mode;
+    pickerKeyword = '';
+    var titleEl = document.getElementById('ctmPickerTitle');
+    var doneBtn = document.getElementById('ctmPickerDone');
+    var searchBox = document.getElementById('ctmPickerSearchBox');
+    var searchInput = document.getElementById('ctmPickerSearchInput');
+
+    searchInput.value = '';
+
+    if (mode === 'location') {
+      titleEl.textContent = '所在位置';
+      doneBtn.style.display = 'none';
+      searchBox.style.display = 'block';
+    } else if (mode === 'mention') {
+      titleEl.textContent = '提醒谁看';
+      doneBtn.style.display = 'block';
+      searchBox.style.display = 'none';
+      tempIds = draftMentionIds.slice();
+    } else if (mode === 'visibility') {
+      titleEl.textContent = '谁可以看';
+      doneBtn.style.display = 'none';
+      searchBox.style.display = 'none';
+    } else if (mode === 'partial') {
+      titleEl.textContent = '选择可见联系人';
+      doneBtn.style.display = 'block';
+      searchBox.style.display = 'none';
+      tempIds = draftPartialIds.slice();
+    }
+
+    renderPickerList();
+    document.getElementById('ctmPickerView').classList.add('open');
+  }
+
+  function renderPickerList() {
+    var listEl = document.getElementById('ctmPickerList');
+    if (!listEl) return;
+
+    if (pickerMode === 'location') {
+      var kw = pickerKeyword.trim();
+      var html =
+        '<div class="ctm-pick-row" data-pick-loc="">' +
+          '<div class="ctm-pick-main"><div class="ctm-pick-title">不显示位置</div></div>' +
+          '<div class="ctm-pick-check ' + (!draftLocation ? 'on' : '') + '">' + (!draftLocation ? SVG_CHECK : '') + '</div>' +
+        '</div>';
+
+      if (kw && PRESET_LOCATIONS.indexOf(kw) === -1) {
+        html +=
+          '<div class="ctm-pick-row" data-pick-loc="' + escapeHtml(kw) + '">' +
+            '<div class="ctm-pick-main"><div class="ctm-pick-title">使用「' + escapeHtml(kw) + '」</div></div>' +
+          '</div>';
+      }
+
+      PRESET_LOCATIONS.filter(function (loc) {
+        return !kw || loc.toLowerCase().indexOf(kw.toLowerCase()) !== -1;
+      }).forEach(function (loc) {
+        var on = draftLocation === loc;
+        html +=
+          '<div class="ctm-pick-row" data-pick-loc="' + escapeHtml(loc) + '">' +
+            '<div class="ctm-pick-main"><div class="ctm-pick-title">' + escapeHtml(loc) + '</div></div>' +
+            '<div class="ctm-pick-check ' + (on ? 'on' : '') + '">' + (on ? SVG_CHECK : '') + '</div>' +
+          '</div>';
+      });
+      listEl.innerHTML = html;
+      return;
+    }
+
+    if (pickerMode === 'visibility') {
+      var opts = [
+        { key: '公开', title: '公开', sub: '所有联系人可见' },
+        { key: '私密', title: '私密', sub: '仅自己可见' },
+        { key: '部分', title: '部分可见', sub: '选中的联系人可见' }
+      ];
+      listEl.innerHTML = opts.map(function (o) {
+        var on = draftVisibility === o.key;
+        return '<div class="ctm-pick-row" data-pick-vis="' + o.key + '">' +
+          '<div class="ctm-pick-main">' +
+            '<div class="ctm-pick-title">' + o.title + '</div>' +
+            '<div class="ctm-pick-sub">' + o.sub + '</div>' +
+          '</div>' +
+          '<div class="ctm-pick-check ' + (on ? 'on' : '') + '">' + (on ? SVG_CHECK : '') + '</div>' +
+        '</div>';
+      }).join('');
+      return;
+    }
+
+    var contacts = getContacts();
+    if (!contacts.length) {
+      listEl.innerHTML = '<div class="ctm-empty">还没有联系人，先去「联系人」页添加吧</div>';
+      return;
+    }
+
+    listEl.innerHTML = contacts.map(function (c) {
+      var on = tempIds.indexOf(c.id) !== -1;
+      return '<div class="ctm-pick-row" data-pick-contact="' + escapeHtml(c.id) + '">' +
+        '<div class="ctm-pick-left">' +
+          getCharAvHtml(c) +
+          '<div class="ctm-pick-main"><div class="ctm-pick-title">' + escapeHtml(getCharName(c)) + '</div></div>' +
+        '</div>' +
+        '<div class="ctm-pick-check ' + (on ? 'on' : '') + '">' + (on ? SVG_CHECK : '') + '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function bindStaticEvents() {
     document.getElementById('ctmComposeCancel').addEventListener('click', function () {
       document.getElementById('ctmComposeView').classList.remove('open');
     });
@@ -201,22 +395,66 @@
     });
 
     document.getElementById('ctmOptLocation').addEventListener('click', function () {
-      var val = prompt('输入所在位置（留空则不显示）', draftLocation);
-      if (val === null) return;
-      draftLocation = val.trim();
-      document.getElementById('ctmOptLocVal').textContent = draftLocation;
+      openPicker('location');
     });
-
     document.getElementById('ctmOptMention').addEventListener('click', function () {
-      var val = prompt('提醒谁看（输入名字，留空则不提醒）', draftMention);
-      if (val === null) return;
-      draftMention = val.trim();
-      document.getElementById('ctmOptMentionVal').textContent = draftMention;
+      openPicker('mention');
+    });
+    document.getElementById('ctmOptVisibility').addEventListener('click', function () {
+      openPicker('visibility');
     });
 
-    document.getElementById('ctmOptVisibility').addEventListener('click', function () {
-      draftVisibility = draftVisibility === '公开' ? '仅自己' : '公开';
-      document.getElementById('ctmOptVisVal').textContent = draftVisibility;
+    document.getElementById('ctmPickerCancel').addEventListener('click', function () {
+      document.getElementById('ctmPickerView').classList.remove('open');
+    });
+
+    document.getElementById('ctmPickerDone').addEventListener('click', function () {
+      if (pickerMode === 'mention') {
+        draftMentionIds = tempIds.slice();
+      } else if (pickerMode === 'partial') {
+        draftVisibility = tempIds.length ? '部分' : '公开';
+        draftPartialIds = tempIds.slice();
+      }
+      syncOptLabels();
+      document.getElementById('ctmPickerView').classList.remove('open');
+    });
+
+    document.getElementById('ctmPickerSearchInput').addEventListener('input', function (e) {
+      pickerKeyword = e.target.value;
+      renderPickerList();
+    });
+
+    document.getElementById('ctmPickerList').addEventListener('click', function (e) {
+      var locRow = e.target.closest('[data-pick-loc]');
+      if (locRow) {
+        draftLocation = locRow.getAttribute('data-pick-loc') || '';
+        syncOptLabels();
+        document.getElementById('ctmPickerView').classList.remove('open');
+        return;
+      }
+
+      var visRow = e.target.closest('[data-pick-vis]');
+      if (visRow) {
+        var v = visRow.getAttribute('data-pick-vis');
+        if (v === '部分') {
+          openPicker('partial');
+          return;
+        }
+        draftVisibility = v;
+        draftPartialIds = [];
+        syncOptLabels();
+        document.getElementById('ctmPickerView').classList.remove('open');
+        return;
+      }
+
+      var cRow = e.target.closest('[data-pick-contact]');
+      if (cRow) {
+        var cid = cRow.getAttribute('data-pick-contact');
+        var idx = tempIds.indexOf(cid);
+        if (idx === -1) tempIds.push(cid);
+        else tempIds.splice(idx, 1);
+        renderPickerList();
+      }
     });
 
     document.getElementById('ctmComposeSend').addEventListener('click', function () {
@@ -230,8 +468,9 @@
         text: text,
         images: draftImages.slice(),
         location: draftLocation,
-        mention: draftMention,
+        mentionIds: draftMentionIds.slice(),
         visibility: draftVisibility,
+        partialIds: draftPartialIds.slice(),
         likes: [],
         comments: [],
         time: Date.now()
@@ -252,6 +491,40 @@
         renderMoments();
       });
     });
+
+    var commentInput = document.getElementById('ctmCommentInput');
+    function submitComment() {
+      var txt = (commentInput.value || '').trim();
+      if (!txt || !commentTargetId) {
+        document.getElementById('ctmCommentBar').classList.remove('open');
+        commentTargetId = '';
+        return;
+      }
+      var posts = loadPosts();
+      var target = posts.find(function (p) { return p.id === commentTargetId; });
+      if (target) {
+        if (!Array.isArray(target.comments)) target.comments = [];
+        target.comments.push({ author: '我', text: txt });
+        savePosts(posts);
+      }
+      commentInput.value = '';
+      commentTargetId = '';
+      document.getElementById('ctmCommentBar').classList.remove('open');
+      renderMoments();
+    }
+
+    document.getElementById('ctmCommentSend').addEventListener('click', submitComment);
+    commentInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') submitComment();
+    });
+    commentInput.addEventListener('blur', function () {
+      setTimeout(function () {
+        if (!commentInput.value.trim()) {
+          document.getElementById('ctmCommentBar').classList.remove('open');
+          commentTargetId = '';
+        }
+      }, 150);
+    });
   }
 
   function renderMoments() {
@@ -259,10 +532,12 @@
     var scroll = document.getElementById('ctMainScroll');
     if (!appEl || !scroll) return;
 
-    ensureComposerAndInputs();
+    ensureUI();
 
     if (!isMomentsTabActive()) {
       appEl.classList.remove('is-moments-tab');
+      var bar = document.getElementById('ctmCommentBar');
+      if (bar) bar.classList.remove('open');
       return;
     }
 
@@ -303,7 +578,7 @@
         if (likes.length || comments.length) {
           socialHtml = '<div class="ctm-social-box">';
           if (likes.length) {
-            socialHtml += '<div class="ctm-likes-row"><span>♡</span><span>' + escapeHtml(likes.join('，')) + '</span></div>';
+            socialHtml += '<div class="ctm-likes-row">' + SVG_HEART + '<span>' + escapeHtml(likes.join('，')) + '</span></div>';
           }
           if (comments.length) {
             socialHtml += '<div class="ctm-comments-list">' + comments.map(function (cm) {
@@ -318,6 +593,10 @@
           ? '<div class="ctm-post-avatar"><img src="' + escapeHtml(p.avatar) + '" alt=""></div>'
           : '<div class="ctm-post-avatar">' + avText + '</div>';
 
+        var visBadge = '';
+        if (p.visibility === '私密') visBadge = '<span>仅自己可见</span>';
+        else if (p.visibility === '部分') visBadge = '<span>部分可见</span>';
+
         return '<div class="ctm-post" data-post-id="' + escapeHtml(p.id) + '">' +
           avHtml +
           '<div class="ctm-post-body">' +
@@ -328,16 +607,16 @@
             '<div class="ctm-post-meta">' +
               '<div class="ctm-post-meta-left">' +
                 '<span>' + escapeHtml(formatTime(p.time)) + '</span>' +
-                (p.visibility === '仅自己' ? '<span>仅自己可见</span>' : '') +
+                visBadge +
                 (isMe ? '<span class="ctm-post-del" data-del-post="' + escapeHtml(p.id) + '">删除</span>' : '') +
               '</div>' +
               '<button class="ctm-more-btn" data-pop-btn="' + escapeHtml(p.id) + '" aria-label="操作">' +
                 '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="12" r="2"/><circle cx="16" cy="12" r="2"/></svg>' +
               '</button>' +
               '<div class="ctm-action-pop ' + (openPopId === p.id ? 'open' : '') + '">' +
-                '<button class="ctm-pop-btn" data-like-post="' + escapeHtml(p.id) + '">' + (hasLiked ? '取消' : '赞') + '</button>' +
+                '<button class="ctm-pop-btn ' + (hasLiked ? 'is-liked' : '') + '" data-like-post="' + escapeHtml(p.id) + '" aria-label="点赞">' + (hasLiked ? SVG_HEART_FILL : SVG_HEART) + '</button>' +
                 '<div class="ctm-pop-sep"></div>' +
-                '<button class="ctm-pop-btn" data-comment-post="' + escapeHtml(p.id) + '">评论</button>' +
+                '<button class="ctm-pop-btn" data-comment-post="' + escapeHtml(p.id) + '" aria-label="评论">' + SVG_COMMENT + '</button>' +
               '</div>' +
             '</div>' +
             socialHtml +
@@ -421,19 +700,16 @@
         var cmtBtn = e.target.closest('[data-comment-post]');
         if (cmtBtn) {
           e.stopPropagation();
-          var cid = cmtBtn.getAttribute('data-comment-post');
+          commentTargetId = cmtBtn.getAttribute('data-comment-post');
           openPopId = '';
-          var txt = prompt('写评论');
-          if (txt && txt.trim()) {
-            var posts2 = loadPosts();
-            var target2 = posts2.find(function (p) { return p.id === cid; });
-            if (target2) {
-              if (!Array.isArray(target2.comments)) target2.comments = [];
-              target2.comments.push({ author: '我', text: txt.trim() });
-              savePosts(posts2);
-            }
-          }
           renderMoments();
+          var bar = document.getElementById('ctmCommentBar');
+          var inp = document.getElementById('ctmCommentInput');
+          if (bar && inp) {
+            bar.classList.add('open');
+            inp.value = '';
+            inp.focus();
+          }
           return;
         }
 
