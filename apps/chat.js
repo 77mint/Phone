@@ -1,8 +1,9 @@
 /* =========================================================
    Chat 主页 (apps/chat.js)
    - 底部 4 格液态玻璃底栏：讯息 | 联系人 | 朋友圈 | 我的
-   - 内置小助手：水小九（人设已配置，头像读取 icons/IMG_0288.jpeg）
+   - 全宽平铺列表（无小卡片框），内置小助手水小九（icons/IMG_0288.jpeg）
    - 讯息右上角 +：搜索添加联系人（读取档案 Char）、发起群聊
+   - 联系人支持点击查看完整档案资料
    ========================================================= */
 
 (function () {
@@ -177,6 +178,17 @@
                     </div>
                 </div>
 
+                <!-- 联系人档案详情弹窗 -->
+                <div class="ct-modal-mask" id="ctProfileModal">
+                    <div class="ct-modal">
+                        <div class="ct-modal-head">
+                            <div class="ct-modal-title">详细资料</div>
+                            <button class="ct-modal-close" data-close-modal="ctProfileModal">×</button>
+                        </div>
+                        <div id="ctProfileContent"></div>
+                    </div>
+                </div>
+
                 <div class="ct-toast" id="ctToast"></div>
             </div>
         `;
@@ -253,6 +265,10 @@
     }
 
     function renderActiveTab() {
+        const scroll = document.getElementById('ctMainScroll');
+        if (scroll) {
+            scroll.classList.toggle('is-gray', activeTab === 'moments' || activeTab === 'me');
+        }
         if (activeTab === 'messages') renderMessagesTab();
         else if (activeTab === 'contacts') renderContactsTab();
         else if (activeTab === 'moments') renderMomentsTab();
@@ -268,7 +284,7 @@
         if (threads.length === 0) {
             listHtml = '<div class="ct-empty">还没有匹配的聊天<br>点右上角 <b>+</b> 添加联系人或发起群聊</div>';
         } else {
-            listHtml = '<div class="ct-card">' + threads.map(t => {
+            listHtml = '<div class="ct-flat-list">' + threads.map(t => {
                 const isGroup = t.type === 'group';
                 const charObj = !isGroup ? chars.find(c => c.id === t.charId) : null;
                 const displayName = charObj ? (charObj.name || t.name) : (t.name || '未命名聊天');
@@ -288,9 +304,11 @@
         }
 
         scroll.innerHTML = `
-            <div class="ct-search-wrap">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                <input class="ct-search-input" id="ctThreadSearch" placeholder="搜索聊天" value="${escapeHtml(searchKeyword)}" />
+            <div class="ct-search-bar">
+                <div class="ct-search-wrap">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <input class="ct-search-input" id="ctThreadSearch" placeholder="搜索" value="${escapeHtml(searchKeyword)}" />
+                </div>
             </div>
             ${listHtml}
         `;
@@ -324,21 +342,23 @@
         if (list.length === 0) {
             bodyHtml = '<div class="ct-empty">暂无匹配的联系人</div>';
         } else {
-            bodyHtml = '<div class="ct-card">' + list.map(c => `
+            bodyHtml = '<div class="ct-flat-list">' + list.map(c => `
                 <div class="ct-row" data-contact-id="${escapeHtml(c.id)}">
                     ${renderAvatarHtml(c, false)}
                     <div class="ct-row-main">
                         <div class="ct-row-name">${escapeHtml(c.name || '未命名')}</div>
-                        <div class="ct-row-sub">${escapeHtml(c.bio || c.role || '档案角色')}</div>
+                        <div class="ct-row-sub">${escapeHtml(c.bio || c.role || c.group || '档案角色')}</div>
                     </div>
                 </div>
             `).join('') + '</div>';
         }
 
         scroll.innerHTML = `
-            <div class="ct-search-wrap">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                <input class="ct-search-input" id="ctContactSearch" placeholder="搜索联系人" value="${escapeHtml(contactKeyword)}" />
+            <div class="ct-search-bar">
+                <div class="ct-search-wrap">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <input class="ct-search-input" id="ctContactSearch" placeholder="搜索联系人" value="${escapeHtml(contactKeyword)}" />
+                </div>
             </div>
             ${bodyHtml}
         `;
@@ -353,6 +373,30 @@
                 again.setSelectionRange(again.value.length, again.value.length);
             }
         });
+
+        scroll.querySelectorAll('.ct-row[data-contact-id]').forEach(row => {
+            row.addEventListener('click', () => {
+                const cid = row.dataset.contactId;
+                const c = chars.find(item => item.id === cid);
+                if (c) openProfileModal(c);
+            });
+        });
+    }
+
+    function openProfileModal(c) {
+        const box = document.getElementById('ctProfileContent');
+        const detailText = c.persona || c.description || c.bio || '暂无补充人设';
+        box.innerHTML = `
+            <div class="ct-profile-head">
+                ${renderAvatarHtml(c, false)}
+                <div class="ct-row-main">
+                    <div class="ct-row-name">${escapeHtml(c.name || '未命名')}</div>
+                    <div class="ct-row-sub">${escapeHtml(c.role || c.group || '档案角色')}</div>
+                </div>
+            </div>
+            <div class="ct-profile-body">${escapeHtml(detailText)}</div>
+        `;
+        document.getElementById('ctProfileModal').classList.add('open');
     }
 
     function renderMomentsTab() {
