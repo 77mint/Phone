@@ -37,8 +37,7 @@
   min-width: 0;
 }
 
-.mm-wrap.is-subtab .mm-back,
-.mm-wrap.is-subtab .mm-header-actions {
+.mm-wrap.is-subtab .mm-back {
   display: none;
 }
 
@@ -290,9 +289,29 @@
   color: #ffffff;
 }
 
+.mm-preset-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.mm-preset-btn {
+  border: none;
+  border-radius: 12px;
+  padding: 9px 10px;
+  background: #f2f2f7;
+  color: #111111;
+  font-size: calc(var(--app-font-size, 15px) - 3px);
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+}
+
 .mm-input-box {
   display: flex;
   align-items: center;
+  gap: 8px;
   background: #f2f2f7;
   border-radius: 14px;
   padding: 10px 12px;
@@ -300,6 +319,8 @@
 
 .mm-input,
 .mm-textarea {
+  flex: 1;
+  min-width: 0;
   width: 100%;
   border: none;
   outline: none;
@@ -313,6 +334,46 @@
   min-height: 110px;
   resize: vertical;
   line-height: 1.5;
+}
+
+.mm-fetch-btn {
+  border: none;
+  border-radius: 9px;
+  padding: 5px 10px;
+  background: #ffffff;
+  color: #111111;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  flex-shrink: 0;
+}
+
+.mm-models-box {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  max-height: 132px;
+  overflow-y: auto;
+  padding: 2px 0;
+}
+
+.mm-model-chip {
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #f2f2f7;
+  color: #3a3a3c;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+}
+
+.mm-model-chip.active {
+  background: #111111;
+  color: #ffffff;
 }
 
 .mm-btn-row {
@@ -358,7 +419,7 @@
   line-height: 1.5;
 }
 
-/* 底部液态玻璃双栏（记忆本 / 设置） */
+/* 底部液态玻璃双栏（设置 / 记忆本） */
 #app-memory .mm-bottom-bar {
   position: absolute;
   left: 50%;
@@ -385,7 +446,7 @@
   pointer-events: none;
 }
 
-#app-memory .mm-bottom-bar.is-settings .mm-tab-indicator {
+#app-memory .mm-bottom-bar.is-book .mm-tab-indicator {
   transform: translateX(100%);
 }
 
