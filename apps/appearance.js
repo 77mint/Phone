@@ -119,6 +119,17 @@
         '<div class="lg-card">' +
           '<div class="icon-grid" id="iconGrid"></div>' +
         '</div>' +
+        '<div class="icon-sec-row">' +
+          '<div class="icon-sec-title" id="iconPacksTitle">图标包</div>' +
+          '<div class="icon-sec-actions">' +
+            '<div class="icon-pack-btn" id="btnSaveCurrentPack">保存当前</div>' +
+            '<div class="icon-pack-btn" id="btnAddPackFile">+ 上传</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="lg-card" id="iconPacksCard"></div>' +
+        '<div class="lg-card">' +
+          '<div class="icon-clear-btn" id="btnClearAllIcons">一键清空图标</div>' +
+        '</div>' +
       '</div>' +
     '</div>' +
     '<div class="lg-bottom-bar" id="lgBottomBar">' +
@@ -144,7 +155,8 @@
     '<input type="file" id="inputFont" accept=".ttf,.otf,.woff,.woff2,font/*" multiple style="display:none;">' +
     '<input type="file" id="inputHomeScreenIcon" accept="image/*" style="display:none;">' +
     '<input type="file" id="inputAppIcon" accept="image/*" style="display:none;">' +
-    '<input type="file" id="inputIconPack" accept="image/*" style="display:none;">';
+    '<input type="file" id="inputIconPack" accept="image/*" style="display:none;">' +
+    '<input type="file" id="inputAddPackFile" accept="image/*" style="display:none;">';
 
   var bottomBar = document.getElementById('lgBottomBar');
   var backBtn = root.querySelector('.app-back');
@@ -165,6 +177,7 @@
         iconTabLoaded = true;
         PhoneDB.get('home_screen_icon').then(syncHomeScreenIconUI);
         renderIconGrid();
+        renderIconPacks();
       }
     });
   });
@@ -552,14 +565,13 @@
     ctx.restore();
   }
 
-  btnExportIconPack.addEventListener('click', function () {
-    btnExportIconPack.textContent = '生成中...';
+  function buildCurrentPackCanvas() {
     var canvas = document.createElement('canvas');
     canvas.width = PACK_COLS * EXPORT_CELL;
     canvas.height = PACK_ROWS * EXPORT_CELL;
     var ctx = canvas.getContext('2d');
 
-    Promise.all(APPS_LIST.map(function (app) {
+    return Promise.all(APPS_LIST.map(function (app) {
       return PhoneDB.get('icon_' + app.id);
     })).then(function (urls) {
       return Promise.all(APPS_LIST.map(function (app, idx) {
@@ -579,6 +591,48 @@
         });
       }));
     }).then(function () {
+      return canvas;
+    });
+  }
+
+  function applyPackFromImageSrc(src) {
+    return loadImage(src).then(function (img) {
+      var iw = img.naturalWidth || img.width;
+      var ih = img.naturalHeight || img.height;
+      var cellW = iw / PACK_COLS;
+      var cellH = ih / PACK_ROWS;
+
+      var tileCanvas = document.createElement('canvas');
+      tileCanvas.width = IMPORT_CELL;
+      tileCanvas.height = IMPORT_CELL;
+      var tileCtx = tileCanvas.getContext('2d');
+
+      var chain = Promise.resolve();
+      APPS_LIST.forEach(function (app, idx) {
+        var col = idx % PACK_COLS;
+        var row = Math.floor(idx / PACK_COLS);
+        var sx = col * cellW;
+        var sy = row * cellH;
+        tileCtx.clearRect(0, 0, IMPORT_CELL, IMPORT_CELL);
+        tileCtx.drawImage(img, sx, sy, cellW, cellH, 0, 0, IMPORT_CELL, IMPORT_CELL);
+        var tileUrl = tileCanvas.toDataURL('image/png');
+
+        if (window.applyAppIcon) window.applyAppIcon(app.id, tileUrl);
+        var box = document.getElementById('gridIcon-' + app.id);
+        if (box) setGridBoxPreview(box, app, tileUrl);
+
+        chain = chain.then(function () {
+          return PhoneDB.set('icon_' + app.id, tileUrl);
+        });
+      });
+
+      return chain;
+    });
+  }
+
+  btnExportIconPack.addEventListener('click', function () {
+    btnExportIconPack.textContent = '生成中...';
+    buildCurrentPackCanvas().then(function (canvas) {
       lastExportDataUrl = canvas.toDataURL('image/png');
       iconPackPreviewImg.src = lastExportDataUrl;
       iconPackModal.classList.add('open');
@@ -628,39 +682,8 @@
     btnImportIconPack.textContent = '导入中...';
 
     var objUrl = URL.createObjectURL(file);
-    loadImage(objUrl).then(function (img) {
+    applyPackFromImageSrc(objUrl).then(function () {
       URL.revokeObjectURL(objUrl);
-      var iw = img.naturalWidth || img.width;
-      var ih = img.naturalHeight || img.height;
-      var cellW = iw / PACK_COLS;
-      var cellH = ih / PACK_ROWS;
-
-      var tileCanvas = document.createElement('canvas');
-      tileCanvas.width = IMPORT_CELL;
-      tileCanvas.height = IMPORT_CELL;
-      var tileCtx = tileCanvas.getContext('2d');
-
-      var chain = Promise.resolve();
-      APPS_LIST.forEach(function (app, idx) {
-        var col = idx % PACK_COLS;
-        var row = Math.floor(idx / PACK_COLS);
-        var sx = col * cellW;
-        var sy = row * cellH;
-        tileCtx.clearRect(0, 0, IMPORT_CELL, IMPORT_CELL);
-        tileCtx.drawImage(img, sx, sy, cellW, cellH, 0, 0, IMPORT_CELL, IMPORT_CELL);
-        var tileUrl = tileCanvas.toDataURL('image/png');
-
-        if (window.applyAppIcon) window.applyAppIcon(app.id, tileUrl);
-        var box = document.getElementById('gridIcon-' + app.id);
-        if (box) setGridBoxPreview(box, app, tileUrl);
-
-        chain = chain.then(function () {
-          return PhoneDB.set('icon_' + app.id, tileUrl);
-        });
-      });
-
-      return chain;
-    }).then(function () {
       btnImportIconPack.textContent = '导入 PNG';
       iconSecTitle.textContent = '应用图标（已导入 20 个）';
       setTimeout(function () {
@@ -671,5 +694,133 @@
       btnImportIconPack.textContent = '导入 PNG';
     });
     this.value = '';
+  });
+
+  /* ===== 图标包存放区 & 一键清空 ===== */
+  var iconPacksCard = document.getElementById('iconPacksCard');
+  var iconPacksTitle = document.getElementById('iconPacksTitle');
+  var btnSaveCurrentPack = document.getElementById('btnSaveCurrentPack');
+  var btnAddPackFile = document.getElementById('btnAddPackFile');
+  var inputAddPackFile = document.getElementById('inputAddPackFile');
+  var btnClearAllIcons = document.getElementById('btnClearAllIcons');
+
+  function getSavedPacks() {
+    return PhoneDB.get('icon_packs_list').then(function (val) {
+      return Array.isArray(val) ? val : [];
+    });
+  }
+
+  function renderIconPacks() {
+    getSavedPacks().then(function (packs) {
+      if (!packs.length) {
+        iconPacksCard.innerHTML = '<div class="icon-packs-empty">还没有存图标包，点右上角「保存当前」或「+ 上传」就能存进这里。</div>';
+        return;
+      }
+      var html = '<div class="icon-packs-grid">';
+      packs.forEach(function (p) {
+        html +=
+          '<div class="icon-pack-card" data-pack-id="' + p.id + '">' +
+            '<div class="icon-pack-thumb" style="background-image:url(\'' + p.png + '\');">' +
+              '<span class="icon-pack-del" data-del-pack="' + p.id + '">×</span>' +
+            '</div>' +
+            '<div class="icon-pack-name">' + p.name + '</div>' +
+          '</div>';
+      });
+      html += '</div>';
+      iconPacksCard.innerHTML = html;
+    });
+  }
+
+  btnSaveCurrentPack.addEventListener('click', function () {
+    getSavedPacks().then(function (packs) {
+      var name = prompt('给这个图标包起个名字', '图标包 ' + (packs.length + 1));
+      if (name === null) return;
+      name = name.trim() || ('图标包 ' + (packs.length + 1));
+      btnSaveCurrentPack.textContent = '保存中...';
+      buildCurrentPackCanvas().then(function (canvas) {
+        var png = canvas.toDataURL('image/png');
+        packs.unshift({ id: 'pack_' + Date.now(), name: name, png: png });
+        return PhoneDB.set('icon_packs_list', packs);
+      }).then(function () {
+        btnSaveCurrentPack.textContent = '保存当前';
+        renderIconPacks();
+      }).catch(function () {
+        btnSaveCurrentPack.textContent = '保存当前';
+      });
+    });
+  });
+
+  btnAddPackFile.addEventListener('click', function () {
+    inputAddPackFile.click();
+  });
+
+  inputAddPackFile.addEventListener('change', function () {
+    var file = this.files && this.files[0];
+    if (!file) return;
+    btnAddPackFile.textContent = '上传中...';
+    readImageAsDataUrl(file, function (url) {
+      getSavedPacks().then(function (packs) {
+        var defaultName = file.name.replace(/\.[^.]+$/, '') || ('图标包 ' + (packs.length + 1));
+        var name = prompt('给这个图标包起个名字', defaultName);
+        if (name === null) {
+          btnAddPackFile.textContent = '+ 上传';
+          return;
+        }
+        name = name.trim() || defaultName;
+        packs.unshift({ id: 'pack_' + Date.now(), name: name, png: url });
+        return PhoneDB.set('icon_packs_list', packs).then(function () {
+          btnAddPackFile.textContent = '+ 上传';
+          renderIconPacks();
+        });
+      }).catch(function () {
+        btnAddPackFile.textContent = '+ 上传';
+      });
+    });
+    this.value = '';
+  });
+
+  iconPacksCard.addEventListener('click', function (e) {
+    var delId = e.target.getAttribute('data-del-pack');
+    if (delId) {
+      e.stopPropagation();
+      getSavedPacks().then(function (packs) {
+        var next = packs.filter(function (p) { return p.id !== delId; });
+        return PhoneDB.set('icon_packs_list', next);
+      }).then(renderIconPacks);
+      return;
+    }
+    var card = e.target.closest('.icon-pack-card');
+    if (!card) return;
+    var pid = card.getAttribute('data-pack-id');
+    getSavedPacks().then(function (packs) {
+      var found = packs.find(function (p) { return p.id === pid; });
+      if (!found) return;
+      iconPacksTitle.textContent = '图标包（应用中...）';
+      return applyPackFromImageSrc(found.png).then(function () {
+        iconPacksTitle.textContent = '图标包（已应用：' + found.name + '）';
+        setTimeout(function () {
+          iconPacksTitle.textContent = '图标包';
+        }, 2500);
+      });
+    });
+  });
+
+  btnClearAllIcons.addEventListener('click', function () {
+    if (!confirm('确定要清空所有应用图标，恢复成默认图标吗？\n（已保存的图标包不会被删掉）')) return;
+    var chain = Promise.resolve();
+    APPS_LIST.forEach(function (app) {
+      if (window.applyAppIcon) window.applyAppIcon(app.id, '');
+      var box = document.getElementById('gridIcon-' + app.id);
+      if (box) setGridBoxPreview(box, app, '');
+      chain = chain.then(function () {
+        return PhoneDB.del('icon_' + app.id);
+      });
+    });
+    chain.then(function () {
+      iconSecTitle.textContent = '应用图标（已清空）';
+      setTimeout(function () {
+        iconSecTitle.textContent = '应用图标';
+      }, 2500);
+    });
   });
 })();
