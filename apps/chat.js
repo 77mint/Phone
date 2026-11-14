@@ -3,7 +3,7 @@
    - 100% 同步「档案」：所有联系人与群聊成员均严格来自 PhoneArchive
    - 微信小圆角头像 + 名字对齐头像上缘/预览对齐下缘 + 可点进聊天窗口
    - 适配 iOS visualViewport，原生键盘弹起不遮挡输入框
-   - 支持 P1 长按流式转文字（屏蔽iOS长按菜单冲突）、P2 按住发语音/右滑转文字、滑动引用、语音动画
+   - 支持 P1 长按流式转文字、P2 独占麦克风真录音（可回放）、默认展开转文字白卡、滑动引用
    ========================================================= */
 
 (function () {
@@ -441,7 +441,7 @@
 
     function startSpeechRecognition() {
         const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRec) return;
+        if (!SpeechRec || holdState.recognition) return;
 
         const launch = () => {
             if (!holdState.active) return;
@@ -504,7 +504,7 @@
                 recorder.ondataavailable = (e) => {
                     if (e.data && e.data.size > 0) holdState.chunks.push(e.data);
                 };
-                recorder.start();
+                recorder.start(100);
                 holdState.recorder = recorder;
             }
         } catch (e) {}
@@ -531,8 +531,12 @@
         updateOverlayUI();
         overlay.classList.add('open');
 
-        startSpeechRecognition();
-        if (mode === 'voice') startAudioRecorder();
+        // 分开独占麦克风：语音条只录真音频，转文字才开语音识别
+        if (mode === 'dictate') {
+            startSpeechRecognition();
+        } else {
+            startAudioRecorder();
+        }
     }
 
     function moveHoldOverlay(clientX, clientY) {
@@ -552,6 +556,17 @@
         }
         if (nextZone !== holdState.zone) {
             holdState.zone = nextZone;
+            // 在语音模式下右滑到「转文字」时，释放录音并切到语音识别
+            if (holdState.mode === 'voice' && nextZone === 'alt' && !holdState.recognition) {
+                if (holdState.recorder && holdState.recorder.state !== 'inactive') {
+                    try { holdState.recorder.stop(); } catch (e) {}
+                }
+                if (holdState.stream) {
+                    holdState.stream.getTracks().forEach(t => { try { t.stop(); } catch (e) {} });
+                    holdState.stream = null;
+                }
+                startSpeechRecognition();
+            }
             updateOverlayUI();
         }
     }
@@ -613,8 +628,9 @@
                 if (finished) return;
                 finished = true;
                 cleanupStream();
-                if (zone === 'cancel' || !holdState.chunks.length) { resolve(''); return; }
-                const blob = new Blob(holdState.chunks, { type: holdState.recorder.mimeType || 'audio/mp4' });
+                if (zone !== 'send' || !holdState.chunks.length) { resolve(''); return; }
+                const mime = holdState.recorder.mimeType || 'audio/mp4';
+                const blob = new Blob(holdState.chunks, { type: mime });
                 const reader = new FileReader();
                 reader.onloadend = () => resolve(typeof reader.result === 'string' ? reader.result : '');
                 reader.readAsDataURL(blob);
@@ -628,7 +644,7 @@
             setTimeout(() => {
                 cleanupStream();
                 if (!finished) { finished = true; resolve(''); }
-            }, 300);
+            }, 320);
         });
 
         Promise.all([waitRecEnd(), finalizeAudio()]).then(([, audioData]) => {
@@ -728,6 +744,7 @@
         document.getElementById('ctRoomBackBtn').addEventListener('click', () => {
             const inp = document.getElementById('ctRoomInput');
             if (inp) inp.blur();
+            stopPlayingVoiceUI();
             resetRoomViewport();
             pendingQuote = null;
             renderQuoteBar();
@@ -827,7 +844,7 @@
             startHoldOverlay('voice');
         });
 
-        // 全局跟踪触摸与松手，确保松手瞬间立刻结束录音并发送
+        // 全局跟踪触摸与松手
         window.addEventListener('touchmove', (e) => {
             if (holdState.active && e.touches[0]) {
                 moveHoldOverlay(e.touches[0].clientX, e.touches[0].clientY);
@@ -1005,6 +1022,32 @@
                 ? `<div class="ct-msg-quote">${escapeHtml(m.quote.senderName)}：${escapeHtml(m.quote.text)}</div>`
                 : '';
 
+            // 默认展开语音转文字 / 翻译白卡（方案1）
+            let subcardHtml = '';
+            if (isVoice && m.transcript) {
+                subcardHtml = `
+                    <div class="ct-msg-subcard">
+                        <div>${escapeHtml(m.transcript)}</div>
+                        ${m.translation ? `
+                            <div class="ct-msg-subdivider"></div>
+                            <div>${escapeHtml(m.translation)}</div>
+                            <div class="ct-msg-trans-foot">
+                                <span class="ct-msg-trans-check">✓</span>
+                                <span>由 API 提供翻译支持</span>
+                            </div>
+                        ` : ''}
+                    </div>`;
+            } else if (!isVoice && m.translation) {
+                subcardHtml = `
+                    <div class="ct-msg-subcard">
+                        <div>${escapeHtml(m.translation)}</div>
+                        <div class="ct-msg-trans-foot">
+                            <span class="ct-msg-trans-check">✓</span>
+                            <span>由 API 提供翻译支持</span>
+                        </div>
+                    </div>`;
+            }
+
             return `${timeHtml}
                 <div class="ct-msg-group ${isMe ? 'me' : ''}" data-msg-id="${escapeHtml(m.id)}" data-sender-name="${escapeHtml(senderName)}">
                     <div class="ct-msg-row ${isMe ? 'me' : ''}">
@@ -1012,6 +1055,7 @@
                         <div class="ct-msg-bubble ${isVoice ? 'is-voice-msg' : ''}"${bubbleStyle}>${bubbleInner}</div>
                     </div>
                     ${quoteHtml}
+                    ${subcardHtml}
                 </div>
             `;
         }).join('');
@@ -1142,6 +1186,7 @@
             type: 'voice',
             duration: duration,
             audio: audioData || '',
+            transcript: transcript || '',
             text: transcript || `[语音 ${duration}"]`,
             time: nowTime
         };
