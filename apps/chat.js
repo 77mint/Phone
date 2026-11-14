@@ -1,7 +1,7 @@
 /* =========================================================
    Chat 主页 & 聊天窗口 (apps/chat.js)
    - 100% 同步「档案」：所有联系人与群聊成员均严格来自 PhoneArchive
-   - 微信小圆角头像 + 名字对齐上缘/预览对齐下缘 + 可点进聊天窗口
+   - 微信小圆角头像 + 名字对齐头像上缘/预览对齐下缘 + 可点进聊天窗口
    - 适配 iOS visualViewport，原生键盘弹起不遮挡输入框
    - 支持 P1/P2 语音切换、长按语音条/转文字浮层、长按消息引用回复
    ========================================================= */
@@ -32,6 +32,20 @@
             <rect x="14.5" y="13" width="2" height="2" rx="0.4" fill="currentColor" stroke="none"/>
             <rect x="17.5" y="13" width="2" height="2" rx="0.4" fill="currentColor" stroke="none"/>
             <rect x="10.5" y="16.2" width="7" height="1.8" rx="0.6" fill="currentColor" stroke="none"/>
+        </svg>`;
+
+    const SVG_VOICE_WAVE_ME = `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round">
+            <circle cx="18" cy="12" r="1.5" fill="currentColor" stroke="none"/>
+            <path d="M14.2 8.8a4.6 4.6 0 0 0 0 6.4"/>
+            <path d="M10.8 6a8.6 8.6 0 0 0 0 12"/>
+        </svg>`;
+
+    const SVG_VOICE_WAVE_OTHER = `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round">
+            <circle cx="6" cy="12" r="1.5" fill="currentColor" stroke="none"/>
+            <path d="M9.8 8.8a4.6 4.6 0 0 1 0 6.4"/>
+            <path d="M13.2 6a8.6 8.6 0 0 1 0 12"/>
         </svg>`;
 
     let activeTab = 'messages';
@@ -530,10 +544,7 @@
             if (zone === 'cancel') return;
 
             if (mode === 'dictate') {
-                if (!transcript) {
-                    showToast('未识别到语音内容');
-                    return;
-                }
+                if (!transcript) return;
                 if (zone === 'alt') {
                     const inp = document.getElementById('ctRoomInput');
                     if (inp) {
@@ -546,12 +557,8 @@
                 return;
             }
 
-            // voice 模式
             if (zone === 'alt') {
-                if (!transcript) {
-                    showToast('未识别到语音文字');
-                    return;
-                }
+                if (!transcript) return;
                 const inp = document.getElementById('ctRoomInput');
                 setVoiceMode(false);
                 if (inp) {
@@ -850,11 +857,19 @@
             }
 
             const isVoice = m.type === 'voice';
+            const dur = Math.max(1, Number(m.duration || 1));
+            const voiceWidth = Math.min(200, 108 + dur * 4);
+            const bubbleStyle = isVoice ? ` style="width:${voiceWidth}px;"` : '';
             const bubbleInner = isVoice
-                ? `<div class="ct-voice-bubble" data-play-msg="${escapeHtml(m.id)}">
-                        <span class="ct-voice-sec">${escapeHtml(String(m.duration || 1))}"</span>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
-                   </div>`
+                ? (isMe
+                    ? `<div class="ct-voice-bubble" data-play-msg="${escapeHtml(m.id)}">
+                            <span class="ct-voice-sec">${escapeHtml(String(dur))}"</span>
+                            ${SVG_VOICE_WAVE_ME}
+                       </div>`
+                    : `<div class="ct-voice-bubble" data-play-msg="${escapeHtml(m.id)}">
+                            ${SVG_VOICE_WAVE_OTHER}
+                            <span class="ct-voice-sec">${escapeHtml(String(dur))}"</span>
+                       </div>`)
                 : escapeHtml(m.text);
 
             const quoteHtml = m.quote
@@ -865,14 +880,14 @@
                 <div class="ct-msg-group ${isMe ? 'me' : ''}">
                     <div class="ct-msg-row ${isMe ? 'me' : ''}">
                         ${avHtml}
-                        <div class="ct-msg-bubble" data-msg-id="${escapeHtml(m.id)}" data-sender-name="${escapeHtml(senderName)}">${bubbleInner}</div>
+                        <div class="ct-msg-bubble ${isVoice ? 'is-voice-msg' : ''}"${bubbleStyle} data-msg-id="${escapeHtml(m.id)}" data-sender-name="${escapeHtml(senderName)}">${bubbleInner}</div>
                     </div>
                     ${quoteHtml}
                 </div>
             `;
         }).join('');
 
-        // 长按气泡引用
+        // 长按气泡引用（静默弹出底部引用条，不弹黑色小弹窗）
         box.querySelectorAll('.ct-msg-bubble').forEach(bubble => {
             let pressTimer = null;
             const triggerQuote = () => {
@@ -887,7 +902,6 @@
                     text: qText
                 };
                 renderQuoteBar();
-                showToast('已引用消息');
             };
             bubble.addEventListener('touchstart', () => {
                 clearTimeout(pressTimer);
@@ -906,16 +920,13 @@
             el.addEventListener('click', () => {
                 const mid = el.dataset.playMsg;
                 const target = msgs.find(item => item.id === mid);
-                if (!target || !target.audio) {
-                    showToast('暂无音频缓存');
-                    return;
-                }
+                if (!target || !target.audio) return;
                 if (currentPlayingAudio) {
                     currentPlayingAudio.pause();
                     currentPlayingAudio = null;
                 }
                 currentPlayingAudio = new Audio(target.audio);
-                currentPlayingAudio.play().catch(() => showToast('播放失败'));
+                currentPlayingAudio.play().catch(() => {});
             });
         });
 
