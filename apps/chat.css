@@ -510,13 +510,20 @@
     border-color: transparent transparent transparent #95ec69;
 }
 
-/* 语音条气泡 */
-.ct-voice-bubble {
-    display: inline-flex;
+/* 语音条气泡（严格仿微信 3392d9b8：小圆点 + 双弧声波） */
+.ct-msg-bubble.is-voice-msg {
+    display: flex;
     align-items: center;
-    gap: 6px;
-    min-width: 74px;
+    padding: 0 11px;
     cursor: pointer;
+}
+
+.ct-voice-bubble {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 5px;
 }
 
 .ct-msg-row.me .ct-voice-bubble {
@@ -525,7 +532,8 @@
 
 .ct-voice-sec {
     font-size: calc(var(--app-font-size, 15px) - 1px);
-    font-weight: 500;
+    font-weight: 400;
+    color: #111111;
 }
 
 /* 气泡下方引用块（IMG_1603） */
@@ -690,7 +698,7 @@
 }
 
 /* =========================================================
-   长按语音/转文字全屏浮层（IMG_1600 & IMG_1604）
+   长按语音/转文字全屏浮层（正中央气泡 + 底部弧形）
    ========================================================= */
 .ct-voice-overlay {
     position: absolute;
@@ -711,22 +719,23 @@
 }
 
 .ct-vo-center {
-    margin-top: 42%;
+    flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
     gap: 14px;
     width: 100%;
-    padding: 0 28px;
+    padding: 40px 28px 0;
     box-sizing: border-box;
 }
 
 .ct-vo-bubble {
     position: relative;
-    min-width: 150px;
+    min-width: 148px;
     max-width: 82%;
-    min-height: 66px;
-    padding: 16px 22px;
+    min-height: 68px;
+    padding: 16px 24px;
     border-radius: 14px;
     background: #95ec69;
     color: #111111;
@@ -796,6 +805,7 @@
     position: relative;
     width: 100%;
     height: 176px;
+    flex-shrink: 0;
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
