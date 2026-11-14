@@ -1,13 +1,13 @@
 /* =========================================================
-   Chat 主页 (apps/chat.js)
+   Chat 主页 & 聊天窗口 (apps/chat.js)
    - 100% 同步「档案」：所有联系人与群聊成员均严格来自 PhoneArchive
-   - 底部 4 格液态玻璃底栏：讯息 | 联系人 | 朋友圈 | 我的
-   - 微信小圆角头像 + 名字对齐头像上缘 + 联系人页仅显示头像与名字
+   - 微信小圆角头像 + 名字对齐头像上缘/预览对齐头像下缘 + 可点进聊天窗口
    ========================================================= */
 
 (function () {
     const STORAGE_CONTACTS_KEY = 'chat_contacts_v1';
     const STORAGE_THREADS_KEY = 'chat_threads_v1';
+    const STORAGE_MSGS_PREFIX = 'chat_msgs_v1_';
     const BUILTIN_ID = 'assistant-shuixiaojiu';
 
     let activeTab = 'messages';
@@ -15,6 +15,7 @@
     let contactKeyword = '';
     let modalSearchKeyword = '';
     let groupSelectedIds = [];
+    let currentThreadId = null;
 
     function loadJSON(key, fallback) {
         try {
@@ -88,6 +89,27 @@
         return list;
     }
 
+    function getThreadMessages(threadId) {
+        const msgs = loadJSON(STORAGE_MSGS_PREFIX + threadId, null);
+        if (Array.isArray(msgs)) return msgs;
+        if (threadId === 'dm-' + BUILTIN_ID) {
+            const init = [{
+                id: 'm-welcome',
+                sender: 'char',
+                charId: BUILTIN_ID,
+                text: '你好呀，我是水小九，前端、美化、酒馆和小手机的事都可以问我。',
+                time: '在线'
+            }];
+            saveJSON(STORAGE_MSGS_PREFIX + threadId, init);
+            return init;
+        }
+        return [];
+    }
+
+    function saveThreadMessages(threadId, msgs) {
+        saveJSON(STORAGE_MSGS_PREFIX + threadId, msgs);
+    }
+
     function escapeHtml(str) {
         return String(str || '')
             .replace(/&/g, '&amp;')
@@ -105,17 +127,18 @@
         showToast._timer = setTimeout(() => el.classList.remove('show'), 1800);
     }
 
-    function renderAvatarHtml(charObj, isGroup) {
+    function renderAvatarHtml(charObj, isGroup, cls) {
+        const boxCls = cls || 'ct-avatar';
         if (isGroup) {
-            return '<div class="ct-avatar"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>';
+            return `<div class="${boxCls}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>`;
         }
         const name = getCharDisplayName(charObj);
         const fallbackChar = (charObj && charObj.id === BUILTIN_ID) ? '九' : name.slice(0, 1);
         const av = getCharAvatar(charObj);
         if (av) {
-            return `<div class="ct-avatar"><img src="${escapeHtml(av)}" onerror="this.parentNode.textContent='${escapeHtml(fallbackChar)}'" alt="" /></div>`;
+            return `<div class="${boxCls}"><img src="${escapeHtml(av)}" onerror="this.parentNode.textContent='${escapeHtml(fallbackChar)}'" alt="" /></div>`;
         }
-        return `<div class="ct-avatar">${escapeHtml(fallbackChar)}</div>`;
+        return `<div class="${boxCls}">${escapeHtml(fallbackChar)}</div>`;
     }
 
     function mount() {
@@ -155,6 +178,23 @@
                     <button class="ct-tab-btn" data-tab="contacts">联系人</button>
                     <button class="ct-tab-btn" data-tab="moments">朋友圈</button>
                     <button class="ct-tab-btn" data-tab="me">我的</button>
+                </div>
+
+                <!-- 全屏聊天窗口 -->
+                <div class="ct-room" id="ctRoomView">
+                    <div class="ct-room-head">
+                        <div class="ct-room-head-left">
+                            <button class="ct-glass-circle" id="ctRoomBackBtn" aria-label="返回讯息">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                            </button>
+                            <div class="ct-room-title" id="ctRoomTitle"></div>
+                        </div>
+                    </div>
+                    <div class="ct-room-messages" id="ctRoomMessages"></div>
+                    <div class="ct-room-input-bar">
+                        <input class="ct-room-input" id="ctRoomInput" placeholder="发消息..." />
+                        <button class="ct-room-send" id="ctRoomSendBtn">发送</button>
+                    </div>
                 </div>
 
                 <!-- 添加联系人弹窗 -->
@@ -268,6 +308,17 @@
 
         document.getElementById('ctCreateGroupBtn').addEventListener('click', createGroupChat);
 
+        document.getElementById('ctRoomBackBtn').addEventListener('click', () => {
+            document.getElementById('ctRoomView').classList.remove('open');
+            currentThreadId = null;
+            renderMessagesTab();
+        });
+
+        document.getElementById('ctRoomSendBtn').addEventListener('click', sendRoomMessage);
+        document.getElementById('ctRoomInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') sendRoomMessage();
+        });
+
         window.addEventListener('phone-archive-updated', () => {
             renderActiveTab();
         });
@@ -303,7 +354,7 @@
                 const charObj = !isGroup ? chars.find(c => c.id === t.charId) : null;
                 const displayName = charObj ? getCharDisplayName(charObj) : (t.name || '未命名聊天');
                 return `
-                    <div class="ct-row" data-thread-id="${escapeHtml(t.id)}">
+                    <div class="ct-row ct-thread-row" data-thread-id="${escapeHtml(t.id)}">
                         ${renderAvatarHtml(charObj, isGroup)}
                         <div class="ct-row-main">
                             <div class="ct-row-top">
@@ -340,9 +391,80 @@
 
         scroll.querySelectorAll('.ct-row[data-thread-id]').forEach(row => {
             row.addEventListener('click', () => {
-                showToast('聊天窗口将在下一步接入');
+                openChatRoom(row.dataset.threadId);
             });
         });
+    }
+
+    function openChatRoom(threadId) {
+        const threads = getThreads();
+        const t = threads.find(item => item.id === threadId);
+        if (!t) return;
+        currentThreadId = threadId;
+        const chars = getArchiveChars();
+        const charObj = t.type === 'dm' ? chars.find(c => c.id === t.charId) : null;
+        document.getElementById('ctRoomTitle').textContent = charObj ? getCharDisplayName(charObj) : (t.name || '聊天');
+        renderRoomMessages();
+        document.getElementById('ctRoomView').classList.add('open');
+    }
+
+    function renderRoomMessages() {
+        if (!currentThreadId) return;
+        const box = document.getElementById('ctRoomMessages');
+        const threads = getThreads();
+        const t = threads.find(item => item.id === currentThreadId);
+        const chars = getArchiveChars();
+        const defaultChar = (t && t.type === 'dm') ? chars.find(c => c.id === t.charId) : null;
+        const msgs = getThreadMessages(currentThreadId);
+
+        if (msgs.length === 0) {
+            box.innerHTML = '<div class="ct-empty">发一句话开始聊天吧</div>';
+            return;
+        }
+
+        box.innerHTML = msgs.map(m => {
+            const isMe = m.sender === 'me';
+            const cObj = isMe ? null : (chars.find(c => c.id === m.charId) || defaultChar);
+            const avHtml = isMe
+                ? '<div class="ct-msg-avatar">我</div>'
+                : renderAvatarHtml(cObj, false, 'ct-msg-avatar');
+            return `
+                <div class="ct-msg-row ${isMe ? 'me' : ''}">
+                    ${avHtml}
+                    <div class="ct-msg-bubble">${escapeHtml(m.text)}</div>
+                </div>
+            `;
+        }).join('');
+
+        box.scrollTop = box.scrollHeight;
+    }
+
+    function sendRoomMessage() {
+        if (!currentThreadId) return;
+        const inp = document.getElementById('ctRoomInput');
+        const text = inp.value.trim();
+        if (!text) return;
+        inp.value = '';
+
+        const nowTime = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+        const msgs = getThreadMessages(currentThreadId);
+        msgs.push({
+            id: 'm-' + Date.now(),
+            sender: 'me',
+            text: text,
+            time: nowTime
+        });
+        saveThreadMessages(currentThreadId, msgs);
+
+        const threads = getThreads();
+        const idx = threads.findIndex(t => t.id === currentThreadId);
+        if (idx !== -1) {
+            threads[idx].lastMsg = text;
+            threads[idx].lastTime = nowTime;
+            saveJSON(STORAGE_THREADS_KEY, threads);
+        }
+
+        renderRoomMessages();
     }
 
     function renderContactsTab() {
@@ -408,7 +530,25 @@
                 </div>
             </div>
             <div class="ct-profile-body">${escapeHtml(detailText)}</div>
+            <button class="ct-primary-btn" id="ctProfileMsgBtn">发消息</button>
         `;
+        document.getElementById('ctProfileMsgBtn').addEventListener('click', () => {
+            const threads = getThreads();
+            let tid = 'dm-' + c.id;
+            if (!threads.some(t => t.id === tid)) {
+                threads.unshift({
+                    id: tid,
+                    type: 'dm',
+                    charId: c.id,
+                    name: getCharDisplayName(c),
+                    lastMsg: '',
+                    lastTime: ''
+                });
+                saveJSON(STORAGE_THREADS_KEY, threads);
+            }
+            document.getElementById('ctProfileModal').classList.remove('open');
+            openChatRoom(tid);
+        });
         document.getElementById('ctProfileModal').classList.add('open');
     }
 
@@ -434,15 +574,9 @@
                 </div>
             </div>
             <div class="ct-card">
-                <div class="ct-row">
-                    <div class="ct-row-main"><div class="ct-row-name">收藏</div></div>
-                </div>
-                <div class="ct-row">
-                    <div class="ct-row-main"><div class="ct-row-name">表情包</div></div>
-                </div>
-                <div class="ct-row">
-                    <div class="ct-row-main"><div class="ct-row-name">聊天设置</div></div>
-                </div>
+                <div class="ct-row"><div class="ct-row-main"><div class="ct-row-name">收藏</div></div></div>
+                <div class="ct-row"><div class="ct-row-main"><div class="ct-row-name">表情包</div></div></div>
+                <div class="ct-row"><div class="ct-row-main"><div class="ct-row-name">聊天设置</div></div></div>
             </div>
         `;
     }
