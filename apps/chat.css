@@ -2,7 +2,7 @@
    Chat 主页 & 聊天窗口 (apps/chat.css)
    - 紧凑顶部栏 + 顶部纯图标（无液态玻璃圆底）
    - 微信小圆角头像（6px）+ 名字对齐上缘/预览对齐下缘
-   - 严格仿微信聊天气泡与输入栏（基础源码，暂不设美化入口）
+   - 严格仿微信聊天气泡、输入栏、语音浮层与引用回复（基础源码，暂不设美化入口）
    - 全文字跟随「外观」--app-font-size 全局缩放
    ========================================================= */
 
@@ -44,7 +44,6 @@
     min-width: 0;
 }
 
-/* 顶部返回 & 加号 & 更多：取消液态玻璃，纯图标 */
 .ct-glass-circle {
     width: 32px;
     height: 32px;
@@ -434,6 +433,12 @@
     line-height: 1.2;
 }
 
+.ct-msg-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
 .ct-msg-row {
     display: flex;
     align-items: flex-start;
@@ -477,6 +482,8 @@
     background: #ffffff;
     color: #111111;
     word-break: break-word;
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .ct-msg-bubble::before {
@@ -503,19 +510,62 @@
     border-color: transparent transparent transparent #95ec69;
 }
 
-/* 输入栏：严格仿微信 [语音圆圈] [白色圆角输入框] [加号圆圈] [发送圆圈] */
-.ct-room-input-bar {
+/* 语音条气泡 */
+.ct-voice-bubble {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 74px;
+    cursor: pointer;
+}
+
+.ct-msg-row.me .ct-voice-bubble {
+    justify-content: flex-end;
+}
+
+.ct-voice-sec {
+    font-size: calc(var(--app-font-size, 15px) - 1px);
+    font-weight: 500;
+}
+
+/* 气泡下方引用块（IMG_1603） */
+.ct-msg-quote {
+    align-self: flex-start;
+    margin-left: 51px;
+    max-width: 68%;
+    background: #e1e1e1;
+    color: #666666;
+    font-size: calc(var(--app-font-size, 15px) - 3px);
+    line-height: 1.35;
+    padding: 5px 9px;
+    border-radius: 5px;
+    word-break: break-word;
+}
+
+.ct-msg-group.me .ct-msg-quote {
+    align-self: flex-end;
+    margin-left: 0;
+    margin-right: 51px;
+}
+
+/* 底部输入区整体容器 */
+.ct-room-footer {
     flex-shrink: 0;
+    background: #f7f7f7;
+    border-top: 0.5px solid rgba(0, 0, 0, 0.08);
+    padding-bottom: max(8px, calc(env(safe-area-inset-bottom, 0px) - 18px));
+}
+
+.ct-room.is-kb-open .ct-room-footer {
+    padding-bottom: 6px;
+}
+
+/* 输入栏：严格仿微信 */
+.ct-room-input-bar {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 8px 10px max(8px, calc(env(safe-area-inset-bottom, 0px) - 18px));
-    background: #f7f7f7;
-    border-top: 0.5px solid rgba(0, 0, 0, 0.08);
-}
-
-.ct-room.is-kb-open .ct-room-input-bar {
-    padding-bottom: 8px;
+    padding: 8px 10px 4px;
 }
 
 .ct-room-icon-btn {
@@ -552,6 +602,250 @@
     color: #111111;
     outline: none;
     font-family: inherit;
+    text-align: left;
+}
+
+.ct-room-input::placeholder {
+    color: #b2b2b2;
+    text-align: center;
+    font-size: calc(var(--app-font-size, 15px) - 1px);
+}
+
+/* P2 语音模式：按住说话胶囊按钮 */
+.ct-hold-talk-btn {
+    flex: 1;
+    min-width: 0;
+    height: 36px;
+    border: none;
+    background: #ffffff;
+    border-radius: 999px;
+    font-size: var(--app-font-size, 15px);
+    font-weight: 700;
+    color: #111111;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    font-family: inherit;
+}
+
+.ct-hold-talk-btn:active,
+.ct-hold-talk-btn.pressing {
+    background: #e5e5ea;
+}
+
+.ct-room-footer.is-voice-mode .ct-room-input {
+    display: none;
+}
+
+.ct-room-footer.is-voice-mode .ct-hold-talk-btn {
+    display: flex;
+}
+
+/* 输入框下方引用条（IMG_1602） */
+.ct-quote-bar {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 4px 46px 4px 46px;
+    padding: 6px 10px;
+    background: #e6e6e6;
+    border-radius: 6px;
+    font-size: calc(var(--app-font-size, 15px) - 3px);
+    color: #555555;
+}
+
+.ct-quote-bar.show {
+    display: flex;
+}
+
+.ct-quote-bar-text {
+    flex: 1;
+    min-width: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    line-height: 1.35;
+}
+
+.ct-quote-bar-close {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: none;
+    background: #b5b5b5;
+    color: #ffffff;
+    font-size: 12px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    cursor: pointer;
+    padding: 0;
+}
+
+/* =========================================================
+   长按语音/转文字全屏浮层（IMG_1600 & IMG_1604）
+   ========================================================= */
+.ct-voice-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.56);
+    z-index: 70;
+    display: none;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.ct-voice-overlay.open {
+    display: flex;
+}
+
+.ct-vo-center {
+    margin-top: 42%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    padding: 0 28px;
+    box-sizing: border-box;
+}
+
+.ct-vo-bubble {
+    position: relative;
+    min-width: 150px;
+    max-width: 82%;
+    min-height: 66px;
+    padding: 16px 22px;
+    border-radius: 14px;
+    background: #95ec69;
+    color: #111111;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: calc(var(--app-font-size, 15px) + 2px);
+    font-weight: 500;
+    text-align: center;
+    word-break: break-word;
+    box-sizing: border-box;
+}
+
+.ct-vo-bubble.is-voice::after {
+    content: "";
+    position: absolute;
+    bottom: -7px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 8px 8px 0 8px;
+    border-color: #95ec69 transparent transparent transparent;
+}
+
+.ct-vo-bubble.is-cancel {
+    background: #ff4d4f;
+    color: #ffffff;
+}
+
+.ct-vo-bubble.is-voice.is-cancel::after {
+    border-color: #ff4d4f transparent transparent transparent;
+}
+
+.ct-vo-waves {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    height: 28px;
+}
+
+.ct-vo-waves span {
+    width: 2.5px;
+    border-radius: 2px;
+    background: rgba(17, 17, 17, 0.52);
+    animation: ctWaveAnim 0.8s ease-in-out infinite;
+}
+
+.ct-vo-waves span:nth-child(odd) { height: 10px; animation-delay: 0.1s; }
+.ct-vo-waves span:nth-child(2n) { height: 22px; animation-delay: 0.25s; }
+.ct-vo-waves span:nth-child(3n) { height: 14px; animation-delay: 0.4s; }
+.ct-vo-waves span:nth-child(5n) { height: 28px; animation-delay: 0.15s; }
+
+@keyframes ctWaveAnim {
+    0%, 100% { transform: scaleY(0.55); }
+    50% { transform: scaleY(1.1); }
+}
+
+.ct-vo-hint {
+    font-size: calc(var(--app-font-size, 15px) - 1px);
+    color: rgba(255, 255, 255, 0.72);
+    font-weight: 500;
+}
+
+.ct-vo-bottom {
+    position: relative;
+    width: 100%;
+    height: 176px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
+}
+
+.ct-vo-actions {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 6px;
+    box-sizing: border-box;
+    margin-bottom: 18px;
+    z-index: 2;
+}
+
+.ct-vo-pill {
+    width: 44%;
+    height: 58px;
+    border-radius: 999px;
+    background: rgba(90, 90, 90, 0.72);
+    color: #ffffff;
+    font-size: calc(var(--app-font-size, 15px) - 1px);
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+}
+
+.ct-vo-pill.left {
+    transform: rotate(-10deg) translateX(-10px);
+}
+
+.ct-vo-pill.right {
+    transform: rotate(10deg) translateX(10px);
+}
+
+.ct-vo-pill.active {
+    background: rgba(255, 255, 255, 0.92);
+    color: #111111;
+    font-weight: 600;
+}
+
+.ct-vo-dome {
+    width: 130%;
+    height: 96px;
+    background: #d2d2d2;
+    border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.18);
 }
 
 /* 弹窗 */
