@@ -5,13 +5,22 @@
   var LIST_KEY = 'phone_memory_list_v1';
   var CFG_KEY = 'phone_memory_cfg_v1';
 
+  var EMBED_PRESETS = [
+    { id: 'sf', label: '硅基流动 (免费)', url: 'https://api.siliconflow.cn/v1', model: 'BAAI/bge-m3' },
+    { id: 'gemini', label: 'Gemini (免费)', url: 'https://generativelanguage.googleapis.com/v1beta/openai', model: 'text-embedding-004' },
+    { id: 'mistral', label: 'Mistral (免费)', url: 'https://api.mistral.ai/v1', model: 'mistral-embed' },
+    { id: 'cohere', label: 'Cohere (免费)', url: 'https://api.cohere.ai/compatibility/v1', model: 'embed-multilingual-v3.0' }
+  ];
+
   var memories = loadList();
   var cfg = loadCfg();
-  var currentTab = 'book'; // 'book' | 'settings'
+  var currentTab = 'settings'; // 默认首页：设置 | 次页：记忆本
   var filterCharId = 'all';
   var editingId = '';
   var modalCharId = 'global';
   var modalPinned = false;
+  var fetchedSumModels = [];
+  var fetchedEmbedModels = [];
 
   function loadList() {
     try {
@@ -31,7 +40,7 @@
       var raw = JSON.parse(localStorage.getItem(CFG_KEY) || '{}');
       return {
         autoEnabled: raw.autoEnabled !== false,
-        autoSummarize: !!raw.autoSummarize, // 默认关闭，绝不偷偷调付费 API
+        autoSummarize: !!raw.autoSummarize,
         autoEvery: Number(raw.autoEvery) || 15,
         topK: Number(raw.topK) || 4,
         sumUrl: raw.sumUrl || '',
@@ -90,29 +99,40 @@
       String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
   }
 
-  function normalizeChatUrl(rawUrl) {
-    var u = String(rawUrl || '').trim().replace(/\/+$/, '');
-    if (!u) return '';
-    if (/\/chat\/completions$/i.test(u)) return u;
-    return u + '/chat/completions';
+  function normalizeBaseUrl(rawUrl) {
+    return String(rawUrl || '').trim().replace(/\/+$/, '').replace(/\/(chat\/completions|embeddings|models)$/i, '');
   }
 
-  function normalizeEmbedUrl(rawUrl) {
-    var u = String(rawUrl || '').trim().replace(/\/+$/, '');
-    if (!u) return '';
-    if (/\/embeddings$/i.test(u)) return u;
-    return u + '/embeddings';
+  function fetchModelsList(rawUrl, apiKey) {
+    var base = normalizeBaseUrl(rawUrl);
+    var key = String(apiKey || '').trim();
+    if (!base) return Promise.reject(new Error('请先填写 Base URL'));
+
+    var headers = {};
+    if (key) headers['Authorization'] = 'Bearer ' + key;
+
+    return fetch(base + '/models', { headers: headers }).then(function (res) {
+      return res.json().then(function (data) {
+        if (!res.ok) {
+          throw new Error((data && data.error && data.error.message) || ('拉取失败 ' + res.status));
+        }
+        var arr = Array.isArray(data && data.data) ? data.data : (Array.isArray(data) ? data : []);
+        var ids = arr.map(function (m) { return m.id || m.name || ''; }).filter(Boolean);
+        if (!ids.length) throw new Error('未返回可用模型');
+        return ids;
+      });
+    });
   }
 
   function callSummaryAPI(promptText) {
-    var url = normalizeChatUrl(cfg.sumUrl);
+    var base = normalizeBaseUrl(cfg.sumUrl);
     var key = (cfg.sumKey || '').trim();
     var model = (cfg.sumModel || '').trim();
-    if (!url || !key || !model) {
+    if (!base || !key || !model) {
       return Promise.reject(new Error('请先填写完整总结 API 信息'));
     }
 
-    return fetch(url, {
+    return fetch(base + '/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': 'Bearer ' + key,
@@ -149,14 +169,14 @@
   }
 
   function fetchEmbedding(text) {
-    var url = normalizeEmbedUrl(cfg.embedUrl);
+    var base = normalizeBaseUrl(cfg.embedUrl);
     var key = (cfg.embedKey || '').trim();
     var model = (cfg.embedModel || '').trim();
-    if (!url || !key || !model) {
+    if (!base || !key || !model) {
       return Promise.reject(new Error('请先填写完整向量接口信息'));
     }
 
-    return fetch(url, {
+    return fetch(base + '/embeddings', {
       method: 'POST',
       headers: {
         'Authorization': 'Bearer ' + key,
@@ -296,7 +316,6 @@
     return lines;
   }
 
-  /* 供 iMessage / 线下在达到设定轮数时调用 */
   function autoCapture(params) {
     if (!cfg.autoEnabled) return Promise.resolve(null);
     var p = params || {};
@@ -309,10 +328,9 @@
     if (!lines.length) return Promise.resolve(null);
     var transcript = lines.join('\n');
 
-    /* 只有用户主动开启 autoSummarize 才调用总结 API，默认 0 消耗 */
     if (cfg.autoSummarize) {
       var prompt =
-        '请把下面这段对话提炼成 1-2 句极简长期记忆（只保留时间、地点、核心事件、承诺或重要情绪，必须写清人名，不要用“他/她”指代）：\n\n' +
+        '请将以下对话提炼为 1-2 句长期记忆，仅保留时间、地点、核心事件、约定或重要情绪，明确写出人名（不使用代词）：\n\n' +
         transcript;
 
       var hasCustomSum = !!(cfg.sumUrl && cfg.sumKey && cfg.sumModel);
@@ -370,28 +388,28 @@
           '<div class="mu-back-sm mm-back" data-close-app>' +
             '<svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg>' +
           '</div>' +
-          '<div class="mm-title" id="mmTitle">记忆</div>' +
+          '<div class="mm-title" id="mmTitle">记忆设置</div>' +
         '</div>' +
         '<div class="mm-header-actions">' +
-          '<button class="mm-pill-btn" id="mmAddBtn" type="button">+ 新建</button>' +
+          '<button class="mm-pill-btn" id="mmAddBtn" type="button" style="display:none;">+ 新建</button>' +
         '</div>' +
       '</div>' +
 
       '<div class="mm-body">' +
-        '<div class="mm-panel active" id="mmPanelBook"></div>' +
-        '<div class="mm-panel" id="mmPanelSettings"></div>' +
+        '<div class="mm-panel active" id="mmPanelSettings"></div>' +
+        '<div class="mm-panel" id="mmPanelBook"></div>' +
       '</div>' +
 
       '<div class="lg-bottom-bar mm-bottom-bar" id="mmBottomBar">' +
         '<div class="mm-tab-indicator"></div>' +
-        '<div class="mm-tab active" data-mm-tab="book">记忆本</div>' +
-        '<div class="mm-tab" data-mm-tab="settings">设置</div>' +
+        '<div class="mm-tab active" data-mm-tab="settings">设置</div>' +
+        '<div class="mm-tab" data-mm-tab="book">记忆本</div>' +
       '</div>' +
 
       '<div class="mm-modal" id="mmModal">' +
         '<div class="mm-dialog">' +
           '<div class="mm-dialog-head">' +
-            '<div class="mm-dialog-title" id="mmModalTitle">记一条记忆</div>' +
+            '<div class="mm-dialog-title" id="mmModalTitle">新建记忆</div>' +
             '<div class="mm-icon-circle" id="mmCloseModal">' +
               '<svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>' +
             '</div>' +
@@ -399,14 +417,14 @@
           '<div class="mm-label">归属角色</div>' +
           '<div class="mm-char-chips" id="mmModalCharChips"></div>' +
           '<div class="mm-field">' +
-            '<div class="mm-label">记忆内容（尽量写清人名和具体事件）</div>' +
-            '<div class="mm-input-box"><textarea class="mm-textarea" id="mmModalContent" placeholder="例如：11月3日雨夜，某某把黑伞留给了 User，两人约好下周去吃火锅。"></textarea></div>' +
+            '<div class="mm-label">记忆内容</div>' +
+            '<div class="mm-input-box"><textarea class="mm-textarea" id="mmModalContent" placeholder="记录事件时间、人物与关键内容"></textarea></div>' +
           '</div>' +
           '<div class="mm-row" style="margin-top:12px;">' +
-            '<span class="mm-label" style="margin:0;">置顶为重要记忆（每次聊天必带）</span>' +
+            '<span class="mm-label" style="margin:0;">设为置顶记忆（优先保留）</span>' +
             '<button class="mm-switch" id="mmModalPinSwitch" type="button"><div class="mm-switch-thumb"></div></button>' +
           '</div>' +
-          '<button class="mm-primary-btn" id="mmSaveBtn" type="button">保存记忆</button>' +
+          '<button class="mm-primary-btn" id="mmSaveBtn" type="button">保存</button>' +
         '</div>' +
       '</div>' +
 
@@ -438,8 +456,8 @@
     if (!filtered.length) {
       box.innerHTML = pillsHtml +
         '<div class="mm-empty">' +
-          '<div class="mm-empty-title">还没有记忆</div>' +
-          '<div class="mm-empty-sub">平时不用手动管，开启自动记忆后聊天会自动记在这里；也可以点右上角「+ 新建」提前写入重要设定。</div>' +
+          '<div class="mm-empty-title">暂无记忆</div>' +
+          '<div class="mm-empty-sub">开启自动记忆后，对话记录将自动保存至此；也可点击右上角「+ 新建」手动录入。</div>' +
         '</div>';
       return;
     }
@@ -470,27 +488,41 @@
 
   function renderSettingsPanel() {
     var box = document.getElementById('mmPanelSettings');
+    var sumModelsHtml = fetchedSumModels.length
+      ? '<div class="mm-models-box">' + fetchedSumModels.map(function (id) {
+          var on = cfg.sumModel === id ? ' active' : '';
+          return '<button class="mm-model-chip' + on + '" data-pick-sum-model="' + escapeHtml(id) + '" type="button">' + escapeHtml(id) + '</button>';
+        }).join('') + '</div>'
+      : '';
+
+    var embedModelsHtml = fetchedEmbedModels.length
+      ? '<div class="mm-models-box">' + fetchedEmbedModels.map(function (id) {
+          var on = cfg.embedModel === id ? ' active' : '';
+          return '<button class="mm-model-chip' + on + '" data-pick-embed-model="' + escapeHtml(id) + '" type="button">' + escapeHtml(id) + '</button>';
+        }).join('') + '</div>'
+      : '';
+
     box.innerHTML =
       '<div class="mm-card">' +
         '<div class="mm-row">' +
           '<div>' +
-            '<div class="mm-row-title">聊天自动记事</div>' +
-            '<div class="mm-row-sub">默认只免费保存过滤水话后的关键原话，绝不偷偷扣费</div>' +
+            '<div class="mm-row-title">自动记忆</div>' +
+            '<div class="mm-row-sub">达到设定轮数时自动保存关键对话（本地处理，不产生接口费用）</div>' +
           '</div>' +
           '<button class="mm-switch' + (cfg.autoEnabled ? ' on' : '') + '" id="mmAutoSwitch" type="button"><div class="mm-switch-thumb"></div></button>' +
         '</div>' +
 
         '<div class="mm-row" style="margin-top:14px;padding-top:14px;border-top:1px solid #f2f2f7;">' +
           '<div>' +
-            '<div class="mm-row-title">用 API 总结成小日记</div>' +
-            '<div class="mm-row-sub">默认关闭；打开后才会调用模型帮你浓缩总结，记得更精炼</div>' +
+            '<div class="mm-row-title">AI 摘要总结</div>' +
+            '<div class="mm-row-sub">默认关闭；开启后将调用下方总结 API 提炼记忆内容</div>' +
           '</div>' +
           '<button class="mm-switch' + (cfg.autoSummarize ? ' on' : '') + '" id="mmSummarizeSwitch" type="button"><div class="mm-switch-thumb"></div></button>' +
         '</div>' +
 
         (cfg.autoSummarize ? (
           '<div style="margin-top:12px;padding-top:12px;border-top:1px solid #f2f2f7;">' +
-            '<div class="mm-label">总结专用 API（留空则自动用「API」里的副模型）</div>' +
+            '<div class="mm-label">总结模型 API（留空则复用主配置中的副 API）</div>' +
             '<div class="mm-field">' +
               '<div class="mm-label">Base URL</div>' +
               '<div class="mm-input-box"><input type="text" class="mm-input" id="mmSumUrl" value="' + escapeHtml(cfg.sumUrl) + '" placeholder="https://api.siliconflow.cn/v1"></div>' +
@@ -500,24 +532,28 @@
               '<div class="mm-input-box"><input type="password" class="mm-input" id="mmSumKey" value="' + escapeHtml(cfg.sumKey) + '" placeholder="sk-..."></div>' +
             '</div>' +
             '<div class="mm-field">' +
-              '<div class="mm-label">便宜小模型名</div>' +
-              '<div class="mm-input-box"><input type="text" class="mm-input" id="mmSumModel" value="' + escapeHtml(cfg.sumModel) + '" placeholder="例如：Qwen/Qwen2.5-7B-Instruct"></div>' +
+              '<div class="mm-label">模型名称</div>' +
+              '<div class="mm-input-box">' +
+                '<input type="text" class="mm-input" id="mmSumModel" value="' + escapeHtml(cfg.sumModel) + '" placeholder="输入或点击右侧拉取">' +
+                '<button class="mm-fetch-btn" id="mmFetchSumBtn" type="button">拉取模型</button>' +
+              '</div>' +
+              sumModelsHtml +
             '</div>' +
-            '<button class="mm-action-btn" id="mmTestSumBtn" type="button" style="width:100%;margin-top:12px;">测试总结 API 连通</button>' +
+            '<button class="mm-action-btn" id="mmTestSumBtn" type="button" style="width:100%;margin-top:12px;">测试连接</button>' +
           '</div>'
         ) : '') +
 
         '<div class="mm-field">' +
-          '<div class="mm-label">每隔几句自动记一次</div>' +
+          '<div class="mm-label">记录周期</div>' +
           '<div class="mm-seg">' +
             [10, 15, 20].map(function (n) {
-              return '<button class="mm-seg-btn' + (cfg.autoEvery === n ? ' active' : '') + '" data-set-every="' + n + '" type="button">' + n + ' 句</button>';
+              return '<button class="mm-seg-btn' + (cfg.autoEvery === n ? ' active' : '') + '" data-set-every="' + n + '" type="button">每 ' + n + ' 句</button>';
             }).join('') +
           '</div>' +
         '</div>' +
 
         '<div class="mm-field">' +
-          '<div class="mm-label">每次聊天捞取最相关的几条记忆</div>' +
+          '<div class="mm-label">每次检索条数</div>' +
           '<div class="mm-seg">' +
             [3, 4, 6].map(function (k) {
               return '<button class="mm-seg-btn' + (cfg.topK === k ? ' active' : '') + '" data-set-topk="' + k + '" type="button">' + k + ' 条</button>';
@@ -529,17 +565,21 @@
       '<div class="mm-card">' +
         '<div class="mm-row">' +
           '<div>' +
-            '<div class="mm-row-title">启用向量模型（可选免费增强）</div>' +
-            '<div class="mm-row-sub">默认关闭（走免费本地检索）；配了硅基流动免费 bge-m3 后按意思检索更准</div>' +
+            '<div class="mm-row-title">向量检索 (Embedding)</div>' +
+            '<div class="mm-row-sub">默认关闭（使用本地检索）；开启并配置向量模型可提升语义匹配精度</div>' +
           '</div>' +
           '<button class="mm-switch' + (cfg.embedEnabled ? ' on' : '') + '" id="mmEmbedSwitch" type="button"><div class="mm-switch-thumb"></div></button>' +
         '</div>' +
 
         (cfg.embedEnabled ? (
           '<div>' +
-            '<button class="mm-action-btn" id="mmPresetSfBtn" type="button" style="width:100%;margin-top:12px;">一键填好硅基流动免费 bge-m3</button>' +
+            '<div class="mm-preset-grid">' +
+              EMBED_PRESETS.map(function (p) {
+                return '<button class="mm-preset-btn" data-embed-preset="' + p.id + '" type="button">' + escapeHtml(p.label) + '</button>';
+              }).join('') +
+            '</div>' +
             '<div class="mm-field">' +
-              '<div class="mm-label">Base URL（自动补全 /embeddings）</div>' +
+              '<div class="mm-label">Base URL</div>' +
               '<div class="mm-input-box"><input type="text" class="mm-input" id="mmEmbedUrl" value="' + escapeHtml(cfg.embedUrl) + '" placeholder="https://api.siliconflow.cn/v1"></div>' +
             '</div>' +
             '<div class="mm-field">' +
@@ -547,19 +587,23 @@
               '<div class="mm-input-box"><input type="password" class="mm-input" id="mmEmbedKey" value="' + escapeHtml(cfg.embedKey) + '" placeholder="sk-..."></div>' +
             '</div>' +
             '<div class="mm-field">' +
-              '<div class="mm-label">向量模型名</div>' +
-              '<div class="mm-input-box"><input type="text" class="mm-input" id="mmEmbedModel" value="' + escapeHtml(cfg.embedModel) + '" placeholder="BAAI/bge-m3"></div>' +
+              '<div class="mm-label">向量模型</div>' +
+              '<div class="mm-input-box">' +
+                '<input type="text" class="mm-input" id="mmEmbedModel" value="' + escapeHtml(cfg.embedModel) + '" placeholder="BAAI/bge-m3">' +
+                '<button class="mm-fetch-btn" id="mmFetchEmbedBtn" type="button">拉取模型</button>' +
+              '</div>' +
+              embedModelsHtml +
             '</div>' +
             '<div class="mm-btn-row">' +
-              '<button class="mm-action-btn" id="mmTestEmbedBtn" type="button">测试连通</button>' +
-              '<button class="mm-action-btn is-dark" id="mmSyncVecBtn" type="button">补全旧记忆向量</button>' +
+              '<button class="mm-action-btn" id="mmTestEmbedBtn" type="button">测试连接</button>' +
+              '<button class="mm-action-btn is-dark" id="mmSyncVecBtn" type="button">补全向量</button>' +
             '</div>' +
           '</div>'
         ) : '') +
       '</div>' +
 
       '<div class="mm-card" style="text-align:center;">' +
-        '<button class="mm-mini-btn is-danger" id="mmClearAllBtn" type="button" style="padding:8px 18px;font-size:13px;">一键清空全部本地记忆</button>' +
+        '<button class="mm-mini-btn is-danger" id="mmClearAllBtn" type="button" style="padding:8px 18px;font-size:13px;">清空全部本地记忆</button>' +
       '</div>';
 
     var sumUrlEl = document.getElementById('mmSumUrl');
@@ -592,7 +636,7 @@
     modalCharId = memObj ? (memObj.charId || 'global') : (filterCharId !== 'all' ? filterCharId : 'global');
     modalPinned = memObj ? !!memObj.pinned : false;
 
-    document.getElementById('mmModalTitle').textContent = memObj ? '编辑记忆' : '记一条记忆';
+    document.getElementById('mmModalTitle').textContent = memObj ? '编辑记忆' : '新建记忆';
     document.getElementById('mmModalContent').value = memObj ? (memObj.content || '') : '';
     document.getElementById('mmModalPinSwitch').classList.toggle('on', modalPinned);
     renderModalChips();
@@ -601,17 +645,18 @@
 
   function switchTab(tab) {
     currentTab = tab;
-    var isSet = tab === 'settings';
-    document.getElementById('mmWrap').classList.toggle('is-subtab', isSet);
-    document.getElementById('mmBottomBar').classList.toggle('is-settings', isSet);
-    document.getElementById('mmTitle').textContent = isSet ? '记忆设置' : '记忆';
-    document.getElementById('mmPanelBook').classList.toggle('active', !isSet);
-    document.getElementById('mmPanelSettings').classList.toggle('active', isSet);
+    var isBook = tab === 'book';
+    document.getElementById('mmWrap').classList.toggle('is-subtab', isBook);
+    document.getElementById('mmBottomBar').classList.toggle('is-book', isBook);
+    document.getElementById('mmTitle').textContent = isBook ? '记忆本' : '记忆设置';
+    document.getElementById('mmAddBtn').style.display = isBook ? 'inline-flex' : 'none';
+    document.getElementById('mmPanelSettings').classList.toggle('active', !isBook);
+    document.getElementById('mmPanelBook').classList.toggle('active', isBook);
     root.querySelectorAll('.mm-tab').forEach(function (el) {
       el.classList.toggle('active', el.getAttribute('data-mm-tab') === tab);
     });
-    if (isSet) renderSettingsPanel();
-    else renderBookPanel();
+    if (isBook) renderBookPanel();
+    else renderSettingsPanel();
   }
 
   root.querySelectorAll('.mm-tab').forEach(function (el) {
@@ -724,10 +769,28 @@
       renderSettingsPanel();
       return;
     }
+    if (e.target.closest('#mmFetchSumBtn')) {
+      showToast('正在拉取模型...');
+      fetchModelsList(cfg.sumUrl, cfg.sumKey).then(function (list) {
+        fetchedSumModels = list;
+        renderSettingsPanel();
+        showToast('已拉取 ' + list.length + ' 个模型');
+      }).catch(function (err) {
+        showToast((err && err.message) ? err.message : '拉取失败');
+      });
+      return;
+    }
+    var sumChip = e.target.closest('[data-pick-sum-model]');
+    if (sumChip) {
+      cfg.sumModel = sumChip.getAttribute('data-pick-sum-model');
+      saveCfg();
+      renderSettingsPanel();
+      return;
+    }
     if (e.target.closest('#mmTestSumBtn')) {
       showToast('正在测试总结 API...');
       callSummaryAPI('只回复：ok').then(function () {
-        showToast('总结 API 连通成功');
+        showToast('连接成功');
       }).catch(function (err) {
         showToast((err && err.message) ? err.message : '连接失败');
       });
@@ -739,12 +802,41 @@
       renderSettingsPanel();
       return;
     }
-    if (e.target.closest('#mmPresetSfBtn')) {
-      cfg.embedUrl = 'https://api.siliconflow.cn/v1';
-      cfg.embedModel = 'BAAI/bge-m3';
+    var presetBtn = e.target.closest('[data-embed-preset]');
+    if (presetBtn) {
+      var pid = presetBtn.getAttribute('data-embed-preset');
+      var found = EMBED_PRESETS.find(function (p) { return p.id === pid; });
+      if (found) {
+        cfg.embedUrl = found.url;
+        cfg.embedModel = found.model;
+        fetchedEmbedModels = [];
+        saveCfg();
+        renderSettingsPanel();
+        showToast('已填入 ' + found.label + '，填写 Key 即可');
+      }
+      return;
+    }
+    if (e.target.closest('#mmFetchEmbedBtn')) {
+      showToast('正在拉取模型...');
+      fetchModelsList(cfg.embedUrl, cfg.embedKey).then(function (list) {
+        list.sort(function (a, b) {
+          var ae = /embed|bge/i.test(a) ? 0 : 1;
+          var be = /embed|bge/i.test(b) ? 0 : 1;
+          return ae - be;
+        });
+        fetchedEmbedModels = list;
+        renderSettingsPanel();
+        showToast('已拉取 ' + list.length + ' 个模型');
+      }).catch(function (err) {
+        showToast((err && err.message) ? err.message : '拉取失败');
+      });
+      return;
+    }
+    var embedChip = e.target.closest('[data-pick-embed-model]');
+    if (embedChip) {
+      cfg.embedModel = embedChip.getAttribute('data-pick-embed-model');
       saveCfg();
       renderSettingsPanel();
-      showToast('已填好硅基流动免费配置，填入 Key 即可');
       return;
     }
     var everyBtn = e.target.closest('[data-set-every]');
@@ -762,9 +854,9 @@
       return;
     }
     if (e.target.closest('#mmTestEmbedBtn')) {
-      showToast('正在测试向量接口...');
+      showToast('正在测试向量连接...');
       fetchEmbedding('测试记忆连通性').then(function (vec) {
-        showToast('连通成功（维度 ' + vec.length + '）');
+        showToast('连接成功（维度 ' + vec.length + '）');
       }).catch(function (err) {
         showToast((err && err.message) ? err.message : '连接失败');
       });
@@ -773,7 +865,7 @@
     if (e.target.closest('#mmSyncVecBtn')) {
       var pending = memories.filter(function (m) { return !m.hasVector && m.content; });
       if (!pending.length) {
-        showToast('所有记忆都已建立向量');
+        showToast('所有记忆均已建立向量');
         return;
       }
       showToast('正在补全 ' + pending.length + ' 条向量...');
@@ -785,7 +877,7 @@
     }
     if (e.target.closest('#mmClearAllBtn')) {
       if (!memories.length) {
-        showToast('当前没有记忆可清空');
+        showToast('暂无记忆可清空');
         return;
       }
       if (!confirm('确定要清空全部本地记忆吗？此操作不可撤销。')) return;
@@ -799,5 +891,5 @@
     }
   });
 
-  renderBookPanel();
+  renderSettingsPanel();
 })();
