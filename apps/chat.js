@@ -222,24 +222,38 @@
                 <!-- 全屏聊天窗口 -->
                 <div class="ct-room" id="ctRoomView">
                     <div class="ct-room-head">
-                        <div class="ct-room-head-left">
-                            <button class="ct-glass-circle" id="ctRoomBackBtn" aria-label="返回讯息">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-                            </button>
-                            <div class="ct-room-title" id="ctRoomTitle"></div>
-                        </div>
+                        <button class="ct-glass-circle" id="ctRoomBackBtn" aria-label="返回讯息">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                        </button>
+                        <div class="ct-room-title" id="ctRoomTitle"></div>
+                        <button class="ct-glass-circle" id="ctRoomMoreBtn" aria-label="聊天设置">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+                        </button>
                     </div>
                     <div class="ct-room-messages" id="ctRoomMessages"></div>
                     <div class="ct-room-input-bar">
                         <button class="ct-room-icon-btn" id="ctRoomVoiceBtn" aria-label="语音">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                            <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="14" cy="14" r="11.5"/>
+                                <path d="M9.6 14l2.1-1.7v3.4L9.6 14z" fill="currentColor" stroke="none"/>
+                                <path d="M14.1 11.4a3.6 3.6 0 0 1 0 5.2"/>
+                                <path d="M16.7 9.4a6.4 6.4 0 0 1 0 9.2"/>
+                            </svg>
                         </button>
                         <input class="ct-room-input" id="ctRoomInput" placeholder="发消息..." />
                         <button class="ct-room-icon-btn" id="ctRoomPlusBtn" aria-label="更多">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                            <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+                                <circle cx="14" cy="14" r="11.5"/>
+                                <line x1="14" y1="9" x2="14" y2="19"/>
+                                <line x1="9" y1="14" x2="19" y2="14"/>
+                            </svg>
                         </button>
-                        <button class="ct-room-send-icon" id="ctRoomSendBtn" aria-label="发送">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                        <button class="ct-room-icon-btn" id="ctRoomSendBtn" aria-label="发送">
+                            <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="14" cy="14" r="11.5"/>
+                                <line x1="14" y1="19" x2="14" y2="9.5"/>
+                                <polyline points="9.8 13.5 14 9.3 18.2 13.5"/>
+                            </svg>
                         </button>
                     </div>
                 </div>
@@ -365,6 +379,7 @@
         });
 
         const roomInput = document.getElementById('ctRoomInput');
+        document.getElementById('ctRoomMoreBtn').addEventListener('click', () => showToast('聊天详情待接入'));
         document.getElementById('ctRoomSendBtn').addEventListener('click', sendRoomMessage);
         document.getElementById('ctRoomVoiceBtn').addEventListener('click', () => showToast('语音功能待接入'));
         document.getElementById('ctRoomPlusBtn').addEventListener('click', () => showToast('更多功能待接入'));
