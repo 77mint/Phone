@@ -1,6 +1,6 @@
 /* =========================================================
    小团外卖 (apps/takeout.js)
-   - 首页：分类入口 + 为你推荐（仅全部）；店铺封面采用非美食实景氛围图
+   - 首页：分类入口 + 为你推荐（仅全部）；店铺封面采用稳定实景照片
    - 9 大分类全屏页：每类 5 家独立店铺，每家 5 道以上菜品（含西餐）
    - 店铺详情页：真实美食图 + 可点击展开的购物车抽屉 + 结算（自己吃 / 投喂 Char / 找 Char 代付）
    ========================================================= */
@@ -9,7 +9,7 @@
     const STORAGE_ORDERS_KEY = 'takeout_orders_v1';
     const STORAGE_COVERS_KEY = 'takeout_store_covers_v1';
     const STORAGE_PHOTO_CACHE_KEY = 'takeout_meal_photo_cache_v1';
-    const STORAGE_AMBIENT_CACHE_KEY = 'takeout_ambient_cache_v1';
+    const STORAGE_PICSUM_LIST_KEY = 'takeout_picsum_list_v1';
 
     const CATEGORIES = [
         {
@@ -35,7 +35,7 @@
         {
             id: 'supper',
             name: '夜宵',
-            icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c1.5 3 4 4.5 4 8a4 4 0 1 1-8 0c0-2 1-3.5 2-5 .5 1.5 1.5 2 2 2 0-2 0-3.5 0-5z"/></svg>'
+            icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c1.5 3 4 4.5 4 8a4 4 0 1 1-8 0c0-2 1.5-3.5 2-5 .5 1.5 1.5 2 2 2 0-2 0-3.5 0-5z"/></svg>'
         },
         {
             id: 'milktea',
@@ -63,19 +63,6 @@
             icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3v7a2 2 0 0 0 2 2v9"/><path d="M9 3v7a2 2 0 0 1-2 2"/><path d="M7 3v4"/><path d="M16 3v18"/><path d="M16 3c2.5 0 3.5 2 3.5 5s-1 5-3.5 5"/></svg>'
         }
     ];
-
-    /* 每个分类对应的非美食实景氛围图检索词（Wikimedia Commons） */
-    const AMBIENT_QUERY_MAP = {
-        breakfast: 'cozy cafe interior window morning',
-        lunch: 'modern minimalist restaurant interior',
-        dinner: 'warm restaurant dining room interior',
-        supper: 'tokyo night alley lantern street',
-        milktea: 'minimalist coffee shop counter aesthetic',
-        dessert: 'french bakery storefront aesthetic',
-        japanese: 'kyoto wooden street storefront',
-        korean: 'seoul cafe street architecture',
-        western: 'european bistro street terrace'
-    };
 
     const STORE_BLUEPRINTS = [
         /* ---------------- 早餐 (5家) ---------------- */
@@ -151,9 +138,9 @@
     let selectedCharId = '';
 
     let mealPhotoCache = loadJSON(STORAGE_PHOTO_CACHE_KEY, {});
-    let ambientCache = loadJSON(STORAGE_AMBIENT_CACHE_KEY, {});
+    let picsumIds = loadJSON(STORAGE_PICSUM_LIST_KEY, []);
     const pendingCatFetch = {};
-    const pendingAmbientFetch = {};
+    let pendingPicsumFetch = null;
 
     function loadJSON(key, fallback) {
         try {
@@ -184,17 +171,16 @@
     }
 
     function fallbackAmbientUrl(store) {
-        return 'https://picsum.photos/seed/tk-' + encodeURIComponent(store.id) + '/800/420';
+        return 'https://picsum.photos/seed/tk-scenery-' + encodeURIComponent(store.id) + '/800/420';
     }
 
     function getStoreCoverUrl(store) {
         const custom = getCustomCovers();
         if (custom[store.id]) return custom[store.id];
-        const list = ambientCache[store.category];
-        if (Array.isArray(list) && list.length > 0) {
-            const sameCat = STORE_BLUEPRINTS.filter(s => s.category === store.category);
-            const idx = Math.max(0, sameCat.findIndex(s => s.id === store.id));
-            return list[idx % list.length];
+        if (Array.isArray(picsumIds) && picsumIds.length > 0) {
+            const idx = Math.max(0, STORE_BLUEPRINTS.findIndex(s => s.id === store.id));
+            const picId = picsumIds[idx % picsumIds.length];
+            return 'https://picsum.photos/id/' + picId + '/800/420';
         }
         return fallbackAmbientUrl(store);
     }
@@ -246,45 +232,36 @@
         return pendingCatFetch[mealCat];
     }
 
-    /* 拉取真实非美食实景氛围图（Wikimedia Commons 公开接口） */
-    async function ensureAmbientPhotos(catId) {
-        const cached = ambientCache[catId];
-        if (cached && cached.ts && (Date.now() - cached.ts < 86400000) && Array.isArray(cached.urls) && cached.urls.length >= 5) {
-            return;
-        }
-        if (Array.isArray(cached) && cached.length >= 5) return;
-        if (pendingAmbientFetch[catId]) return pendingAmbientFetch[catId];
+    /* 单次拉取 Picsum 实景列表，避免多次并发限流 */
+    async function ensurePicsumList() {
+        if (Array.isArray(picsumIds) && picsumIds.length >= 45) return;
+        if (pendingPicsumFetch) return pendingPicsumFetch;
 
-        const query = AMBIENT_QUERY_MAP[catId] || 'cozy cafe interior';
-        pendingAmbientFetch[catId] = (async () => {
+        pendingPicsumFetch = (async () => {
             try {
-                const url = 'https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrlimit=18&gsrsearch='
-                    + encodeURIComponent(query + ' filetype:bitmap')
-                    + '&prop=imageinfo&iiprop=url&iiurlwidth=960&format=json&origin=*';
-                const res = await fetch(url);
+                const res = await fetch('https://picsum.photos/v2/list?page=2&limit=60');
                 if (!res.ok) return;
-                const data = await res.json();
-                const pages = data && data.query && data.query.pages ? Object.values(data.query.pages) : [];
-                const urls = pages
-                    .sort((a, b) => (a.index || 0) - (b.index || 0))
-                    .map(p => p.imageinfo && p.imageinfo[0] && (p.imageinfo[0].thumburl || p.imageinfo[0].url))
-                    .filter(u => u && /\.(jpe?g|png|webp)(\?|$)/i.test(u))
-                    .slice(0, 10);
-                if (urls.length > 0) {
-                    ambientCache[catId] = urls;
-                    saveJSON(STORAGE_AMBIENT_CACHE_KEY, ambientCache);
+                const list = await res.json();
+                if (Array.isArray(list) && list.length > 0) {
+                    picsumIds = list
+                        .filter(item => item && item.id && Number(item.width) >= Number(item.height))
+                        .map(item => String(item.id));
+                    if (picsumIds.length === 0) {
+                        picsumIds = list.map(item => String(item.id));
+                    }
+                    saveJSON(STORAGE_PICSUM_LIST_KEY, picsumIds);
                     refreshVisibleImages();
                 }
             } catch (e) {}
         })();
 
-        return pendingAmbientFetch[catId];
+        return pendingPicsumFetch;
     }
 
     function preloadAllImages() {
+        ensurePicsumList();
         const mealCats = [...new Set(STORE_BLUEPRINTS.map(b => b.mealCat))];
         mealCats.forEach(c => ensureMealPhotos(c));
-        Object.keys(AMBIENT_QUERY_MAP).forEach(catId => ensureAmbientPhotos(catId));
     }
 
     function refreshVisibleImages() {
@@ -357,7 +334,7 @@
                 <!-- 店铺详情全屏页 -->
                 <div class="tk-store-view" id="tkStoreView">
                     <div class="tk-store-header">
-                        <img class="tk-store-header-img" id="tkStoreCoverImg" src="" alt="" />
+                        <img class="tk-store-header-img" id="tkStoreCoverImg" referrerpolicy="no-referrer" src="" alt="" />
                         <div class="tk-store-header-scrim"></div>
                         <div class="tk-store-header-actions">
                             <button class="tk-circle-btn" id="tkCloseStoreBtn" aria-label="关闭店铺">
@@ -527,7 +504,7 @@
         const fallbackUrl = fallbackAmbientUrl(store);
         const previewHtml = store.items.slice(0, 3).map(item => `
             <div class="tk-preview-chip">
-                ${item.img ? `<img src="${escapeHtml(item.img)}" alt="" loading="lazy" />` : ''}
+                ${item.img ? `<img src="${escapeHtml(item.img)}" referrerpolicy="no-referrer" alt="" loading="lazy" />` : ''}
                 <span>${escapeHtml(item.name)}</span>
             </div>
         `).join('');
@@ -535,7 +512,7 @@
         return `
             <div class="tk-store-card" data-store-id="${escapeHtml(store.id)}">
                 <div class="tk-store-banner">
-                    <img class="tk-store-banner-img" src="${escapeHtml(coverUrl)}" onerror="if(this.dataset.fb!=='1'){this.dataset.fb='1';this.src='${escapeHtml(fallbackUrl)}';}" alt="" loading="lazy" />
+                    <img class="tk-store-banner-img" referrerpolicy="no-referrer" src="${escapeHtml(coverUrl)}" onerror="if(this.dataset.fb!=='1'){this.dataset.fb='1';this.src='${escapeHtml(fallbackUrl)}';}" alt="" loading="lazy" />
                     <div class="tk-store-banner-scrim"></div>
                     <div class="tk-store-badge">${escapeHtml(getCatName(store.category))}</div>
                 </div>
@@ -599,7 +576,6 @@
 
     function openCategorySubview(catId) {
         activeSubCategoryId = catId;
-        ensureAmbientPhotos(catId);
         document.getElementById('tkCatTitle').textContent = getCatName(catId);
         renderCategorySubview();
         document.getElementById('tkCatView').classList.add('open');
@@ -624,7 +600,6 @@
         cart = {};
         cartDrawerOpen = false;
         ensureMealPhotos(store.mealCat);
-        ensureAmbientPhotos(store.category);
         renderStoreView();
         document.getElementById('tkStoreView').classList.add('open');
     }
@@ -652,7 +627,7 @@
             const qty = cart[item.id] || 0;
             return `
                 <div class="tk-dish-card">
-                    ${item.img ? `<img class="tk-dish-img" src="${escapeHtml(item.img)}" alt="" loading="lazy" />` : `<div class="tk-dish-img"></div>`}
+                    ${item.img ? `<img class="tk-dish-img" referrerpolicy="no-referrer" src="${escapeHtml(item.img)}" alt="" loading="lazy" />` : `<div class="tk-dish-img"></div>`}
                     <div class="tk-dish-info">
                         <div class="tk-dish-name">${escapeHtml(item.name)}</div>
                         <div class="tk-dish-desc">${escapeHtml(item.desc)}</div>
@@ -737,7 +712,7 @@
             subtotal += lineTotal;
             return `
                 <div class="tk-cart-drawer-item">
-                    ${item.img ? `<img class="tk-cart-drawer-thumb" src="${escapeHtml(item.img)}" alt="" />` : `<div class="tk-cart-drawer-thumb"></div>`}
+                    ${item.img ? `<img class="tk-cart-drawer-thumb" referrerpolicy="no-referrer" src="${escapeHtml(item.img)}" alt="" />` : `<div class="tk-cart-drawer-thumb"></div>`}
                     <div class="tk-cart-drawer-info">
                         <div class="tk-cart-drawer-name">${escapeHtml(item.name)}</div>
                         <div class="tk-cart-drawer-sub">¥${lineTotal}</div>
