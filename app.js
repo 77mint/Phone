@@ -135,6 +135,28 @@ window.applyHomeScreenIcon = function (url) {
   }
 })();
 
+(function initHomePages() {
+  var pages = document.getElementById('homePages');
+  var dots = document.querySelectorAll('#pageDots .page-dot');
+  if (!pages || !dots.length) return;
+
+  function syncDots() {
+    var w = pages.clientWidth || 1;
+    var idx = Math.round(pages.scrollLeft / w);
+    dots.forEach(function (d, i) {
+      d.classList.toggle('active', i === idx);
+    });
+  }
+
+  pages.addEventListener('scroll', syncDots, { passive: true });
+  dots.forEach(function (d) {
+    d.addEventListener('click', function () {
+      var idx = parseInt(d.getAttribute('data-page'), 10) || 0;
+      pages.scrollTo({ left: idx * (pages.clientWidth || 0), behavior: 'smooth' });
+    });
+  });
+})();
+
 document.addEventListener('click', function (e) {
   var appBtn = e.target.closest('.app[data-app]');
   if (appBtn) {
