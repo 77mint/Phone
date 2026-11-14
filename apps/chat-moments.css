@@ -276,12 +276,20 @@
   background: transparent;
   border: none;
   color: #ffffff;
-  font-size: 13px;
-  padding: 7px 14px;
+  width: 44px;
+  height: 32px;
   display: flex;
   align-items: center;
-  gap: 4px;
-  white-space: nowrap;
+  justify-content: center;
+  padding: 0;
+}
+
+.ctm-pop-btn:active {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.ctm-pop-btn.is-liked {
+  color: #ff4d4f;
 }
 
 .ctm-pop-sep {
@@ -303,7 +311,7 @@
   color: var(--ctm-link);
   font-weight: 500;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 5px;
 }
 
@@ -322,7 +330,50 @@
   font-weight: 500;
 }
 
-/* 发表动态全屏弹窗（仿 p4） */
+/* 底部评论输入条 */
+.ctm-comment-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  background: #f7f7f7;
+  border-top: 0.5px solid rgba(0, 0, 0, 0.08);
+  padding: 8px 12px calc(env(safe-area-inset-bottom) + 8px);
+  display: none;
+  align-items: center;
+  gap: 8px;
+}
+
+.ctm-comment-bar.open {
+  display: flex;
+}
+
+.ctm-comment-input {
+  flex: 1;
+  height: 36px;
+  border-radius: 8px;
+  border: none;
+  outline: none;
+  background: #ffffff;
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: var(--app-font-size, 15px);
+  color: #111111;
+}
+
+.ctm-comment-send {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: none;
+  background: #111111;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* 发表动态全屏弹窗 */
 .ctm-compose {
   position: absolute;
   inset: 0;
@@ -466,4 +517,160 @@
   gap: 6px;
   font-size: 14px;
   color: #8e8e93;
+  max-width: 55%;
+}
+
+.ctm-opt-val {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 列表选择二级页 */
+.ctm-picker {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  background: #ffffff;
+  display: none;
+  flex-direction: column;
+  padding-top: env(safe-area-inset-top);
+}
+
+.ctm-picker.open {
+  display: flex;
+}
+
+.ctm-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 0.5px solid rgba(0, 0, 0, 0.08);
+}
+
+.ctm-picker-btn {
+  background: transparent;
+  border: none;
+  font-size: 15px;
+  color: #111111;
+  padding: 4px 6px;
+}
+
+.ctm-picker-btn.primary {
+  font-weight: 600;
+}
+
+.ctm-picker-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #111111;
+}
+
+.ctm-picker-search {
+  padding: 8px 14px;
+  border-bottom: 0.5px solid rgba(0, 0, 0, 0.06);
+}
+
+.ctm-picker-search input {
+  width: 100%;
+  height: 36px;
+  border-radius: 10px;
+  border: none;
+  outline: none;
+  background: #f2f2f7;
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: 14px;
+  color: #111111;
+}
+
+.ctm-picker-list {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.ctm-pick-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 13px 16px;
+  border-bottom: 0.5px solid rgba(0, 0, 0, 0.06);
+  gap: 12px;
+}
+
+.ctm-pick-row:active {
+  background: #f2f2f7;
+}
+
+.ctm-pick-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+
+.ctm-pick-av {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  background: #f2f2f7;
+  color: #111111;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.ctm-pick-av img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ctm-pick-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.ctm-pick-title {
+  font-size: var(--app-font-size, 15px);
+  color: #111111;
+}
+
+.ctm-pick-sub {
+  font-size: 12px;
+  color: #8e8e93;
+  margin-top: 2px;
+}
+
+.ctm-pick-check {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid #c7c7cc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #ffffff;
+}
+
+.ctm-pick-check.on {
+  background: #111111;
+  border-color: #111111;
+}
+
+.ctm-pick-section {
+  padding: 8px 16px;
+  font-size: 12px;
+  color: #8e8e93;
+  background: #f7f7f7;
 }
