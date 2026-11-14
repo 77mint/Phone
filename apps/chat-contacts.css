@@ -4,7 +4,7 @@
 #app-chat .ct-app.is-contacts-tab {
   --ctc-bg: #ffffff;
   --ctc-card-bg: #ffffff;
-  --ctc-sec-bg: #f7f7f7;
+  --ctc-sec-bg: #ffffff;
   --ctc-search-bg: #f2f2f7;
   --ctc-text: #111111;
   --ctc-muted: #8e8e93;
@@ -124,7 +124,7 @@
 }
 
 .ctc-sec-head {
-  padding: 5px 16px;
+  padding: 6px 16px 2px;
   font-size: 12px;
   font-weight: 500;
   color: var(--ctc-muted);
