@@ -3,7 +3,7 @@
    - 100% 同步「档案」：所有联系人与群聊成员均严格来自 PhoneArchive
    - 微信小圆角头像 + 名字对齐头像上缘/预览对齐下缘 + 可点进聊天窗口
    - 适配 iOS visualViewport，原生键盘弹起不遮挡输入框
-   - 支持 P1/P2 语音切换、实时逐字语音转文字浮层、滑动引用回复、语音播放动画
+   - 支持 P1 长按流式转文字（屏蔽iOS长按菜单冲突）、P2 按住发语音/右滑转文字、滑动引用、语音动画
    ========================================================= */
 
 (function () {
@@ -625,7 +625,6 @@
                 cleanupStream();
                 resolve('');
             }
-            // 立即释放麦克风指示灯兜底
             setTimeout(() => {
                 cleanupStream();
                 if (!finished) { finished = true; resolve(''); }
@@ -651,7 +650,6 @@
                 return;
             }
 
-            // voice 模式：右滑转文字 -> 直接发送；正中松手 -> 发语音条
             if (zone === 'alt') {
                 if (!transcript) return;
                 sendTextMessage(transcript);
@@ -761,28 +759,60 @@
             setTimeout(syncRoomViewport, 80);
         });
 
-        // P1 输入框长按：语音转文字
+        // P1 输入框：为空时屏蔽 iOS 原生长按复制粘贴菜单，区分轻点打字与长按流式转文字
         let dictateTimer = null;
         let dictateTriggered = false;
-        const onInputDown = () => {
+        let inputTouchMoved = false;
+        let inputTouchX = 0;
+        let inputTouchY = 0;
+
+        roomInput.addEventListener('touchstart', (e) => {
+            if (roomInput.value.trim().length > 0) return;
+            if (e.cancelable) e.preventDefault();
             dictateTriggered = false;
+            inputTouchMoved = false;
+            if (e.touches[0]) {
+                inputTouchX = e.touches[0].clientX;
+                inputTouchY = e.touches[0].clientY;
+            }
             clearTimeout(dictateTimer);
             dictateTimer = setTimeout(() => {
                 dictateTriggered = true;
                 roomInput.blur();
                 startHoldOverlay('dictate');
-            }, 280);
-        };
-        const onInputEnd = (e) => {
+            }, 240);
+        }, { passive: false });
+
+        roomInput.addEventListener('touchmove', (e) => {
+            if (holdState.active || !e.touches[0]) return;
+            const dx = e.touches[0].clientX - inputTouchX;
+            const dy = e.touches[0].clientY - inputTouchY;
+            if (Math.hypot(dx, dy) > 12) {
+                inputTouchMoved = true;
+                clearTimeout(dictateTimer);
+            }
+        }, { passive: true });
+
+        roomInput.addEventListener('touchend', (e) => {
+            if (roomInput.value.trim().length > 0 && !dictateTriggered) return;
             clearTimeout(dictateTimer);
             if (dictateTriggered && holdState.active) {
-                if (e && e.cancelable) e.preventDefault();
+                if (e.cancelable) e.preventDefault();
                 finishHoldOverlay();
+                dictateTriggered = false;
+                return;
             }
-        };
-        roomInput.addEventListener('touchstart', onInputDown, { passive: true });
-        roomInput.addEventListener('touchend', onInputEnd);
-        roomInput.addEventListener('touchcancel', onInputEnd);
+            if (!dictateTriggered && !inputTouchMoved) {
+                roomInput.focus();
+            }
+            dictateTriggered = false;
+        });
+
+        roomInput.addEventListener('touchcancel', () => {
+            clearTimeout(dictateTimer);
+            dictateTriggered = false;
+            if (holdState.active) finishHoldOverlay();
+        });
 
         // P2 按住说话按钮
         const holdBtn = document.getElementById('ctHoldTalkBtn');
