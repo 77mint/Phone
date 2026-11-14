@@ -1,7 +1,7 @@
 /* =========================================================
    Chat 联系人页（仿微信通讯录独立模块）
    - 不改动 apps/chat.js / apps/chat.css，独立接管联系人 tab
-   - 仅保留：顶部添加好友 + 搜索 + A-Z/# 字母分组 + 右侧索引条 + 底部总人数
+   - 仅保留：顶部添加好友 + 搜索 + 字母分组（纯白无灰条）+ 右侧索引条 + 底部总人数
    ========================================================= */
 (function () {
   var LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
@@ -114,7 +114,6 @@
     appEl.classList.add('is-contacts-tab');
     rendering = true;
 
-    // 保留原版列表隐藏镜像，用于触发原本的详细资料弹窗
     var mirrorHtml = '';
     var existingMirror = scroll.querySelector('.ctc-legacy-mirror');
     if (existingMirror) {
