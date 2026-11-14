@@ -46,14 +46,22 @@ window.PhoneDB = (function () {
     },
     set: function (key, val) {
       return open().then(function (db) {
-        var tx = db.transaction('kv', 'readwrite');
-        tx.objectStore('kv').put(val, key);
+        return new Promise(function (resolve) {
+          var tx = db.transaction('kv', 'readwrite');
+          tx.oncomplete = function () { resolve(); };
+          tx.onerror = function () { resolve(); };
+          tx.objectStore('kv').put(val, key);
+        });
       }).catch(function () {});
     },
     del: function (key) {
       return open().then(function (db) {
-        var tx = db.transaction('kv', 'readwrite');
-        tx.objectStore('kv').delete(key);
+        return new Promise(function (resolve) {
+          var tx = db.transaction('kv', 'readwrite');
+          tx.oncomplete = function () { resolve(); };
+          tx.onerror = function () { resolve(); };
+          tx.objectStore('kv').delete(key);
+        });
       }).catch(function () {});
     }
   };
@@ -87,16 +95,20 @@ window.applyCustomFont = function (buf, familyId) {
 window.applyAppIcon = function (appId, url) {
   var icons = document.querySelectorAll('.app[data-app="' + appId + '"] .app-icon');
   icons.forEach(function (el) {
+    var svg = el.querySelector('svg');
     if (url) {
-      el.style.backgroundImage = 'url("' + url + '")';
+      el.style.background = 'url("' + url + '") center/cover no-repeat';
+      if (svg) svg.style.display = 'none';
       el.classList.add('has-custom-icon');
     } else {
       var def = el.getAttribute('data-default-icon') || '';
       if (def) {
-        el.style.backgroundImage = 'url("' + def + '")';
+        el.style.background = 'url("' + def + '") center/cover no-repeat';
+        if (svg) svg.style.display = 'none';
         el.classList.add('has-custom-icon');
       } else {
-        el.style.backgroundImage = '';
+        el.style.background = '#ffffff';
+        if (svg) svg.style.display = '';
         el.classList.remove('has-custom-icon');
       }
     }
