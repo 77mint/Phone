@@ -1,15 +1,16 @@
 /* =========================================================
    小团外卖 (apps/takeout.js)
-   - 首页：分类入口 + 为你推荐（仅全部）；店铺封面采用稳定实景照片
+   - 延迟初始化：仅在点开「小团外卖」时才挂载并拉取图片，不占用桌面首屏带宽
+   - 店铺封面：Openverse 公开实景图库（单次请求+本地缓存）+ 失败自动隐藏防破图
    - 9 大分类全屏页：每类 5 家独立店铺，每家 5 道以上菜品（含西餐）
-   - 店铺详情页：真实美食图 + 可点击展开的购物车抽屉 + 结算（自己吃 / 投喂 Char / 找 Char 代付）
+   - 店铺详情页：真实美食图 + 可点击展开的购物车抽屉 + 结算
    ========================================================= */
 
 (function () {
     const STORAGE_ORDERS_KEY = 'takeout_orders_v1';
     const STORAGE_COVERS_KEY = 'takeout_store_covers_v1';
     const STORAGE_PHOTO_CACHE_KEY = 'takeout_meal_photo_cache_v1';
-    const STORAGE_PICSUM_LIST_KEY = 'takeout_picsum_list_v1';
+    const STORAGE_AMBIENT_LIST_KEY = 'takeout_openverse_ambient_v1';
 
     const CATEGORIES = [
         {
@@ -63,6 +64,18 @@
             icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3v7a2 2 0 0 0 2 2v9"/><path d="M9 3v7a2 2 0 0 1-2 2"/><path d="M7 3v4"/><path d="M16 3v18"/><path d="M16 3c2.5 0 3.5 2 3.5 5s-1 5-3.5 5"/></svg>'
         }
     ];
+
+    const BANNER_GRADIENTS = {
+        breakfast: 'linear-gradient(135deg, #f3e7d3 0%, #dfc5a6 100%)',
+        lunch: 'linear-gradient(135deg, #dce3ea 0%, #b7c3d0 100%)',
+        dinner: 'linear-gradient(135deg, #d7d2cc 0%, #9b958e 100%)',
+        supper: 'linear-gradient(135deg, #3c4352 0%, #232730 100%)',
+        milktea: 'linear-gradient(135deg, #e8dfd8 0%, #cabbb0 100%)',
+        dessert: 'linear-gradient(135deg, #f2e2e4 0%, #dec0c5 100%)',
+        japanese: 'linear-gradient(135deg, #dde4df 0%, #b4c2b8 100%)',
+        korean: 'linear-gradient(135deg, #e7dedb 0%, #c8b8b3 100%)',
+        western: 'linear-gradient(135deg, #dad4ca 0%, #aba296 100%)'
+    };
 
     const STORE_BLUEPRINTS = [
         /* ---------------- 早餐 (5家) ---------------- */
@@ -136,11 +149,12 @@
     let cartDrawerOpen = false;
     let checkoutMode = 'self';
     let selectedCharId = '';
+    let assetsLoaded = false;
 
     let mealPhotoCache = loadJSON(STORAGE_PHOTO_CACHE_KEY, {});
-    let picsumIds = loadJSON(STORAGE_PICSUM_LIST_KEY, []);
+    let ambientUrls = loadJSON(STORAGE_AMBIENT_LIST_KEY, []);
     const pendingCatFetch = {};
-    let pendingPicsumFetch = null;
+    let pendingAmbientFetch = null;
 
     function loadJSON(key, fallback) {
         try {
@@ -170,19 +184,14 @@
         return found ? found.name : '美食';
     }
 
-    function fallbackAmbientUrl(store) {
-        return 'https://picsum.photos/seed/tk-scenery-' + encodeURIComponent(store.id) + '/800/420';
-    }
-
     function getStoreCoverUrl(store) {
         const custom = getCustomCovers();
         if (custom[store.id]) return custom[store.id];
-        if (Array.isArray(picsumIds) && picsumIds.length > 0) {
+        if (Array.isArray(ambientUrls) && ambientUrls.length > 0) {
             const idx = Math.max(0, STORE_BLUEPRINTS.findIndex(s => s.id === store.id));
-            const picId = picsumIds[idx % picsumIds.length];
-            return 'https://picsum.photos/id/' + picId + '/800/420';
+            return ambientUrls[idx % ambientUrls.length];
         }
-        return fallbackAmbientUrl(store);
+        return '';
     }
 
     function buildStores() {
@@ -232,34 +241,37 @@
         return pendingCatFetch[mealCat];
     }
 
-    /* 单次拉取 Picsum 实景列表，避免多次并发限流 */
-    async function ensurePicsumList() {
-        if (Array.isArray(picsumIds) && picsumIds.length >= 45) return;
-        if (pendingPicsumFetch) return pendingPicsumFetch;
+    /* 单次拉取 Openverse 实景氛围图（咖啡馆室内、街景等） */
+    async function ensureAmbientList() {
+        if (Array.isArray(ambientUrls) && ambientUrls.length >= 20) return;
+        if (pendingAmbientFetch) return pendingAmbientFetch;
 
-        pendingPicsumFetch = (async () => {
+        pendingAmbientFetch = (async () => {
             try {
-                const res = await fetch('https://picsum.photos/v2/list?page=2&limit=60');
+                const res = await fetch('https://api.openverse.org/v1/images/?q=cozy+cafe+interior+street&page_size=50&mature=false&filter_dead=true');
                 if (!res.ok) return;
-                const list = await res.json();
-                if (Array.isArray(list) && list.length > 0) {
-                    picsumIds = list
-                        .filter(item => item && item.id && Number(item.width) >= Number(item.height))
-                        .map(item => String(item.id));
-                    if (picsumIds.length === 0) {
-                        picsumIds = list.map(item => String(item.id));
-                    }
-                    saveJSON(STORAGE_PICSUM_LIST_KEY, picsumIds);
+                const data = await res.json();
+                const results = Array.isArray(data.results) ? data.results : [];
+                const urls = results
+                    .filter(r => r && r.url && (!r.width || !r.height || r.width >= r.height))
+                    .map(r => r.url)
+                    .filter(u => /\.(jpe?g|png|webp)(\?|$)/i.test(u))
+                    .slice(0, 45);
+                if (urls.length > 0) {
+                    ambientUrls = urls;
+                    saveJSON(STORAGE_AMBIENT_LIST_KEY, ambientUrls);
                     refreshVisibleImages();
                 }
             } catch (e) {}
         })();
 
-        return pendingPicsumFetch;
+        return pendingAmbientFetch;
     }
 
-    function preloadAllImages() {
-        ensurePicsumList();
+    function loadTakeoutAssetsOnce() {
+        if (assetsLoaded) return;
+        assetsLoaded = true;
+        ensureAmbientList();
         const mealCats = [...new Set(STORE_BLUEPRINTS.map(b => b.mealCat))];
         mealCats.forEach(c => ensureMealPhotos(c));
     }
@@ -334,7 +346,7 @@
                 <!-- 店铺详情全屏页 -->
                 <div class="tk-store-view" id="tkStoreView">
                     <div class="tk-store-header">
-                        <img class="tk-store-header-img" id="tkStoreCoverImg" referrerpolicy="no-referrer" src="" alt="" />
+                        <img class="tk-store-header-img" id="tkStoreCoverImg" referrerpolicy="no-referrer" src="" onerror="this.style.display='none'" alt="" />
                         <div class="tk-store-header-scrim"></div>
                         <div class="tk-store-header-actions">
                             <button class="tk-circle-btn" id="tkCloseStoreBtn" aria-label="关闭店铺">
@@ -410,7 +422,17 @@
 
         bindEvents();
         renderHome();
-        preloadAllImages();
+
+        /* 只有点开外卖 App 时才加载外部图片，避免进桌面时抢网速 */
+        const observer = new MutationObserver(() => {
+            if (root.classList.contains('open')) {
+                loadTakeoutAssetsOnce();
+            }
+        });
+        observer.observe(root, { attributes: true, attributeFilter: ['class'] });
+        if (root.classList.contains('open')) {
+            loadTakeoutAssetsOnce();
+        }
     }
 
     function bindEvents() {
@@ -501,18 +523,18 @@
     function renderStoreCardHTML(store) {
         const feeText = store.fee === 0 ? '免配送费' : '配送费 ¥' + store.fee;
         const coverUrl = getStoreCoverUrl(store);
-        const fallbackUrl = fallbackAmbientUrl(store);
+        const bgGrad = BANNER_GRADIENTS[store.category] || 'linear-gradient(135deg, #e5e5ea 0%, #c7c7cc 100%)';
         const previewHtml = store.items.slice(0, 3).map(item => `
             <div class="tk-preview-chip">
-                ${item.img ? `<img src="${escapeHtml(item.img)}" referrerpolicy="no-referrer" alt="" loading="lazy" />` : ''}
+                ${item.img ? `<img src="${escapeHtml(item.img)}" referrerpolicy="no-referrer" onerror="this.style.display='none'" alt="" loading="lazy" />` : ''}
                 <span>${escapeHtml(item.name)}</span>
             </div>
         `).join('');
 
         return `
             <div class="tk-store-card" data-store-id="${escapeHtml(store.id)}">
-                <div class="tk-store-banner">
-                    <img class="tk-store-banner-img" referrerpolicy="no-referrer" src="${escapeHtml(coverUrl)}" onerror="if(this.dataset.fb!=='1'){this.dataset.fb='1';this.src='${escapeHtml(fallbackUrl)}';}" alt="" loading="lazy" />
+                <div class="tk-store-banner" style="background:${bgGrad};">
+                    ${coverUrl ? `<img class="tk-store-banner-img" referrerpolicy="no-referrer" src="${escapeHtml(coverUrl)}" onerror="this.style.display='none'" alt="" loading="lazy" />` : ''}
                     <div class="tk-store-banner-scrim"></div>
                     <div class="tk-store-badge">${escapeHtml(getCatName(store.category))}</div>
                 </div>
@@ -606,17 +628,19 @@
 
     function renderStoreView() {
         if (!currentStore) return;
+        const header = document.querySelector('#tkStoreView .tk-store-header');
+        if (header) {
+            header.style.background = BANNER_GRADIENTS[currentStore.category] || '#2c2c2e';
+        }
         const coverImg = document.getElementById('tkStoreCoverImg');
         const coverUrl = getStoreCoverUrl(currentStore);
-        const fallbackUrl = fallbackAmbientUrl(currentStore);
-        coverImg.dataset.fb = '';
-        coverImg.onerror = function () {
-            if (this.dataset.fb !== '1') {
-                this.dataset.fb = '1';
-                this.src = fallbackUrl;
-            }
-        };
-        coverImg.src = coverUrl;
+        if (coverUrl) {
+            coverImg.style.display = 'block';
+            coverImg.src = coverUrl;
+        } else {
+            coverImg.style.display = 'none';
+            coverImg.removeAttribute('src');
+        }
 
         document.getElementById('tkStoreHeaderName').textContent = currentStore.name;
         const feeText = currentStore.fee === 0 ? '免配送费' : '配送费 ¥' + currentStore.fee;
@@ -627,7 +651,7 @@
             const qty = cart[item.id] || 0;
             return `
                 <div class="tk-dish-card">
-                    ${item.img ? `<img class="tk-dish-img" referrerpolicy="no-referrer" src="${escapeHtml(item.img)}" alt="" loading="lazy" />` : `<div class="tk-dish-img"></div>`}
+                    ${item.img ? `<img class="tk-dish-img" referrerpolicy="no-referrer" onerror="this.style.display='none'" src="${escapeHtml(item.img)}" alt="" loading="lazy" />` : `<div class="tk-dish-img"></div>`}
                     <div class="tk-dish-info">
                         <div class="tk-dish-name">${escapeHtml(item.name)}</div>
                         <div class="tk-dish-desc">${escapeHtml(item.desc)}</div>
@@ -712,7 +736,7 @@
             subtotal += lineTotal;
             return `
                 <div class="tk-cart-drawer-item">
-                    ${item.img ? `<img class="tk-cart-drawer-thumb" referrerpolicy="no-referrer" src="${escapeHtml(item.img)}" alt="" />` : `<div class="tk-cart-drawer-thumb"></div>`}
+                    ${item.img ? `<img class="tk-cart-drawer-thumb" referrerpolicy="no-referrer" onerror="this.style.display='none'" src="${escapeHtml(item.img)}" alt="" />` : `<div class="tk-cart-drawer-thumb"></div>`}
                     <div class="tk-cart-drawer-info">
                         <div class="tk-cart-drawer-name">${escapeHtml(item.name)}</div>
                         <div class="tk-cart-drawer-sub">¥${lineTotal}</div>
