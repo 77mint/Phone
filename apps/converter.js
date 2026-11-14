@@ -3,15 +3,13 @@
   if (!root) return;
 
   var CFG_KEY = 'phone_converter_cfg_v1';
-  var HIST_KEY = 'phone_converter_history_v1';
-  var MAX_HIST = 40;
-
   var cfg = loadCfg();
-  var historyList = loadHistory();
-  var currentTab = 'convert';
+  var currentTab = 'image'; // 'image' | 'font'
   var currentMode = cfg.mode === 'github' ? 'github' : 'catbox';
   var qualityVal = cfg.quality || 85;
-  var lastResult = null;
+  var customFontName = cfg.fontName || '';
+  var lastImageResult = null;
+  var lastFontResult = null;
   var isBusy = false;
 
   function loadCfg() {
@@ -26,20 +24,8 @@
   function saveCfg() {
     cfg.mode = currentMode;
     cfg.quality = qualityVal;
+    cfg.fontName = customFontName;
     localStorage.setItem(CFG_KEY, JSON.stringify(cfg));
-  }
-
-  function loadHistory() {
-    try {
-      var arr = JSON.parse(localStorage.getItem(HIST_KEY) || '[]');
-      return Array.isArray(arr) ? arr : [];
-    } catch (e) {
-      return [];
-    }
-  }
-
-  function saveHistory() {
-    localStorage.setItem(HIST_KEY, JSON.stringify(historyList.slice(0, MAX_HIST)));
   }
 
   function escapeHtml(str) {
@@ -57,8 +43,23 @@
     return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
   }
 
-  function modeLabel(mode) {
-    return mode === 'github' ? '个人 GitHub' : '公共图床';
+  function modeLabel(mode, isFont) {
+    if (mode === 'github') return '个人 GitHub';
+    return isFont ? '公共托管' : '公共图床';
+  }
+
+  function arrayBufferToBase64(buffer) {
+    var bytes = new Uint8Array(buffer);
+    var chunkSize = 0x8000;
+    var chunks = [];
+    for (var i = 0; i < bytes.length; i += chunkSize) {
+      chunks.push(String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize)));
+    }
+    return btoa(chunks.join(''));
+  }
+
+  function strToBase64(str) {
+    return btoa(unescape(encodeURIComponent(str)));
   }
 
   var toastTimer = null;
@@ -70,7 +71,7 @@
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function () {
       el.classList.remove('show');
-    }, 2000);
+    }, 2200);
   }
 
   function copyText(text, label) {
@@ -112,13 +113,12 @@
       },
       body: JSON.stringify({
         name: repoNameOnly,
-        description: 'Image host for Phone',
+        description: 'File host for Phone',
         private: false,
         auto_init: true
       })
     }).then(function (res) {
-      if (res.ok || res.status === 422) return true;
-      return false;
+      return res.ok || res.status === 422;
     }).catch(function () {
       return false;
     });
@@ -138,7 +138,7 @@
       currentMode = 'github';
       saveCfg();
       root.classList.add('open');
-      renderConvertPanel();
+      renderActivePanel();
       showToast('正在同步 GitHub 账号...');
 
       fetch('https://api.github.com/user', {
@@ -155,7 +155,7 @@
           if (!cfg.ghBranch) cfg.ghBranch = 'main';
           saveCfg();
           ensureGithubRepo(token, 'phone-images').then(function () {
-            renderConvertPanel();
+            renderActivePanel();
             showToast('已登录 GitHub：' + user.login);
           });
         }
@@ -167,7 +167,7 @@
       currentMode = 'github';
       saveCfg();
       root.classList.add('open');
-      renderConvertPanel();
+      renderActivePanel();
       showToast('GitHub 登录未完成，请重试');
     }
   }
@@ -230,27 +230,14 @@
     }).then(function (res) {
       return res.json().then(function (data) {
         if (!res.ok || !data || !data.ok || !data.url) {
-          throw new Error((data && data.error) || '公共图床上传失败');
+          throw new Error((data && data.error) || '公共托管上传失败');
         }
         return data.url;
       });
     });
   }
 
-  function uploadToGithub(dataUrl, ext) {
-    var token = (cfg.ghToken || '').trim();
-    var repo = (cfg.ghRepo || '').trim().replace(/^https?:\/\/github\.com\//i, '').replace(/\/+$/, '');
-    var branch = (cfg.ghBranch || 'main').trim() || 'main';
-
-    if (!token) {
-      return Promise.reject(new Error('请先点击上方按钮登录 GitHub'));
-    }
-    if (!repo || repo.indexOf('/') === -1) {
-      return Promise.reject(new Error('请填写正确的「用户名/仓库名」'));
-    }
-
-    var base64 = dataUrl.split(',')[1] || '';
-    var filePath = 'images/' + Date.now() + '_' + Math.random().toString(36).slice(2, 6) + '.' + ext;
+  function putGithubFile(token, repo, branch, filePath, base64Content, rawSizeBytes) {
     var apiUrl = 'https://api.github.com/repos/' + repo + '/contents/' + filePath;
 
     function doPut() {
@@ -262,14 +249,17 @@
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          message: 'upload image via Phone',
-          content: base64,
+          message: 'upload via Phone',
+          content: base64Content,
           branch: branch
         })
       }).then(function (res) {
         return res.json().then(function (data) {
           if (!res.ok) {
             throw new Error((data && data.message) || ('GitHub 返回错误 ' + res.status));
+          }
+          if (rawSizeBytes && rawSizeBytes > 20 * 1024 * 1024) {
+            return 'https://raw.githubusercontent.com/' + repo + '/' + branch + '/' + filePath;
           }
           return 'https://cdn.jsdelivr.net/gh/' + repo + '@' + branch + '/' + filePath;
         });
@@ -287,121 +277,48 @@
     });
   }
 
-  root.innerHTML =
-    '<div class="cv-wrap" id="cvWrap">' +
-      '<div class="cv-header">' +
-        '<div class="cv-header-left">' +
-          '<div class="mu-back-sm cv-back" data-close-app>' +
-            '<svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg>' +
-          '</div>' +
-          '<div class="cv-title" id="cvTitle">转换器</div>' +
-        '</div>' +
-        '<button class="cv-pill-btn" id="cvClearHistBtn" type="button" style="display:none;">清空</button>' +
-      '</div>' +
+  function checkGithubConfig() {
+    var token = (cfg.ghToken || '').trim();
+    var repo = (cfg.ghRepo || '').trim().replace(/^https?:\/\/github\.com\//i, '').replace(/\/+$/, '');
+    var branch = (cfg.ghBranch || 'main').trim() || 'main';
+    if (!token) throw new Error('请先点击上方按钮登录 GitHub');
+    if (!repo || repo.indexOf('/') === -1) throw new Error('请填写正确的「用户名/仓库名」');
+    return { token: token, repo: repo, branch: branch };
+  }
 
-      '<div class="cv-body">' +
-        '<div class="cv-panel active" id="cvPanelConvert"></div>' +
-        '<div class="cv-panel" id="cvPanelHistory"></div>' +
-      '</div>' +
-
-      '<div class="lg-bottom-bar cv-bottom-bar" id="cvBottomBar">' +
-        '<div class="cv-tab-indicator"></div>' +
-        '<div class="cv-tab active" data-cv-tab="convert">转换</div>' +
-        '<div class="cv-tab" data-cv-tab="history">记录</div>' +
-      '</div>' +
-
-      '<div class="cv-toast" id="cvToast"></div>' +
-      '<input type="file" id="cvFileInput" accept="image/*" style="display:none;">' +
-    '</div>';
-
-  function renderConvertPanel() {
-    var box = document.getElementById('cvPanelConvert');
-    var hintText = currentMode === 'catbox'
-      ? '免登录直接上传到公共图床，不占用你的 GitHub，所有人打开小手机都能直接用。'
-      : '登录你自己的 GitHub 后，图片只存在你自己的公开仓库里，互不干扰。';
-
-    var ghFormHtml = '';
-    if (currentMode === 'github') {
-      if (!cfg.ghToken) {
-        ghFormHtml =
-          '<div class="cv-card">' +
-            '<div class="cv-label">个人 GitHub 图床</div>' +
-            '<div class="cv-hint" style="margin-top:0;">点下面按钮跳转到 GitHub 授权同意后会自动返回，不用手动复制任何密钥。</div>' +
-            '<button class="cv-primary-btn" id="cvGhLoginBtn" type="button">跳转登录 GitHub</button>' +
-          '</div>';
-      } else {
-        ghFormHtml =
-          '<div class="cv-card">' +
-            '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">' +
-              '<div>' +
-                '<div style="font-weight:700;color:#111111;">已登录 GitHub' + (cfg.ghUser ? '（' + escapeHtml(cfg.ghUser) + '）' : '') + '</div>' +
-                '<div class="cv-hint" style="margin-top:2px;">图片将直接上传到你自己的仓库</div>' +
-              '</div>' +
-              '<button class="cv-mini-btn is-danger" id="cvGhLogoutBtn" type="button">退出</button>' +
-            '</div>' +
-            '<div class="cv-field">' +
-              '<div class="cv-label">存放仓库（默认自动建好 phone-images）</div>' +
-              '<div class="cv-input-box"><input type="text" class="cv-input" id="cvGhRepo" value="' + escapeHtml(cfg.ghRepo || '') + '" placeholder="用户名/phone-images"></div>' +
-            '</div>' +
-            '<div class="cv-field">' +
-              '<div class="cv-label">分支（默认 main）</div>' +
-              '<div class="cv-input-box"><input type="text" class="cv-input" id="cvGhBranch" value="' + escapeHtml(cfg.ghBranch || 'main') + '" placeholder="main"></div>' +
-            '</div>' +
-          '</div>';
-      }
-    }
-
-    var resultHtml = '';
-    if (lastResult) {
-      resultHtml =
+  function renderGithubCardHtml() {
+    if (currentMode !== 'github') return '';
+    if (!cfg.ghToken) {
+      return (
         '<div class="cv-card">' +
-          '<div class="cv-label">转换结果</div>' +
-          '<div class="cv-preview-wrap">' +
-            '<img class="cv-thumb" src="' + escapeHtml(lastResult.preview || lastResult.url) + '" alt="">' +
-            '<div class="cv-result-meta">' +
-              '<div class="cv-result-name">' + escapeHtml(lastResult.name) + '</div>' +
-              '<div class="cv-result-sub">' + escapeHtml(modeLabel(lastResult.mode)) + ' · ' + escapeHtml(lastResult.sizeText) + '</div>' +
-            '</div>' +
-          '</div>' +
-          '<div class="cv-url-box">' + escapeHtml(lastResult.url) + '</div>' +
-          '<div class="cv-copy-grid">' +
-            '<button class="cv-copy-btn is-dark" data-copy-fmt="raw" type="button">复制直链</button>' +
-            '<button class="cv-copy-btn" data-copy-fmt="md" type="button">Markdown</button>' +
-            '<button class="cv-copy-btn" data-copy-fmt="html" type="button">HTML &lt;img&gt;</button>' +
-            '<button class="cv-copy-btn" data-copy-fmt="css" type="button">CSS url()</button>' +
-          '</div>' +
-        '</div>';
+          '<div class="cv-label">个人 GitHub 仓库</div>' +
+          '<div class="cv-hint" style="margin-top:0;">点下面按钮跳转到 GitHub 授权同意后会自动返回，不用手动复制任何密钥。</div>' +
+          '<button class="cv-primary-btn" id="cvGhLoginBtn" type="button">跳转登录 GitHub</button>' +
+        '</div>'
+      );
     }
-
-    box.innerHTML =
+    return (
       '<div class="cv-card">' +
-        '<div class="cv-label">转换方式</div>' +
-        '<div class="cv-seg is-2">' +
-          '<button class="cv-seg-btn' + (currentMode === 'catbox' ? ' active' : '') + '" data-set-mode="catbox" type="button">公共图床</button>' +
-          '<button class="cv-seg-btn' + (currentMode === 'github' ? ' active' : '') + '" data-set-mode="github" type="button">个人仓库</button>' +
-        '</div>' +
-        '<div class="cv-hint">' + hintText + '</div>' +
-        '<div class="cv-range-row">' +
-          '<span class="cv-label" style="margin:0;white-space:nowrap;">压缩画质</span>' +
-          '<input type="range" id="cvQualityRange" min="50" max="100" step="5" value="' + qualityVal + '">' +
-          '<span class="cv-range-val" id="cvQualityText">' + (qualityVal >= 100 ? '原图' : qualityVal + '%') + '</span>' +
-        '</div>' +
-      '</div>' +
-
-      ghFormHtml +
-
-      '<div class="cv-card">' +
-        '<div class="cv-drop" id="cvPickBtn">' +
-          '<div class="cv-drop-icon">' +
-            '<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">' +
+          '<div>' +
+            '<div style="font-weight:700;color:#111111;">已登录 GitHub' + (cfg.ghUser ? '（' + escapeHtml(cfg.ghUser) + '）' : '') + '</div>' +
+            '<div class="cv-hint" style="margin-top:2px;">文件将直接上传到你自己的仓库</div>' +
           '</div>' +
-          '<div class="cv-drop-title">' + (isBusy ? '正在上传中，请稍候...' : '点击从相册选择图片') + '</div>' +
-          '<div class="cv-drop-sub">上传后自动生成 https:// 图片链接</div>' +
+          '<button class="cv-mini-btn is-danger" id="cvGhLogoutBtn" type="button">退出</button>' +
         '</div>' +
-      '</div>' +
+        '<div class="cv-field">' +
+          '<div class="cv-label">存放仓库（默认自动建好 phone-images）</div>' +
+          '<div class="cv-input-box"><input type="text" class="cv-input" id="cvGhRepo" value="' + escapeHtml(cfg.ghRepo || '') + '" placeholder="用户名/phone-images"></div>' +
+        '</div>' +
+        '<div class="cv-field">' +
+          '<div class="cv-label">分支（默认 main）</div>' +
+          '<div class="cv-input-box"><input type="text" class="cv-input" id="cvGhBranch" value="' + escapeHtml(cfg.ghBranch || 'main') + '" placeholder="main"></div>' +
+        '</div>' +
+      '</div>'
+    );
+  }
 
-      resultHtml;
-
+  function bindGithubInputs() {
     var ghRepoEl = document.getElementById('cvGhRepo');
     var ghBranchEl = document.getElementById('cvGhBranch');
     if (ghRepoEl) {
@@ -416,6 +333,93 @@
         saveCfg();
       });
     }
+  }
+
+  root.innerHTML =
+    '<div class="cv-wrap" id="cvWrap">' +
+      '<div class="cv-header">' +
+        '<div class="cv-header-left">' +
+          '<div class="mu-back-sm cv-back" data-close-app>' +
+            '<svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg>' +
+          '</div>' +
+          '<div class="cv-title" id="cvTitle">转换器</div>' +
+        '</div>' +
+      '</div>' +
+
+      '<div class="cv-body">' +
+        '<div class="cv-panel active" id="cvPanelImage"></div>' +
+        '<div class="cv-panel" id="cvPanelFont"></div>' +
+      '</div>' +
+
+      '<div class="lg-bottom-bar cv-bottom-bar" id="cvBottomBar">' +
+        '<div class="cv-tab-indicator"></div>' +
+        '<div class="cv-tab active" data-cv-tab="image">图片</div>' +
+        '<div class="cv-tab" data-cv-tab="font">字体</div>' +
+      '</div>' +
+
+      '<div class="cv-toast" id="cvToast"></div>' +
+      '<input type="file" id="cvImageInput" accept="image/*" style="display:none;">' +
+      '<input type="file" id="cvFontInput" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2" style="display:none;">' +
+    '</div>';
+
+  function renderImagePanel() {
+    var box = document.getElementById('cvPanelImage');
+    var hintText = currentMode === 'catbox'
+      ? '免登录直接上传到公共图床，不占用你的 GitHub，所有人打开小手机都能直接用。'
+      : '登录你自己的 GitHub 后，图片只存在你自己的公开仓库里，互不干扰。';
+
+    var resultHtml = '';
+    if (lastImageResult) {
+      resultHtml =
+        '<div class="cv-card">' +
+          '<div class="cv-label">转换结果</div>' +
+          '<div class="cv-preview-wrap">' +
+            '<img class="cv-thumb" src="' + escapeHtml(lastImageResult.preview || lastImageResult.url) + '" alt="">' +
+            '<div class="cv-result-meta">' +
+              '<div class="cv-result-name">' + escapeHtml(lastImageResult.name) + '</div>' +
+              '<div class="cv-result-sub">' + escapeHtml(modeLabel(lastImageResult.mode, false)) + ' · ' + escapeHtml(lastImageResult.sizeText) + '</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="cv-url-box">' + escapeHtml(lastImageResult.url) + '</div>' +
+          '<div class="cv-copy-grid">' +
+            '<button class="cv-copy-btn is-dark" data-img-copy="raw" type="button">复制直链</button>' +
+            '<button class="cv-copy-btn" data-img-copy="md" type="button">Markdown</button>' +
+            '<button class="cv-copy-btn" data-img-copy="html" type="button">HTML &lt;img&gt;</button>' +
+            '<button class="cv-copy-btn" data-img-copy="css" type="button">CSS url()</button>' +
+          '</div>' +
+        '</div>';
+    }
+
+    box.innerHTML =
+      '<div class="cv-card">' +
+        '<div class="cv-label">上传方式</div>' +
+        '<div class="cv-seg">' +
+          '<button class="cv-seg-btn' + (currentMode === 'catbox' ? ' active' : '') + '" data-set-mode="catbox" type="button">公共图床</button>' +
+          '<button class="cv-seg-btn' + (currentMode === 'github' ? ' active' : '') + '" data-set-mode="github" type="button">个人仓库</button>' +
+        '</div>' +
+        '<div class="cv-hint">' + hintText + '</div>' +
+        '<div class="cv-range-row">' +
+          '<span class="cv-label" style="margin:0;white-space:nowrap;">压缩画质</span>' +
+          '<input type="range" id="cvQualityRange" min="50" max="100" step="5" value="' + qualityVal + '">' +
+          '<span class="cv-range-val" id="cvQualityText">' + (qualityVal >= 100 ? '原图' : qualityVal + '%') + '</span>' +
+        '</div>' +
+      '</div>' +
+
+      renderGithubCardHtml() +
+
+      '<div class="cv-card">' +
+        '<div class="cv-drop" id="cvPickImageBtn">' +
+          '<div class="cv-drop-icon">' +
+            '<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>' +
+          '</div>' +
+          '<div class="cv-drop-title">' + (isBusy ? '正在上传中，请稍候...' : '点击从相册选择图片') + '</div>' +
+          '<div class="cv-drop-sub">上传后自动生成 https:// 图片链接</div>' +
+        '</div>' +
+      '</div>' +
+
+      resultHtml;
+
+    bindGithubInputs();
 
     var rangeEl = document.getElementById('cvQualityRange');
     var rangeText = document.getElementById('cvQualityText');
@@ -428,71 +432,108 @@
     }
   }
 
-  function renderHistoryPanel() {
-    var box = document.getElementById('cvPanelHistory');
-    if (!historyList.length) {
-      box.innerHTML =
-        '<div class="cv-empty">' +
-          '<div class="cv-empty-title">还没有转换记录</div>' +
-          '<div class="cv-empty-sub">上传生成的 https:// 链接会自动保存在这里</div>' +
+  function renderFontPanel() {
+    var box = document.getElementById('cvPanelFont');
+    var hintText = currentMode === 'catbox'
+      ? '支持 .ttf / .otf / .woff / .woff2，最大支持 200MB（33MB 大字体选这个即可），自动生成 .css 引入链接。'
+      : '传到你自己的 GitHub 仓库并自动生成 .css 文件（GitHub 限制单文件不超过 25MB）。';
+
+    var resultHtml = '';
+    if (lastFontResult) {
+      var previewFamily = lastFontResult.previewFamily || 'sans-serif';
+      resultHtml =
+        '<div class="cv-card">' +
+          '<div class="cv-label">字体转换结果</div>' +
+          '<div class="cv-preview-wrap">' +
+            '<div class="cv-font-badge">Aa</div>' +
+            '<div class="cv-result-meta">' +
+              '<div class="cv-result-name">' + escapeHtml(lastFontResult.name) + '</div>' +
+              '<div class="cv-result-sub">字体名：' + escapeHtml(lastFontResult.fontFamily) + ' · ' + escapeHtml(lastFontResult.sizeText) + '</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="cv-font-preview" style="font-family:\'' + escapeHtml(previewFamily) + '\', sans-serif;">山川湖海，月色温柔 · Abc 123456</div>' +
+          '<div class="cv-url-box">&lt;link rel="stylesheet" href="' + escapeHtml(lastFontResult.cssUrl) + '"&gt;</div>' +
+          '<div class="cv-copy-grid">' +
+            '<button class="cv-copy-btn is-dark" data-font-copy="link" type="button">复制 &lt;link&gt;</button>' +
+            '<button class="cv-copy-btn" data-font-copy="import" type="button">复制 @import</button>' +
+            '<button class="cv-copy-btn" data-font-copy="cssurl" type="button">复制 .css 网址</button>' +
+            '<button class="cv-copy-btn" data-font-copy="raw" type="button">复制字体直链</button>' +
+          '</div>' +
         '</div>';
-      return;
     }
 
-    box.innerHTML = '<div class="cv-history-list">' + historyList.map(function (item) {
-      return (
-        '<div class="cv-hist-card">' +
-          '<img class="cv-thumb" style="width:46px;height:46px;border-radius:11px;" src="' + escapeHtml(item.url) + '" alt="">' +
-          '<div class="cv-hist-info">' +
-            '<div class="cv-hist-url">' + escapeHtml(item.url) + '</div>' +
-            '<div class="cv-hist-meta">' + escapeHtml(modeLabel(item.mode)) + ' · ' + escapeHtml(item.time || '') + '</div>' +
+    box.innerHTML =
+      '<div class="cv-card">' +
+        '<div class="cv-label">托管方式</div>' +
+        '<div class="cv-seg">' +
+          '<button class="cv-seg-btn' + (currentMode === 'catbox' ? ' active' : '') + '" data-set-mode="catbox" type="button">公共托管</button>' +
+          '<button class="cv-seg-btn' + (currentMode === 'github' ? ' active' : '') + '" data-set-mode="github" type="button">个人仓库</button>' +
+        '</div>' +
+        '<div class="cv-hint">' + hintText + '</div>' +
+        '<div class="cv-field">' +
+          '<div class="cv-label">字体名称 font-family（可选，默认用文件名）</div>' +
+          '<div class="cv-input-box"><input type="text" class="cv-input" id="cvFontNameInput" value="' + escapeHtml(customFontName) + '" placeholder="例如：MyFont"></div>' +
+        '</div>' +
+      '</div>' +
+
+      renderGithubCardHtml() +
+
+      '<div class="cv-card">' +
+        '<div class="cv-drop" id="cvPickFontBtn">' +
+          '<div class="cv-drop-icon">' +
+            '<svg viewBox="0 0 24 24"><polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="9" y1="20" x2="15" y2="20"></line><line x1="12" y1="4" x2="12" y2="20"></line></svg>' +
           '</div>' +
-          '<div class="cv-hist-actions">' +
-            '<button class="cv-mini-btn" data-hist-copy="' + escapeHtml(item.id) + '" type="button">复制</button>' +
-            '<button class="cv-mini-btn is-danger" data-hist-del="' + escapeHtml(item.id) + '" type="button">删</button>' +
-          '</div>' +
-        '</div>'
-      );
-    }).join('') + '</div>';
+          '<div class="cv-drop-title">' + (isBusy ? '正在上传字体，大文件请稍候...' : '点击选择字体文件') + '</div>' +
+          '<div class="cv-drop-sub">支持 .ttf / .otf / .woff / .woff2</div>' +
+        '</div>' +
+      '</div>' +
+
+      resultHtml;
+
+    bindGithubInputs();
+
+    var fontNameEl = document.getElementById('cvFontNameInput');
+    if (fontNameEl) {
+      fontNameEl.addEventListener('input', function () {
+        customFontName = fontNameEl.value;
+        saveCfg();
+      });
+    }
+  }
+
+  function renderActivePanel() {
+    if (currentTab === 'font') renderFontPanel();
+    else renderImagePanel();
   }
 
   function switchTab(tab) {
     currentTab = tab;
-    var isHist = tab === 'history';
-    document.getElementById('cvWrap').classList.toggle('is-subtab', isHist);
-    document.getElementById('cvBottomBar').classList.toggle('is-history', isHist);
-    document.getElementById('cvTitle').textContent = isHist ? '转换记录' : '转换器';
-    document.getElementById('cvClearHistBtn').style.display = isHist ? 'inline-flex' : 'none';
-    document.getElementById('cvPanelConvert').classList.toggle('active', !isHist);
-    document.getElementById('cvPanelHistory').classList.toggle('active', isHist);
+    var isFont = tab === 'font';
+    document.getElementById('cvWrap').classList.toggle('is-subtab', isFont);
+    document.getElementById('cvBottomBar').classList.toggle('is-font', isFont);
+    document.getElementById('cvTitle').textContent = isFont ? '字体转换' : '转换器';
+    document.getElementById('cvPanelImage').classList.toggle('active', !isFont);
+    document.getElementById('cvPanelFont').classList.toggle('active', isFont);
 
     root.querySelectorAll('.cv-tab').forEach(function (el) {
       el.classList.toggle('active', el.getAttribute('data-cv-tab') === tab);
     });
-    if (isHist) renderHistoryPanel();
+    renderActivePanel();
   }
 
   root.querySelectorAll('.cv-tab').forEach(function (el) {
     el.addEventListener('click', function () {
+      if (isBusy) return;
       switchTab(el.getAttribute('data-cv-tab'));
     });
   });
 
-  document.getElementById('cvClearHistBtn').addEventListener('click', function () {
-    if (!historyList.length) return;
-    if (!confirm('确定清空全部转换记录吗？')) return;
-    historyList = [];
-    saveHistory();
-    renderHistoryPanel();
-    showToast('记录已清空');
-  });
-
-  document.getElementById('cvPanelConvert').addEventListener('click', function (e) {
+  root.addEventListener('click', function (e) {
     var modeBtn = e.target.closest('[data-set-mode]');
     if (modeBtn && !isBusy) {
       currentMode = modeBtn.getAttribute('data-set-mode');
       saveCfg();
-      renderConvertPanel();
+      renderActivePanel();
       return;
     }
 
@@ -505,88 +546,153 @@
       cfg.ghToken = '';
       cfg.ghUser = '';
       saveCfg();
-      renderConvertPanel();
+      renderActivePanel();
       showToast('已退出 GitHub 登录');
       return;
     }
 
-    var pickBtn = e.target.closest('#cvPickBtn');
-    if (pickBtn) {
-      if (isBusy) return;
-      document.getElementById('cvFileInput').click();
+    if (e.target.closest('#cvPickImageBtn')) {
+      if (!isBusy) document.getElementById('cvImageInput').click();
       return;
     }
 
-    var copyBtn = e.target.closest('[data-copy-fmt]');
-    if (copyBtn && lastResult) {
-      var fmt = copyBtn.getAttribute('data-copy-fmt');
-      var u = lastResult.url;
+    if (e.target.closest('#cvPickFontBtn')) {
+      if (!isBusy) document.getElementById('cvFontInput').click();
+      return;
+    }
+
+    var imgCopyBtn = e.target.closest('[data-img-copy]');
+    if (imgCopyBtn && lastImageResult) {
+      var fmt = imgCopyBtn.getAttribute('data-img-copy');
+      var u = lastImageResult.url;
       if (fmt === 'raw') copyText(u, '直链');
       else if (fmt === 'md') copyText('[' + u + ']', 'Markdown');
       else if (fmt === 'html') copyText('<img src="' + u + '" alt="">', 'HTML');
       else if (fmt === 'css') copyText('url("' + u + '")', 'CSS');
-    }
-  });
-
-  document.getElementById('cvPanelHistory').addEventListener('click', function (e) {
-    var copyBtn = e.target.closest('[data-hist-copy]');
-    if (copyBtn) {
-      var hid = copyBtn.getAttribute('data-hist-copy');
-      var found = historyList.find(function (x) { return x.id === hid; });
-      if (found) copyText(found.url, '直链');
       return;
     }
-    var delBtn = e.target.closest('[data-hist-del]');
-    if (delBtn) {
-      var did = delBtn.getAttribute('data-hist-del');
-      historyList = historyList.filter(function (x) { return x.id !== did; });
-      saveHistory();
-      renderHistoryPanel();
+
+    var fontCopyBtn = e.target.closest('[data-font-copy]');
+    if (fontCopyBtn && lastFontResult) {
+      var fFmt = fontCopyBtn.getAttribute('data-font-copy');
+      var cu = lastFontResult.cssUrl;
+      var ru = lastFontResult.rawUrl;
+      if (fFmt === 'link') copyText('<link rel="stylesheet" href="' + cu + '">', '<link> 代码');
+      else if (fFmt === 'import') copyText('@import url("' + cu + '");', '@import 代码');
+      else if (fFmt === 'cssurl') copyText(cu, '.css 网址');
+      else if (fFmt === 'raw') copyText(ru, '字体直链');
     }
   });
 
-  document.getElementById('cvFileInput').addEventListener('change', function () {
+  document.getElementById('cvImageInput').addEventListener('change', function () {
     var file = this.files && this.files[0];
     this.value = '';
     if (!file || isBusy) return;
 
     isBusy = true;
-    renderConvertPanel();
+    renderActivePanel();
 
     processImageFile(file, qualityVal).then(function (processed) {
-      var uploadTask = currentMode === 'github'
-        ? uploadToGithub(processed.dataUrl, processed.ext)
-        : uploadToCatbox(processed.blob, (file.name ? file.name.replace(/\.[^.]+$/, '') : 'image') + '.' + processed.ext);
+      var uploadTask;
+      if (currentMode === 'github') {
+        var g = checkGithubConfig();
+        var base64 = processed.dataUrl.split(',')[1] || '';
+        var filePath = 'images/' + Date.now() + '_' + Math.random().toString(36).slice(2, 6) + '.' + processed.ext;
+        uploadTask = putGithubFile(g.token, g.repo, g.branch, filePath, base64, processed.blob.size);
+      } else {
+        var cleanName = (file.name ? file.name.replace(/\.[^.]+$/, '') : 'image') + '.' + processed.ext;
+        uploadTask = uploadToCatbox(processed.blob, cleanName);
+      }
 
       return uploadTask.then(function (url) {
-        lastResult = {
+        lastImageResult = {
           name: file.name || 'image.' + processed.ext,
           mode: currentMode,
           url: url,
           preview: processed.dataUrl,
           sizeText: formatSize(processed.blob.size)
         };
-        var now = new Date();
-        var timeStr = (now.getMonth() + 1) + '/' + now.getDate() + ' ' +
-          String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
-        historyList.unshift({
-          id: 'cv_' + Date.now(),
-          url: url,
-          mode: currentMode,
-          time: timeStr
-        });
-        saveHistory();
         isBusy = false;
-        renderConvertPanel();
+        renderActivePanel();
         showToast('上传成功，已生成链接');
       });
     }).catch(function (err) {
       isBusy = false;
-      renderConvertPanel();
+      renderActivePanel();
       showToast((err && err.message) ? err.message : '上传失败');
     });
   });
 
-  renderConvertPanel();
+  document.getElementById('cvFontInput').addEventListener('change', function () {
+    var file = this.files && this.files[0];
+    this.value = '';
+    if (!file || isBusy) return;
+
+    if (currentMode === 'github' && file.size > 25 * 1024 * 1024) {
+      showToast('超过 GitHub 25MB 限制，请切到「公共托管」上传');
+      return;
+    }
+
+    var rawBaseName = (file.name || 'CustomFont').replace(/\.[^.]+$/, '').replace(/["'\\\r\n;{}]/g, '').trim() || 'CustomFont';
+    var fontFamily = (customFontName || '').replace(/["'\\\r\n;{}]/g, '').trim() || rawBaseName;
+    var ext = (file.name.split('.').pop() || 'ttf').toLowerCase();
+
+    isBusy = true;
+    renderActivePanel();
+
+    file.arrayBuffer().then(function (buf) {
+      var previewFamily = 'CvPreview_' + Date.now();
+      var previewPromise = Promise.resolve();
+      try {
+        var face = new FontFace(previewFamily, buf);
+        previewPromise = face.load().then(function (loaded) {
+          document.fonts.add(loaded);
+        }).catch(function () {});
+      } catch (e) {}
+
+      var uploadPromise;
+      if (currentMode === 'github') {
+        var g = checkGithubConfig();
+        var stamp = Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+        var fontPath = 'fonts/' + stamp + '.' + ext;
+        var cssPath = 'fonts/' + stamp + '.css';
+        var b64Font = arrayBufferToBase64(buf);
+
+        uploadPromise = putGithubFile(g.token, g.repo, g.branch, fontPath, b64Font, file.size).then(function (rawUrl) {
+          var cssText = '@font-face {\n  font-family: "' + fontFamily + '";\n  src: url("' + rawUrl + '");\n  font-display: swap;\n}\n';
+          return putGithubFile(g.token, g.repo, g.branch, cssPath, strToBase64(cssText), cssText.length).then(function (cssUrl) {
+            return { rawUrl: rawUrl, cssUrl: cssUrl };
+          });
+        });
+      } else {
+        uploadPromise = uploadToCatbox(file, file.name || ('font.' + ext)).then(function (rawUrl) {
+          var cssUrl = window.location.origin + '/api/font.css?url=' + encodeURIComponent(rawUrl) + '&name=' + encodeURIComponent(fontFamily);
+          return { rawUrl: rawUrl, cssUrl: cssUrl };
+        });
+      }
+
+      return Promise.all([previewPromise, uploadPromise]).then(function (results) {
+        var urls = results[1];
+        lastFontResult = {
+          name: file.name || ('font.' + ext),
+          fontFamily: fontFamily,
+          previewFamily: previewFamily,
+          mode: currentMode,
+          rawUrl: urls.rawUrl,
+          cssUrl: urls.cssUrl,
+          sizeText: formatSize(file.size)
+        };
+        isBusy = false;
+        renderActivePanel();
+        showToast('字体上传成功，已生成 .css 链接');
+      });
+    }).catch(function (err) {
+      isBusy = false;
+      renderActivePanel();
+      showToast((err && err.message) ? err.message : '字体上传失败');
+    });
+  });
+
+  renderActivePanel();
   handleOAuthCallback();
 })();
