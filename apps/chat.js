@@ -1,28 +1,14 @@
 /* =========================================================
    Chat 主页 (apps/chat.js)
+   - 100% 同步「档案」：所有联系人与群聊成员均严格来自 PhoneArchive
    - 底部 4 格液态玻璃底栏：讯息 | 联系人 | 朋友圈 | 我的
    - 微信小圆角头像 + 名字对齐头像上缘 + 联系人页仅显示头像与名字
-   - 讯息右上角 +：搜索添加联系人（读取档案 Char）、发起群聊
    ========================================================= */
 
 (function () {
     const STORAGE_CONTACTS_KEY = 'chat_contacts_v1';
     const STORAGE_THREADS_KEY = 'chat_threads_v1';
-
-    const BUILTIN_ASSISTANT = {
-        id: 'assistant-shuixiaojiu',
-        name: '水小九',
-        avatar: 'icons/IMG_0288.jpeg',
-        role: '内置小助手',
-        bio: '耐心在线｜前端 · 美化 · AIRP · 酒馆 · 小手机',
-        isBuiltin: true,
-        persona: [
-            '你是内置在「小手机」Chat 里的专属小助手「水小九」。',
-            '性格：极有耐心、温柔细腻、说话自然好懂、不居高临下，从不嫌弃提问细碎。',
-            '专长：精通前端（HTML/CSS/JS）、小手机与液态玻璃 UI 美化、AIRP 交互玩法、SillyTavern（酒馆）角色卡/世界书/预设/正则/插件配置，以及各类报错排查。',
-            '互动习惯：面对复杂技术问题时，能用最通俗的白话拆成一二三步陪用户解决；面对创意和美化需求时，审美在线、注重细节并尊重用户个人偏好。'
-        ].join('\n')
-    };
+    const BUILTIN_ID = 'assistant-shuixiaojiu';
 
     let activeTab = 'messages';
     let searchKeyword = '';
@@ -54,30 +40,46 @@
         return [];
     }
 
-    function getAllChars() {
-        const archive = getArchiveChars();
-        if (archive.some(c => c.id === BUILTIN_ASSISTANT.id)) {
-            return archive;
-        }
-        return [BUILTIN_ASSISTANT, ...archive];
+    function getCharDisplayName(c) {
+        if (!c) return '未命名';
+        return c.name || c.nickname || '未命名';
+    }
+
+    function getCharAvatar(c) {
+        if (!c) return '';
+        try {
+            if (window.PhoneArchive && typeof window.PhoneArchive.getCharAvatar === 'function') {
+                return window.PhoneArchive.getCharAvatar(c.id) || '';
+            }
+        } catch (e) {}
+        return c.avatar || '';
     }
 
     function getContactIds() {
-        const ids = loadJSON(STORAGE_CONTACTS_KEY, []);
-        if (!ids.includes(BUILTIN_ASSISTANT.id)) {
-            return [BUILTIN_ASSISTANT.id, ...ids];
+        const archiveChars = getArchiveChars();
+        const validSet = new Set(archiveChars.map(c => c.id));
+        const saved = loadJSON(STORAGE_CONTACTS_KEY, []).filter(id => validSet.has(id));
+        if (validSet.has(BUILTIN_ID) && !saved.includes(BUILTIN_ID)) {
+            saved.unshift(BUILTIN_ID);
+            saveJSON(STORAGE_CONTACTS_KEY, saved);
         }
-        return ids;
+        return saved;
     }
 
     function getThreads() {
-        const list = loadJSON(STORAGE_THREADS_KEY, []);
-        if (!list.some(t => t.id === 'dm-' + BUILTIN_ASSISTANT.id)) {
+        const archiveChars = getArchiveChars();
+        const validSet = new Set(archiveChars.map(c => c.id));
+        let list = loadJSON(STORAGE_THREADS_KEY, []).filter(t => {
+            if (t.type === 'dm') return validSet.has(t.charId);
+            return true;
+        });
+        if (validSet.has(BUILTIN_ID) && !list.some(t => t.id === 'dm-' + BUILTIN_ID)) {
+            const bot = archiveChars.find(c => c.id === BUILTIN_ID);
             list.unshift({
-                id: 'dm-' + BUILTIN_ASSISTANT.id,
+                id: 'dm-' + BUILTIN_ID,
                 type: 'dm',
-                charId: BUILTIN_ASSISTANT.id,
-                name: BUILTIN_ASSISTANT.name,
+                charId: BUILTIN_ID,
+                name: getCharDisplayName(bot),
                 lastMsg: '你好呀，我是水小九，前端、美化、酒馆和小手机的事都可以问我。',
                 lastTime: '在线'
             });
@@ -107,11 +109,11 @@
         if (isGroup) {
             return '<div class="ct-avatar"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>';
         }
-        const fallbackChar = charObj && charObj.isBuiltin
-            ? '九'
-            : (charObj && charObj.name ? charObj.name.slice(0, 1) : '?');
-        if (charObj && charObj.avatar) {
-            return `<div class="ct-avatar"><img src="${escapeHtml(charObj.avatar)}" onerror="this.parentNode.textContent='${escapeHtml(fallbackChar)}'" alt="" /></div>`;
+        const name = getCharDisplayName(charObj);
+        const fallbackChar = (charObj && charObj.id === BUILTIN_ID) ? '九' : name.slice(0, 1);
+        const av = getCharAvatar(charObj);
+        if (av) {
+            return `<div class="ct-avatar"><img src="${escapeHtml(av)}" onerror="this.parentNode.textContent='${escapeHtml(fallbackChar)}'" alt="" /></div>`;
         }
         return `<div class="ct-avatar">${escapeHtml(fallbackChar)}</div>`;
     }
@@ -265,6 +267,10 @@
         });
 
         document.getElementById('ctCreateGroupBtn').addEventListener('click', createGroupChat);
+
+        window.addEventListener('phone-archive-updated', () => {
+            renderActiveTab();
+        });
     }
 
     function renderActiveTab() {
@@ -280,8 +286,13 @@
 
     function renderMessagesTab() {
         const scroll = document.getElementById('ctMainScroll');
-        const chars = getAllChars();
-        const threads = getThreads().filter(t => !searchKeyword || (t.name || '').toLowerCase().includes(searchKeyword));
+        const chars = getArchiveChars();
+        const threads = getThreads().filter(t => {
+            if (!searchKeyword) return true;
+            const charObj = t.type === 'dm' ? chars.find(c => c.id === t.charId) : null;
+            const name = charObj ? getCharDisplayName(charObj) : (t.name || '');
+            return name.toLowerCase().includes(searchKeyword);
+        });
 
         let listHtml = '';
         if (threads.length === 0) {
@@ -290,7 +301,7 @@
             listHtml = '<div class="ct-flat-list">' + threads.map(t => {
                 const isGroup = t.type === 'group';
                 const charObj = !isGroup ? chars.find(c => c.id === t.charId) : null;
-                const displayName = charObj ? (charObj.name || t.name) : (t.name || '未命名聊天');
+                const displayName = charObj ? getCharDisplayName(charObj) : (t.name || '未命名聊天');
                 return `
                     <div class="ct-row" data-thread-id="${escapeHtml(t.id)}">
                         ${renderAvatarHtml(charObj, isGroup)}
@@ -336,10 +347,10 @@
 
     function renderContactsTab() {
         const scroll = document.getElementById('ctMainScroll');
-        const chars = getAllChars();
+        const chars = getArchiveChars();
         const addedIds = getContactIds();
         const list = chars.filter(c => addedIds.includes(c.id))
-            .filter(c => !contactKeyword || (c.name || '').toLowerCase().includes(contactKeyword));
+            .filter(c => !contactKeyword || getCharDisplayName(c).toLowerCase().includes(contactKeyword));
 
         let bodyHtml = '';
         if (list.length === 0) {
@@ -349,7 +360,7 @@
                 <div class="ct-row" data-contact-id="${escapeHtml(c.id)}">
                     ${renderAvatarHtml(c, false)}
                     <div class="ct-row-main">
-                        <div class="ct-row-name">${escapeHtml(c.name || '未命名')}</div>
+                        <div class="ct-row-name">${escapeHtml(getCharDisplayName(c))}</div>
                     </div>
                 </div>
             `).join('') + '</div>';
@@ -387,13 +398,13 @@
 
     function openProfileModal(c) {
         const box = document.getElementById('ctProfileContent');
-        const detailText = c.persona || c.description || c.bio || '暂无补充人设';
+        const detailText = c.persona || c.bio || '暂无补充人设';
         box.innerHTML = `
             <div class="ct-profile-head">
                 ${renderAvatarHtml(c, false)}
                 <div class="ct-row-main">
-                    <div class="ct-row-name">${escapeHtml(c.name || '未命名')}</div>
-                    <div class="ct-row-sub">${escapeHtml(c.role || c.group || '档案角色')}</div>
+                    <div class="ct-row-name">${escapeHtml(getCharDisplayName(c))}</div>
+                    <div class="ct-row-sub">${escapeHtml(c.handle || c.group || 'Default')}</div>
                 </div>
             </div>
             <div class="ct-profile-body">${escapeHtml(detailText)}</div>
@@ -440,10 +451,10 @@
         const listEl = document.getElementById('ctAddContactList');
         const chars = getArchiveChars();
         const addedIds = getContactIds();
-        const filtered = chars.filter(c => !modalSearchKeyword || (c.name || '').toLowerCase().includes(modalSearchKeyword));
+        const filtered = chars.filter(c => !modalSearchKeyword || getCharDisplayName(c).toLowerCase().includes(modalSearchKeyword));
 
         if (chars.length === 0) {
-            listEl.innerHTML = '<div class="ct-empty">档案里还没有其他角色，请先去「档案」App 创建 Char</div>';
+            listEl.innerHTML = '<div class="ct-empty">档案里还没有角色，请先去「档案」App 创建 Char</div>';
             return;
         }
         if (filtered.length === 0) {
@@ -458,7 +469,7 @@
                     <div class="ct-pick-left">
                         ${renderAvatarHtml(c, false)}
                         <div class="ct-row-main">
-                            <div class="ct-row-name">${escapeHtml(c.name || '未命名')}</div>
+                            <div class="ct-row-name">${escapeHtml(getCharDisplayName(c))}</div>
                             <div class="ct-row-sub">${escapeHtml(c.group || 'Default')}</div>
                         </div>
                     </div>
@@ -485,7 +496,7 @@
                         id: 'dm-' + cid,
                         type: 'dm',
                         charId: cid,
-                        name: c.name || '未命名',
+                        name: getCharDisplayName(c),
                         lastMsg: '已添加为联系人',
                         lastTime: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
                     });
@@ -494,16 +505,20 @@
 
                 renderAddContactModal();
                 renderActiveTab();
-                showToast('已添加 ' + (c.name || '联系人'));
+                showToast('已添加 ' + getCharDisplayName(c));
             });
         });
     }
 
     function renderGroupPickModal() {
         const listEl = document.getElementById('ctGroupPickList');
-        const chars = getAllChars();
-        const filtered = chars.filter(c => !modalSearchKeyword || (c.name || '').toLowerCase().includes(modalSearchKeyword));
+        const chars = getArchiveChars();
+        const filtered = chars.filter(c => !modalSearchKeyword || getCharDisplayName(c).toLowerCase().includes(modalSearchKeyword));
 
+        if (chars.length === 0) {
+            listEl.innerHTML = '<div class="ct-empty">档案里还没有角色，请先去「档案」App 创建 Char</div>';
+            return;
+        }
         if (filtered.length === 0) {
             listEl.innerHTML = '<div class="ct-empty">没有搜到匹配的角色</div>';
             return;
@@ -516,8 +531,8 @@
                     <div class="ct-pick-left">
                         ${renderAvatarHtml(c, false)}
                         <div class="ct-row-main">
-                            <div class="ct-row-name">${escapeHtml(c.name || '未命名')}</div>
-                            <div class="ct-row-sub">${escapeHtml(c.role || c.group || 'Default')}</div>
+                            <div class="ct-row-name">${escapeHtml(getCharDisplayName(c))}</div>
+                            <div class="ct-row-sub">${escapeHtml(c.group || 'Default')}</div>
                         </div>
                     </div>
                     <div class="ct-check-circle ${checked ? 'checked' : ''}">
@@ -545,10 +560,10 @@
             showToast('请至少选择 2 位成员发起群聊');
             return;
         }
-        const chars = getAllChars();
+        const chars = getArchiveChars();
         const selectedChars = chars.filter(c => groupSelectedIds.includes(c.id));
         const customName = document.getElementById('ctGroupNameInput').value.trim();
-        const groupName = customName || selectedChars.map(c => c.name || '成员').slice(0, 3).join('、') + (selectedChars.length > 3 ? '等' : '');
+        const groupName = customName || selectedChars.map(c => getCharDisplayName(c)).slice(0, 3).join('、') + (selectedChars.length > 3 ? '等' : '');
 
         const threads = getThreads();
         threads.unshift({
@@ -568,8 +583,6 @@
     }
 
     window.PhoneChat = {
-        getAssistant: function () { return BUILTIN_ASSISTANT; },
-        getAllChars: getAllChars,
         getThreads: getThreads,
         getContactIds: getContactIds
     };
