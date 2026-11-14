@@ -3,7 +3,7 @@
    - 100% 同步「档案」：所有联系人与群聊成员均严格来自 PhoneArchive
    - 微信小圆角头像 + 名字对齐头像上缘/预览对齐下缘 + 可点进聊天窗口
    - 适配 iOS visualViewport，原生键盘弹起不遮挡输入框
-   - 支持 P1/P2 语音切换、长按语音条/转文字浮层、长按消息引用回复
+   - 支持 P1/P2 语音切换、实时逐字语音转文字浮层、滑动引用回复、语音播放动画
    ========================================================= */
 
 (function () {
@@ -37,15 +37,15 @@
     const SVG_VOICE_WAVE_ME = `
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round">
             <circle cx="18" cy="12" r="1.5" fill="currentColor" stroke="none"/>
-            <path d="M14.2 8.8a4.6 4.6 0 0 0 0 6.4"/>
-            <path d="M10.8 6a8.6 8.6 0 0 0 0 12"/>
+            <path class="ct-vw-arc1" d="M14.2 8.8a4.6 4.6 0 0 0 0 6.4"/>
+            <path class="ct-vw-arc2" d="M10.8 6a8.6 8.6 0 0 0 0 12"/>
         </svg>`;
 
     const SVG_VOICE_WAVE_OTHER = `
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round">
             <circle cx="6" cy="12" r="1.5" fill="currentColor" stroke="none"/>
-            <path d="M9.8 8.8a4.6 4.6 0 0 1 0 6.4"/>
-            <path d="M13.2 6a8.6 8.6 0 0 1 0 12"/>
+            <path class="ct-vw-arc1" d="M9.8 8.8a4.6 4.6 0 0 1 0 6.4"/>
+            <path class="ct-vw-arc2" d="M13.2 6a8.6 8.6 0 0 1 0 12"/>
         </svg>`;
 
     let activeTab = 'messages';
@@ -57,6 +57,7 @@
     let isVoiceMode = false;
     let pendingQuote = null;
     let currentPlayingAudio = null;
+    let playAnimTimer = null;
 
     // 长按录音 / 语音转文字状态
     let holdState = {
@@ -64,8 +65,10 @@
         mode: 'voice', // 'voice' | 'dictate'
         zone: 'send',  // 'send' | 'cancel' | 'alt'
         startTime: 0,
+        finalTranscript: '',
         transcript: '',
         recognition: null,
+        onRecEnd: null,
         recorder: null,
         stream: null,
         chunks: []
@@ -421,26 +424,69 @@
         }
     }
 
+    function stopAllMedia() {
+        if (holdState.recognition) {
+            try { holdState.recognition.abort(); } catch (e) {
+                try { holdState.recognition.stop(); } catch (e2) {}
+            }
+            holdState.recognition = null;
+        }
+        if (holdState.stream) {
+            holdState.stream.getTracks().forEach(t => {
+                try { t.stop(); } catch (e) {}
+            });
+            holdState.stream = null;
+        }
+    }
+
     function startSpeechRecognition() {
         const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRec) return;
-        try {
-            const rec = new SpeechRec();
-            rec.lang = 'zh-CN';
-            rec.interimResults = true;
-            rec.continuous = true;
-            rec.onresult = (event) => {
-                let text = '';
-                for (let i = 0; i < event.results.length; i++) {
-                    text += event.results[i][0].transcript;
-                }
-                holdState.transcript = text.trim();
-                if (holdState.active) updateOverlayUI();
-            };
-            rec.onerror = () => {};
-            rec.start();
-            holdState.recognition = rec;
-        } catch (e) {}
+
+        const launch = () => {
+            if (!holdState.active) return;
+            try {
+                const rec = new SpeechRec();
+                rec.lang = 'zh-CN';
+                rec.interimResults = true;
+                rec.continuous = false;
+                rec.maxAlternatives = 1;
+
+                rec.onresult = (event) => {
+                    let interim = '';
+                    let sessionFinal = '';
+                    for (let i = 0; i < event.results.length; i++) {
+                        const res = event.results[i];
+                        if (res.isFinal) {
+                            sessionFinal += res[0].transcript;
+                        } else {
+                            interim += res[0].transcript;
+                        }
+                    }
+                    if (sessionFinal) {
+                        holdState.finalTranscript = (holdState.finalTranscript + sessionFinal).trim();
+                    }
+                    holdState.transcript = (holdState.finalTranscript + interim).trim();
+                    if (holdState.active) updateOverlayUI();
+                };
+
+                rec.onerror = () => {};
+                rec.onend = () => {
+                    if (holdState.active) {
+                        setTimeout(launch, 60);
+                    } else if (holdState.onRecEnd) {
+                        const cb = holdState.onRecEnd;
+                        holdState.onRecEnd = null;
+                        cb();
+                    }
+                };
+
+                holdState.recognition = rec;
+                rec.start();
+            } catch (e) {}
+        };
+
+        launch();
     }
 
     async function startAudioRecorder() {
@@ -470,8 +516,10 @@
         holdState.mode = mode;
         holdState.zone = 'send';
         holdState.startTime = Date.now();
+        holdState.finalTranscript = '';
         holdState.transcript = '';
         holdState.recognition = null;
+        holdState.onRecEnd = null;
         holdState.recorder = null;
         holdState.stream = null;
         holdState.chunks = [];
@@ -514,34 +562,80 @@
         const mode = holdState.mode;
         const zone = holdState.zone;
         const durationSec = Math.max(1, Math.round((Date.now() - holdState.startTime) / 1000));
-        const transcript = holdState.transcript.trim();
 
         const overlay = document.getElementById('ctVoiceOverlay');
         if (overlay) overlay.classList.remove('open');
+        const holdBtn = document.getElementById('ctHoldTalkBtn');
+        if (holdBtn) holdBtn.classList.remove('pressing');
 
-        if (holdState.recognition) {
-            try { holdState.recognition.stop(); } catch (e) {}
-        }
+        const needTranscript = (mode === 'dictate' && zone !== 'cancel') || (mode === 'voice' && zone === 'alt');
+
+        const waitRecEnd = () => new Promise((resolve) => {
+            if (!holdState.recognition) { resolve(); return; }
+            if (!needTranscript) {
+                try { holdState.recognition.abort(); } catch (e) {}
+                holdState.recognition = null;
+                resolve();
+                return;
+            }
+            let done = false;
+            const finish = () => {
+                if (done) return;
+                done = true;
+                if (holdState.recognition) {
+                    try { holdState.recognition.abort(); } catch (e) {}
+                    holdState.recognition = null;
+                }
+                resolve();
+            };
+            holdState.onRecEnd = finish;
+            try { holdState.recognition.stop(); } catch (e) { finish(); }
+            setTimeout(finish, 240);
+        });
 
         const finalizeAudio = () => new Promise((resolve) => {
             if (!holdState.recorder || holdState.recorder.state === 'inactive') {
-                if (holdState.stream) holdState.stream.getTracks().forEach(t => t.stop());
+                if (holdState.stream) {
+                    holdState.stream.getTracks().forEach(t => { try { t.stop(); } catch (e) {} });
+                    holdState.stream = null;
+                }
                 resolve('');
                 return;
             }
+            let finished = false;
+            const cleanupStream = () => {
+                if (holdState.stream) {
+                    holdState.stream.getTracks().forEach(t => { try { t.stop(); } catch (e) {} });
+                    holdState.stream = null;
+                }
+            };
             holdState.recorder.onstop = () => {
-                if (holdState.stream) holdState.stream.getTracks().forEach(t => t.stop());
-                if (!holdState.chunks.length) { resolve(''); return; }
+                if (finished) return;
+                finished = true;
+                cleanupStream();
+                if (zone === 'cancel' || !holdState.chunks.length) { resolve(''); return; }
                 const blob = new Blob(holdState.chunks, { type: holdState.recorder.mimeType || 'audio/mp4' });
                 const reader = new FileReader();
                 reader.onloadend = () => resolve(typeof reader.result === 'string' ? reader.result : '');
                 reader.readAsDataURL(blob);
             };
-            try { holdState.recorder.stop(); } catch (e) { resolve(''); }
+            try {
+                holdState.recorder.stop();
+            } catch (e) {
+                cleanupStream();
+                resolve('');
+            }
+            // 立即释放麦克风指示灯兜底
+            setTimeout(() => {
+                cleanupStream();
+                if (!finished) { finished = true; resolve(''); }
+            }, 300);
         });
 
-        finalizeAudio().then((audioData) => {
+        Promise.all([waitRecEnd(), finalizeAudio()]).then(([, audioData]) => {
+            stopAllMedia();
             if (zone === 'cancel') return;
+            const transcript = holdState.transcript.trim();
 
             if (mode === 'dictate') {
                 if (!transcript) return;
@@ -557,14 +651,10 @@
                 return;
             }
 
+            // voice 模式：右滑转文字 -> 直接发送；正中松手 -> 发语音条
             if (zone === 'alt') {
                 if (!transcript) return;
-                const inp = document.getElementById('ctRoomInput');
-                setVoiceMode(false);
-                if (inp) {
-                    inp.value = (inp.value ? inp.value + ' ' : '') + transcript;
-                    inp.focus();
-                }
+                sendTextMessage(transcript);
             } else {
                 sendVoiceMessage(durationSec, audioData, transcript);
             }
@@ -683,7 +773,7 @@
                 startHoldOverlay('dictate');
             }, 280);
         };
-        const onInputCancel = (e) => {
+        const onInputEnd = (e) => {
             clearTimeout(dictateTimer);
             if (dictateTriggered && holdState.active) {
                 if (e && e.cancelable) e.preventDefault();
@@ -691,11 +781,8 @@
             }
         };
         roomInput.addEventListener('touchstart', onInputDown, { passive: true });
-        roomInput.addEventListener('touchmove', (e) => {
-            if (holdState.active && e.touches[0]) moveHoldOverlay(e.touches[0].clientX, e.touches[0].clientY);
-        }, { passive: true });
-        roomInput.addEventListener('touchend', onInputCancel);
-        roomInput.addEventListener('touchcancel', onInputCancel);
+        roomInput.addEventListener('touchend', onInputEnd);
+        roomInput.addEventListener('touchcancel', onInputEnd);
 
         // P2 按住说话按钮
         const holdBtn = document.getElementById('ctHoldTalkBtn');
@@ -704,29 +791,32 @@
             holdBtn.classList.add('pressing');
             startHoldOverlay('voice');
         });
-        holdBtn.addEventListener('touchmove', (e) => {
-            if (holdState.active && e.touches[0]) moveHoldOverlay(e.touches[0].clientX, e.touches[0].clientY);
-        }, { passive: true });
-        const endVoiceHold = () => {
-            holdBtn.classList.remove('pressing');
-            finishHoldOverlay();
-        };
-        holdBtn.addEventListener('touchend', endVoiceHold);
-        holdBtn.addEventListener('touchcancel', endVoiceHold);
-
         holdBtn.addEventListener('mousedown', (e) => {
             e.preventDefault();
             holdBtn.classList.add('pressing');
             startHoldOverlay('voice');
         });
+
+        // 全局跟踪触摸与松手，确保松手瞬间立刻结束录音并发送
+        window.addEventListener('touchmove', (e) => {
+            if (holdState.active && e.touches[0]) {
+                moveHoldOverlay(e.touches[0].clientX, e.touches[0].clientY);
+            }
+        }, { passive: true });
+        window.addEventListener('touchend', () => {
+            clearTimeout(dictateTimer);
+            if (holdState.active) finishHoldOverlay();
+        });
+        window.addEventListener('touchcancel', () => {
+            clearTimeout(dictateTimer);
+            if (holdState.active) finishHoldOverlay();
+        });
+
         window.addEventListener('mousemove', (e) => {
             if (holdState.active) moveHoldOverlay(e.clientX, e.clientY);
         });
         window.addEventListener('mouseup', () => {
-            if (holdState.active) {
-                holdBtn.classList.remove('pressing');
-                finishHoldOverlay();
-            }
+            if (holdState.active) finishHoldOverlay();
         });
 
         if (window.visualViewport) {
@@ -827,6 +917,15 @@
         syncRoomViewport();
     }
 
+    function stopPlayingVoiceUI() {
+        clearTimeout(playAnimTimer);
+        if (currentPlayingAudio) {
+            currentPlayingAudio.pause();
+            currentPlayingAudio = null;
+        }
+        document.querySelectorAll('.ct-msg-bubble.is-playing').forEach(el => el.classList.remove('is-playing'));
+    }
+
     function renderRoomMessages() {
         if (!currentThreadId) return;
         const box = document.getElementById('ctRoomMessages');
@@ -858,7 +957,7 @@
 
             const isVoice = m.type === 'voice';
             const dur = Math.max(1, Number(m.duration || 1));
-            const voiceWidth = Math.min(200, 108 + dur * 4);
+            const voiceWidth = Math.min(200, 72 + dur * 7);
             const bubbleStyle = isVoice ? ` style="width:${voiceWidth}px;"` : '';
             const bubbleInner = isVoice
                 ? (isMe
@@ -877,56 +976,97 @@
                 : '';
 
             return `${timeHtml}
-                <div class="ct-msg-group ${isMe ? 'me' : ''}">
+                <div class="ct-msg-group ${isMe ? 'me' : ''}" data-msg-id="${escapeHtml(m.id)}" data-sender-name="${escapeHtml(senderName)}">
                     <div class="ct-msg-row ${isMe ? 'me' : ''}">
                         ${avHtml}
-                        <div class="ct-msg-bubble ${isVoice ? 'is-voice-msg' : ''}"${bubbleStyle} data-msg-id="${escapeHtml(m.id)}" data-sender-name="${escapeHtml(senderName)}">${bubbleInner}</div>
+                        <div class="ct-msg-bubble ${isVoice ? 'is-voice-msg' : ''}"${bubbleStyle}>${bubbleInner}</div>
                     </div>
                     ${quoteHtml}
                 </div>
             `;
         }).join('');
 
-        // 长按气泡引用（静默弹出底部引用条，不弹黑色小弹窗）
-        box.querySelectorAll('.ct-msg-bubble').forEach(bubble => {
-            let pressTimer = null;
-            const triggerQuote = () => {
-                const mid = bubble.dataset.msgId;
-                const target = msgs.find(item => item.id === mid);
-                if (!target) return;
-                const qText = target.type === 'voice'
-                    ? `[语音 ${target.duration || 1}"]`
-                    : (target.text || '');
-                pendingQuote = {
-                    senderName: bubble.dataset.senderName || '我',
-                    text: qText
-                };
-                renderQuoteBar();
-            };
-            bubble.addEventListener('touchstart', () => {
-                clearTimeout(pressTimer);
-                pressTimer = setTimeout(triggerQuote, 480);
+        // 滑动引用：我方左滑引用，对方右滑引用
+        box.querySelectorAll('.ct-msg-group').forEach(group => {
+            const isMe = group.classList.contains('me');
+            let sx = 0, sy = 0, swiping = false, triggered = false;
+
+            group.addEventListener('touchstart', (e) => {
+                if (!e.touches[0]) return;
+                sx = e.touches[0].clientX;
+                sy = e.touches[0].clientY;
+                swiping = false;
+                triggered = false;
+                group.style.transition = 'none';
             }, { passive: true });
-            bubble.addEventListener('touchend', () => clearTimeout(pressTimer));
-            bubble.addEventListener('touchmove', () => clearTimeout(pressTimer), { passive: true });
-            bubble.addEventListener('contextmenu', (e) => {
-                e.preventDefault();
-                triggerQuote();
-            });
+
+            group.addEventListener('touchmove', (e) => {
+                if (!e.touches[0]) return;
+                const dx = e.touches[0].clientX - sx;
+                const dy = e.touches[0].clientY - sy;
+                if (!swiping) {
+                    if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+                        swiping = true;
+                    } else {
+                        return;
+                    }
+                }
+                const validDir = isMe ? (dx < 0) : (dx > 0);
+                if (!validDir) return;
+                const offset = isMe ? Math.max(-52, dx * 0.55) : Math.min(52, dx * 0.55);
+                group.style.transform = `translateX(${offset}px)`;
+                if (Math.abs(dx) >= 42) triggered = true;
+            }, { passive: true });
+
+            const endSwipe = () => {
+                group.style.transition = 'transform 0.18s ease';
+                group.style.transform = 'translateX(0)';
+                if (triggered) {
+                    const mid = group.dataset.msgId;
+                    const target = msgs.find(item => item.id === mid);
+                    if (target) {
+                        const qText = target.type === 'voice'
+                            ? `[语音 ${target.duration || 1}"]`
+                            : (target.text || '');
+                        pendingQuote = {
+                            senderName: group.dataset.senderName || '我',
+                            text: qText
+                        };
+                        renderQuoteBar();
+                    }
+                }
+                swiping = false;
+                triggered = false;
+            };
+
+            group.addEventListener('touchend', endSwipe);
+            group.addEventListener('touchcancel', endSwipe);
         });
 
-        // 点击语音条播放
+        // 点击语音条播放 + 声波闪烁动画
         box.querySelectorAll('[data-play-msg]').forEach(el => {
             el.addEventListener('click', () => {
                 const mid = el.dataset.playMsg;
                 const target = msgs.find(item => item.id === mid);
-                if (!target || !target.audio) return;
-                if (currentPlayingAudio) {
-                    currentPlayingAudio.pause();
-                    currentPlayingAudio = null;
+                const bubbleEl = el.closest('.ct-msg-bubble');
+                if (!target || !bubbleEl) return;
+
+                const wasPlaying = bubbleEl.classList.contains('is-playing');
+                stopPlayingVoiceUI();
+                if (wasPlaying) return;
+
+                bubbleEl.classList.add('is-playing');
+                const durMs = Math.max(1000, Number(target.duration || 1) * 1000);
+
+                if (target.audio) {
+                    currentPlayingAudio = new Audio(target.audio);
+                    currentPlayingAudio.onended = stopPlayingVoiceUI;
+                    currentPlayingAudio.play().catch(() => {
+                        playAnimTimer = setTimeout(stopPlayingVoiceUI, durMs);
+                    });
+                } else {
+                    playAnimTimer = setTimeout(stopPlayingVoiceUI, durMs);
                 }
-                currentPlayingAudio = new Audio(target.audio);
-                currentPlayingAudio.play().catch(() => {});
             });
         });
 
