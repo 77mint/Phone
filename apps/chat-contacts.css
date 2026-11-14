@@ -1,13 +1,15 @@
 /* =========================================================
-   Chat 联系人页（仿微信通讯录独立模块，跟随主色调 + 预留美化变量）
+   Chat 联系人页（仿微信通讯录独立模块，纯白主色调 + 预留美化变量）
    ========================================================= */
 #app-chat .ct-app.is-contacts-tab {
-  --ctc-bg: #f2f2f7;
+  --ctc-bg: #ffffff;
   --ctc-card-bg: #ffffff;
+  --ctc-sec-bg: #f7f7f7;
+  --ctc-search-bg: #f2f2f7;
   --ctc-text: #111111;
   --ctc-muted: #8e8e93;
   --ctc-accent: #111111;
-  --ctc-divider: rgba(0, 0, 0, 0.08);
+  --ctc-divider: rgba(0, 0, 0, 0.07);
   --ctc-avatar-radius: 6px;
 }
 
@@ -70,15 +72,15 @@
 
 .ctc-search-bar {
   background: var(--ctc-bg);
-  padding: 4px 12px 10px;
+  padding: 4px 14px 10px;
   flex-shrink: 0;
 }
 
 .ctc-search-box {
   position: relative;
   height: 36px;
-  border-radius: 8px;
-  background: var(--ctc-card-bg);
+  border-radius: 10px;
+  background: var(--ctc-search-bg);
   display: flex;
   align-items: center;
   padding: 0 12px;
@@ -126,7 +128,7 @@
   font-size: 12px;
   font-weight: 500;
   color: var(--ctc-muted);
-  background: var(--ctc-bg);
+  background: var(--ctc-sec-bg);
   line-height: 1.4;
 }
 
@@ -167,7 +169,7 @@
   border-radius: var(--ctc-avatar-radius);
   overflow: hidden;
   flex-shrink: 0;
-  background: #e5e5ea;
+  background: #f2f2f7;
   color: #111111;
   display: flex;
   align-items: center;
