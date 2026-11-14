@@ -1,8 +1,9 @@
 /* =========================================================
    Chat 主页 & 聊天窗口 (apps/chat.js)
    - 100% 同步「档案」：所有联系人与群聊成员均严格来自 PhoneArchive
-   - 微信小圆角头像 + 名字对齐头像上缘/预览对齐头像下缘 + 可点进聊天窗口
+   - 微信小圆角头像 + 名字对齐上缘/预览对齐下缘 + 可点进聊天窗口
    - 适配 iOS visualViewport，原生键盘弹起不遮挡输入框
+   - 支持 P1/P2 语音切换、长按语音条/转文字浮层、长按消息引用回复
    ========================================================= */
 
 (function () {
@@ -11,12 +12,50 @@
     const STORAGE_MSGS_PREFIX = 'chat_msgs_v1_';
     const BUILTIN_ID = 'assistant-shuixiaojiu';
 
+    const SVG_VOICE_CIRCLE = `
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="14" cy="14" r="11.5"/>
+            <path d="M9.6 14l2.1-1.7v3.4L9.6 14z" fill="currentColor" stroke="none"/>
+            <path d="M14.1 11.4a3.6 3.6 0 0 1 0 5.2"/>
+            <path d="M16.7 9.4a6.4 6.4 0 0 1 0 9.2"/>
+        </svg>`;
+
+    const SVG_KEYBOARD_CIRCLE = `
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="14" cy="14" r="11.5"/>
+            <rect x="8.5" y="10" width="2" height="2" rx="0.4" fill="currentColor" stroke="none"/>
+            <rect x="11.5" y="10" width="2" height="2" rx="0.4" fill="currentColor" stroke="none"/>
+            <rect x="14.5" y="10" width="2" height="2" rx="0.4" fill="currentColor" stroke="none"/>
+            <rect x="17.5" y="10" width="2" height="2" rx="0.4" fill="currentColor" stroke="none"/>
+            <rect x="8.5" y="13" width="2" height="2" rx="0.4" fill="currentColor" stroke="none"/>
+            <rect x="11.5" y="13" width="2" height="2" rx="0.4" fill="currentColor" stroke="none"/>
+            <rect x="14.5" y="13" width="2" height="2" rx="0.4" fill="currentColor" stroke="none"/>
+            <rect x="17.5" y="13" width="2" height="2" rx="0.4" fill="currentColor" stroke="none"/>
+            <rect x="10.5" y="16.2" width="7" height="1.8" rx="0.6" fill="currentColor" stroke="none"/>
+        </svg>`;
+
     let activeTab = 'messages';
     let searchKeyword = '';
     let contactKeyword = '';
     let modalSearchKeyword = '';
     let groupSelectedIds = [];
     let currentThreadId = null;
+    let isVoiceMode = false;
+    let pendingQuote = null;
+    let currentPlayingAudio = null;
+
+    // 长按录音 / 语音转文字状态
+    let holdState = {
+        active: false,
+        mode: 'voice', // 'voice' | 'dictate'
+        zone: 'send',  // 'send' | 'cancel' | 'alt'
+        startTime: 0,
+        transcript: '',
+        recognition: null,
+        recorder: null,
+        stream: null,
+        chunks: []
+    };
 
     function loadJSON(key, fallback) {
         try {
@@ -231,30 +270,45 @@
                         </button>
                     </div>
                     <div class="ct-room-messages" id="ctRoomMessages"></div>
-                    <div class="ct-room-input-bar">
-                        <button class="ct-room-icon-btn" id="ctRoomVoiceBtn" aria-label="语音">
-                            <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                                <circle cx="14" cy="14" r="11.5"/>
-                                <path d="M9.6 14l2.1-1.7v3.4L9.6 14z" fill="currentColor" stroke="none"/>
-                                <path d="M14.1 11.4a3.6 3.6 0 0 1 0 5.2"/>
-                                <path d="M16.7 9.4a6.4 6.4 0 0 1 0 9.2"/>
-                            </svg>
-                        </button>
-                        <input class="ct-room-input" id="ctRoomInput" placeholder="发消息..." />
-                        <button class="ct-room-icon-btn" id="ctRoomPlusBtn" aria-label="更多">
-                            <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
-                                <circle cx="14" cy="14" r="11.5"/>
-                                <line x1="14" y1="9" x2="14" y2="19"/>
-                                <line x1="9" y1="14" x2="19" y2="14"/>
-                            </svg>
-                        </button>
-                        <button class="ct-room-icon-btn" id="ctRoomSendBtn" aria-label="发送">
-                            <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                                <circle cx="14" cy="14" r="11.5"/>
-                                <line x1="14" y1="19" x2="14" y2="9.5"/>
-                                <polyline points="9.8 13.5 14 9.3 18.2 13.5"/>
-                            </svg>
-                        </button>
+                    <div class="ct-room-footer" id="ctRoomFooter">
+                        <div class="ct-room-input-bar">
+                            <button class="ct-room-icon-btn" id="ctRoomVoiceBtn" aria-label="切换语音">${SVG_VOICE_CIRCLE}</button>
+                            <input class="ct-room-input" id="ctRoomInput" placeholder="可按住 转文字" />
+                            <button class="ct-hold-talk-btn" id="ctHoldTalkBtn">按住 说话</button>
+                            <button class="ct-room-icon-btn" id="ctRoomPlusBtn" aria-label="更多">
+                                <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+                                    <circle cx="14" cy="14" r="11.5"/>
+                                    <line x1="14" y1="9" x2="14" y2="19"/>
+                                    <line x1="9" y1="14" x2="19" y2="14"/>
+                                </svg>
+                            </button>
+                            <button class="ct-room-icon-btn" id="ctRoomSendBtn" aria-label="发送">
+                                <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="14" cy="14" r="11.5"/>
+                                    <line x1="14" y1="19" x2="14" y2="9.5"/>
+                                    <polyline points="9.8 13.5 14 9.3 18.2 13.5"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="ct-quote-bar" id="ctQuoteBar">
+                            <div class="ct-quote-bar-text" id="ctQuoteBarText"></div>
+                            <button class="ct-quote-bar-close" id="ctQuoteBarClose" aria-label="取消引用">×</button>
+                        </div>
+                    </div>
+
+                    <!-- 长按说话 / 转文字浮层 -->
+                    <div class="ct-voice-overlay" id="ctVoiceOverlay">
+                        <div class="ct-vo-center">
+                            <div class="ct-vo-bubble" id="ctVoBubble"></div>
+                            <div class="ct-vo-hint" id="ctVoHint"></div>
+                        </div>
+                        <div class="ct-vo-bottom">
+                            <div class="ct-vo-actions">
+                                <div class="ct-vo-pill left" id="ctVoCancelBtn">取消</div>
+                                <div class="ct-vo-pill right" id="ctVoAltBtn"></div>
+                            </div>
+                            <div class="ct-vo-dome"></div>
+                        </div>
                     </div>
                 </div>
 
@@ -301,6 +355,213 @@
 
         bindEvents();
         renderActiveTab();
+    }
+
+    function setVoiceMode(enabled) {
+        isVoiceMode = !!enabled;
+        const footer = document.getElementById('ctRoomFooter');
+        const btn = document.getElementById('ctRoomVoiceBtn');
+        const inp = document.getElementById('ctRoomInput');
+        if (footer) footer.classList.toggle('is-voice-mode', isVoiceMode);
+        if (btn) btn.innerHTML = isVoiceMode ? SVG_KEYBOARD_CIRCLE : SVG_VOICE_CIRCLE;
+        if (isVoiceMode && inp) inp.blur();
+    }
+
+    function renderQuoteBar() {
+        const bar = document.getElementById('ctQuoteBar');
+        const txt = document.getElementById('ctQuoteBarText');
+        if (!bar || !txt) return;
+        if (!pendingQuote) {
+            bar.classList.remove('show');
+            txt.textContent = '';
+            return;
+        }
+        txt.textContent = `${pendingQuote.senderName}：${pendingQuote.text}`;
+        bar.classList.add('show');
+    }
+
+    function updateOverlayUI() {
+        const bubble = document.getElementById('ctVoBubble');
+        const hint = document.getElementById('ctVoHint');
+        const cancelBtn = document.getElementById('ctVoCancelBtn');
+        const altBtn = document.getElementById('ctVoAltBtn');
+        if (!bubble || !hint || !cancelBtn || !altBtn) return;
+
+        const isCancel = holdState.zone === 'cancel';
+        const isAlt = holdState.zone === 'alt';
+
+        cancelBtn.classList.toggle('active', isCancel);
+        altBtn.classList.toggle('active', isAlt);
+        bubble.classList.toggle('is-cancel', isCancel);
+
+        if (holdState.mode === 'voice' && !isAlt) {
+            bubble.classList.add('is-voice');
+            bubble.innerHTML = '<div class="ct-vo-waves"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>';
+            hint.textContent = isCancel ? '松手 取消发送' : '松手 发语音';
+        } else {
+            bubble.classList.remove('is-voice');
+            bubble.textContent = holdState.transcript || '正在聆听...';
+            if (isCancel) hint.textContent = '松手 取消';
+            else if (isAlt && holdState.mode === 'dictate') hint.textContent = '松手 编辑文字';
+            else hint.textContent = '松手 发送';
+        }
+    }
+
+    function startSpeechRecognition() {
+        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRec) return;
+        try {
+            const rec = new SpeechRec();
+            rec.lang = 'zh-CN';
+            rec.interimResults = true;
+            rec.continuous = true;
+            rec.onresult = (event) => {
+                let text = '';
+                for (let i = 0; i < event.results.length; i++) {
+                    text += event.results[i][0].transcript;
+                }
+                holdState.transcript = text.trim();
+                if (holdState.active) updateOverlayUI();
+            };
+            rec.onerror = () => {};
+            rec.start();
+            holdState.recognition = rec;
+        } catch (e) {}
+    }
+
+    async function startAudioRecorder() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            if (!holdState.active) {
+                stream.getTracks().forEach(t => t.stop());
+                return;
+            }
+            holdState.stream = stream;
+            holdState.chunks = [];
+            if (window.MediaRecorder) {
+                const recorder = new MediaRecorder(stream);
+                recorder.ondataavailable = (e) => {
+                    if (e.data && e.data.size > 0) holdState.chunks.push(e.data);
+                };
+                recorder.start();
+                holdState.recorder = recorder;
+            }
+        } catch (e) {}
+    }
+
+    function startHoldOverlay(mode) {
+        if (holdState.active) return;
+        holdState.active = true;
+        holdState.mode = mode;
+        holdState.zone = 'send';
+        holdState.startTime = Date.now();
+        holdState.transcript = '';
+        holdState.recognition = null;
+        holdState.recorder = null;
+        holdState.stream = null;
+        holdState.chunks = [];
+
+        const overlay = document.getElementById('ctVoiceOverlay');
+        const altBtn = document.getElementById('ctVoAltBtn');
+        altBtn.textContent = mode === 'voice' ? '滑到这里 转文字' : '编辑';
+
+        updateOverlayUI();
+        overlay.classList.add('open');
+
+        startSpeechRecognition();
+        if (mode === 'voice') startAudioRecorder();
+    }
+
+    function moveHoldOverlay(clientX, clientY) {
+        if (!holdState.active) return;
+        const cancelEl = document.getElementById('ctVoCancelBtn');
+        const altEl = document.getElementById('ctVoAltBtn');
+        if (!cancelEl || !altEl) return;
+
+        const cRect = cancelEl.getBoundingClientRect();
+        const aRect = altEl.getBoundingClientRect();
+
+        let nextZone = 'send';
+        if (clientY >= cRect.top - 24 && clientX <= cRect.right + 12) {
+            nextZone = 'cancel';
+        } else if (clientY >= aRect.top - 24 && clientX >= aRect.left - 12) {
+            nextZone = 'alt';
+        }
+        if (nextZone !== holdState.zone) {
+            holdState.zone = nextZone;
+            updateOverlayUI();
+        }
+    }
+
+    function finishHoldOverlay() {
+        if (!holdState.active) return;
+        holdState.active = false;
+        const mode = holdState.mode;
+        const zone = holdState.zone;
+        const durationSec = Math.max(1, Math.round((Date.now() - holdState.startTime) / 1000));
+        const transcript = holdState.transcript.trim();
+
+        const overlay = document.getElementById('ctVoiceOverlay');
+        if (overlay) overlay.classList.remove('open');
+
+        if (holdState.recognition) {
+            try { holdState.recognition.stop(); } catch (e) {}
+        }
+
+        const finalizeAudio = () => new Promise((resolve) => {
+            if (!holdState.recorder || holdState.recorder.state === 'inactive') {
+                if (holdState.stream) holdState.stream.getTracks().forEach(t => t.stop());
+                resolve('');
+                return;
+            }
+            holdState.recorder.onstop = () => {
+                if (holdState.stream) holdState.stream.getTracks().forEach(t => t.stop());
+                if (!holdState.chunks.length) { resolve(''); return; }
+                const blob = new Blob(holdState.chunks, { type: holdState.recorder.mimeType || 'audio/mp4' });
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+                reader.readAsDataURL(blob);
+            };
+            try { holdState.recorder.stop(); } catch (e) { resolve(''); }
+        });
+
+        finalizeAudio().then((audioData) => {
+            if (zone === 'cancel') return;
+
+            if (mode === 'dictate') {
+                if (!transcript) {
+                    showToast('未识别到语音内容');
+                    return;
+                }
+                if (zone === 'alt') {
+                    const inp = document.getElementById('ctRoomInput');
+                    if (inp) {
+                        inp.value = (inp.value ? inp.value + ' ' : '') + transcript;
+                        inp.focus();
+                    }
+                } else {
+                    sendTextMessage(transcript);
+                }
+                return;
+            }
+
+            // voice 模式
+            if (zone === 'alt') {
+                if (!transcript) {
+                    showToast('未识别到语音文字');
+                    return;
+                }
+                const inp = document.getElementById('ctRoomInput');
+                setVoiceMode(false);
+                if (inp) {
+                    inp.value = (inp.value ? inp.value + ' ' : '') + transcript;
+                    inp.focus();
+                }
+            } else {
+                sendVoiceMessage(durationSec, audioData, transcript);
+            }
+        });
     }
 
     function bindEvents() {
@@ -373,6 +634,8 @@
             const inp = document.getElementById('ctRoomInput');
             if (inp) inp.blur();
             resetRoomViewport();
+            pendingQuote = null;
+            renderQuoteBar();
             document.getElementById('ctRoomView').classList.remove('open');
             currentThreadId = null;
             renderMessagesTab();
@@ -381,8 +644,12 @@
         const roomInput = document.getElementById('ctRoomInput');
         document.getElementById('ctRoomMoreBtn').addEventListener('click', () => showToast('聊天详情待接入'));
         document.getElementById('ctRoomSendBtn').addEventListener('click', sendRoomMessage);
-        document.getElementById('ctRoomVoiceBtn').addEventListener('click', () => showToast('语音功能待接入'));
         document.getElementById('ctRoomPlusBtn').addEventListener('click', () => showToast('更多功能待接入'));
+        document.getElementById('ctRoomVoiceBtn').addEventListener('click', () => setVoiceMode(!isVoiceMode));
+        document.getElementById('ctQuoteBarClose').addEventListener('click', () => {
+            pendingQuote = null;
+            renderQuoteBar();
+        });
 
         roomInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') sendRoomMessage();
@@ -395,6 +662,64 @@
 
         roomInput.addEventListener('blur', () => {
             setTimeout(syncRoomViewport, 80);
+        });
+
+        // P1 输入框长按：语音转文字
+        let dictateTimer = null;
+        let dictateTriggered = false;
+        const onInputDown = () => {
+            dictateTriggered = false;
+            clearTimeout(dictateTimer);
+            dictateTimer = setTimeout(() => {
+                dictateTriggered = true;
+                roomInput.blur();
+                startHoldOverlay('dictate');
+            }, 280);
+        };
+        const onInputCancel = (e) => {
+            clearTimeout(dictateTimer);
+            if (dictateTriggered && holdState.active) {
+                if (e && e.cancelable) e.preventDefault();
+                finishHoldOverlay();
+            }
+        };
+        roomInput.addEventListener('touchstart', onInputDown, { passive: true });
+        roomInput.addEventListener('touchmove', (e) => {
+            if (holdState.active && e.touches[0]) moveHoldOverlay(e.touches[0].clientX, e.touches[0].clientY);
+        }, { passive: true });
+        roomInput.addEventListener('touchend', onInputCancel);
+        roomInput.addEventListener('touchcancel', onInputCancel);
+
+        // P2 按住说话按钮
+        const holdBtn = document.getElementById('ctHoldTalkBtn');
+        holdBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            holdBtn.classList.add('pressing');
+            startHoldOverlay('voice');
+        });
+        holdBtn.addEventListener('touchmove', (e) => {
+            if (holdState.active && e.touches[0]) moveHoldOverlay(e.touches[0].clientX, e.touches[0].clientY);
+        }, { passive: true });
+        const endVoiceHold = () => {
+            holdBtn.classList.remove('pressing');
+            finishHoldOverlay();
+        };
+        holdBtn.addEventListener('touchend', endVoiceHold);
+        holdBtn.addEventListener('touchcancel', endVoiceHold);
+
+        holdBtn.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            holdBtn.classList.add('pressing');
+            startHoldOverlay('voice');
+        });
+        window.addEventListener('mousemove', (e) => {
+            if (holdState.active) moveHoldOverlay(e.clientX, e.clientY);
+        });
+        window.addEventListener('mouseup', () => {
+            if (holdState.active) {
+                holdBtn.classList.remove('pressing');
+                finishHoldOverlay();
+            }
         });
 
         if (window.visualViewport) {
@@ -484,6 +809,8 @@
         const t = threads.find(item => item.id === threadId);
         if (!t) return;
         currentThreadId = threadId;
+        pendingQuote = null;
+        renderQuoteBar();
         const chars = getArchiveChars();
         const charObj = t.type === 'dm' ? chars.find(c => c.id === t.charId) : null;
         document.getElementById('ctRoomTitle').textContent = charObj ? getCharDisplayName(charObj) : (t.name || '聊天');
@@ -511,40 +838,106 @@
         box.innerHTML = msgs.map(m => {
             const isMe = m.sender === 'me';
             const cObj = isMe ? null : (chars.find(c => c.id === m.charId) || defaultChar);
+            const senderName = isMe ? '我' : getCharDisplayName(cObj);
             const avHtml = isMe
                 ? '<div class="ct-msg-avatar">我</div>'
                 : renderAvatarHtml(cObj, false, 'ct-msg-avatar');
+
             let timeHtml = '';
             if (m.time && m.time !== '在线' && m.time !== lastShownTime) {
                 lastShownTime = m.time;
                 timeHtml = `<div class="ct-msg-time">${escapeHtml(m.time)}</div>`;
             }
+
+            const isVoice = m.type === 'voice';
+            const bubbleInner = isVoice
+                ? `<div class="ct-voice-bubble" data-play-msg="${escapeHtml(m.id)}">
+                        <span class="ct-voice-sec">${escapeHtml(String(m.duration || 1))}"</span>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+                   </div>`
+                : escapeHtml(m.text);
+
+            const quoteHtml = m.quote
+                ? `<div class="ct-msg-quote">${escapeHtml(m.quote.senderName)}：${escapeHtml(m.quote.text)}</div>`
+                : '';
+
             return `${timeHtml}
-                <div class="ct-msg-row ${isMe ? 'me' : ''}">
-                    ${avHtml}
-                    <div class="ct-msg-bubble">${escapeHtml(m.text)}</div>
+                <div class="ct-msg-group ${isMe ? 'me' : ''}">
+                    <div class="ct-msg-row ${isMe ? 'me' : ''}">
+                        ${avHtml}
+                        <div class="ct-msg-bubble" data-msg-id="${escapeHtml(m.id)}" data-sender-name="${escapeHtml(senderName)}">${bubbleInner}</div>
+                    </div>
+                    ${quoteHtml}
                 </div>
             `;
         }).join('');
 
+        // 长按气泡引用
+        box.querySelectorAll('.ct-msg-bubble').forEach(bubble => {
+            let pressTimer = null;
+            const triggerQuote = () => {
+                const mid = bubble.dataset.msgId;
+                const target = msgs.find(item => item.id === mid);
+                if (!target) return;
+                const qText = target.type === 'voice'
+                    ? `[语音 ${target.duration || 1}"]`
+                    : (target.text || '');
+                pendingQuote = {
+                    senderName: bubble.dataset.senderName || '我',
+                    text: qText
+                };
+                renderQuoteBar();
+                showToast('已引用消息');
+            };
+            bubble.addEventListener('touchstart', () => {
+                clearTimeout(pressTimer);
+                pressTimer = setTimeout(triggerQuote, 480);
+            }, { passive: true });
+            bubble.addEventListener('touchend', () => clearTimeout(pressTimer));
+            bubble.addEventListener('touchmove', () => clearTimeout(pressTimer), { passive: true });
+            bubble.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                triggerQuote();
+            });
+        });
+
+        // 点击语音条播放
+        box.querySelectorAll('[data-play-msg]').forEach(el => {
+            el.addEventListener('click', () => {
+                const mid = el.dataset.playMsg;
+                const target = msgs.find(item => item.id === mid);
+                if (!target || !target.audio) {
+                    showToast('暂无音频缓存');
+                    return;
+                }
+                if (currentPlayingAudio) {
+                    currentPlayingAudio.pause();
+                    currentPlayingAudio = null;
+                }
+                currentPlayingAudio = new Audio(target.audio);
+                currentPlayingAudio.play().catch(() => showToast('播放失败'));
+            });
+        });
+
         box.scrollTop = box.scrollHeight;
     }
 
-    function sendRoomMessage() {
-        if (!currentThreadId) return;
-        const inp = document.getElementById('ctRoomInput');
-        const text = inp.value.trim();
-        if (!text) return;
-        inp.value = '';
-
+    function sendTextMessage(text) {
+        if (!currentThreadId || !text) return;
         const nowTime = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
         const msgs = getThreadMessages(currentThreadId);
-        msgs.push({
+        const msgObj = {
             id: 'm-' + Date.now(),
             sender: 'me',
             text: text,
             time: nowTime
-        });
+        };
+        if (pendingQuote) {
+            msgObj.quote = Object.assign({}, pendingQuote);
+            pendingQuote = null;
+            renderQuoteBar();
+        }
+        msgs.push(msgObj);
         saveThreadMessages(currentThreadId, msgs);
 
         const threads = getThreads();
@@ -556,6 +949,47 @@
         }
 
         renderRoomMessages();
+    }
+
+    function sendVoiceMessage(duration, audioData, transcript) {
+        if (!currentThreadId) return;
+        const nowTime = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+        const msgs = getThreadMessages(currentThreadId);
+        const msgObj = {
+            id: 'm-' + Date.now(),
+            sender: 'me',
+            type: 'voice',
+            duration: duration,
+            audio: audioData || '',
+            text: transcript || `[语音 ${duration}"]`,
+            time: nowTime
+        };
+        if (pendingQuote) {
+            msgObj.quote = Object.assign({}, pendingQuote);
+            pendingQuote = null;
+            renderQuoteBar();
+        }
+        msgs.push(msgObj);
+        saveThreadMessages(currentThreadId, msgs);
+
+        const threads = getThreads();
+        const idx = threads.findIndex(t => t.id === currentThreadId);
+        if (idx !== -1) {
+            threads[idx].lastMsg = `[语音 ${duration}"]`;
+            threads[idx].lastTime = nowTime;
+            saveJSON(STORAGE_THREADS_KEY, threads);
+        }
+
+        renderRoomMessages();
+    }
+
+    function sendRoomMessage() {
+        const inp = document.getElementById('ctRoomInput');
+        if (!inp) return;
+        const text = inp.value.trim();
+        if (!text) return;
+        inp.value = '';
+        sendTextMessage(text);
     }
 
     function renderContactsTab() {
