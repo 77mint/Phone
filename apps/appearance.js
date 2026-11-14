@@ -3,18 +3,23 @@
   if (!root) return;
 
   var APPS_LIST = [
-    { id: 'appearance', name: '外观', emoji: '🎨', bg: 'bg-1', defaultIcon: 'icons/A7EE88CF-C100-4741-A665-F0CBF7255BB9.jpeg' },
-    { id: 'api', name: 'API', emoji: '🔌', bg: 'bg-5', defaultIcon: 'icons/44338454-03E6-44C1-B306-57D7206E0E1F.png' },
+    { id: 'appearance', name: '外观', emoji: '🎨', bg: 'bg-1', defaultIcon: 'icons/BCE7A823-CED3-4517-93FD-51CA4F02B1CB.png' },
+    { id: 'api', name: 'API', emoji: '🔌', bg: 'bg-5', defaultIcon: 'icons/1F98AF52-FDDC-462E-9C0F-C248B59C1F8A.png' },
     { id: 'books', name: '图书', emoji: '📖', bg: 'bg-1', defaultIcon: 'icons/FE1D44B7-0313-4551-A668-7AC831164C94.png' },
-    { id: 'offline', name: '线下', emoji: '📍', bg: 'bg-2', defaultIcon: 'icons/585720EB-9A0B-4804-B08A-1057EBBCF505.png' },
+    { id: 'music', name: '音乐', emoji: '🎵', bg: 'bg-4', defaultIcon: 'icons/F7E634B7-96B3-4975-981A-213BF88525AB.png' },
     { id: 'archive', name: '档案', emoji: '🗂️', bg: 'bg-4', defaultIcon: 'icons/89F33D59-1FAC-4A7E-A3BE-4108BF89EF01.png' },
     { id: 'presets', name: '预设', emoji: '📁', bg: 'bg-3', defaultIcon: 'icons/D18A90EB-494C-42A1-AB6A-DC95855BE154.png' },
     { id: 'lorebook', name: '世界书', emoji: '📘', bg: 'bg-3', defaultIcon: 'icons/E47F6601-2028-4169-AF53-07CB6F2643F3.png' },
+    { id: 'memory', name: '记忆', emoji: '🧠', bg: 'bg-3' },
+    { id: 'takeout', name: '小团外卖', emoji: '🛍️', bg: 'bg-3' },
+    { id: 'converter', name: '转换器', emoji: '🔄', bg: 'bg-3' },
+    { id: 'offline', name: '线下', emoji: '📍', bg: 'bg-2', defaultIcon: 'icons/585720EB-9A0B-4804-B08A-1057EBBCF505.png' },
     { id: 'beautify', name: '美化', emoji: '✨', bg: 'bg-1', defaultIcon: 'icons/A1064DCD-D94D-408A-95A0-D2B72B4ACEB4.png' },
-    { id: 'imessage', name: 'iMessage', emoji: '💬', bg: 'bg-2', defaultIcon: 'icons/96F5628F-BDB4-485D-B17A-80107A8961A7.png' },
-    { id: 'photos', name: '相册', emoji: '🖼️', bg: 'bg-3' },
-    { id: 'music', name: '音乐', emoji: '🎵', bg: 'bg-4', defaultIcon: 'icons/F7E634B7-96B3-4975-981A-213BF88525AB.png' },
-    { id: 'settings', name: '设置', emoji: '⚙️', bg: 'bg-5', defaultIcon: 'icons/0344588B-36B5-4191-BB45-8C3B4D3D3C11.png' }
+    { id: 'photos', name: '照片', emoji: '🖼️', bg: 'bg-3', defaultIcon: 'icons/01417F73-A868-4D58-91C3-96D1BFAA243E.png' },
+    { id: 'settings', name: '设置', emoji: '⚙️', bg: 'bg-5', defaultIcon: 'icons/0344588B-36B5-4191-BB45-8C3B4D3D3C11.png' },
+    { id: 'appstore', name: 'App Store', emoji: '🅰️', bg: 'bg-3', defaultIcon: 'icons/44338454-03E6-44C1-B306-57D7206E0E1F.png' },
+    { id: 'games', name: '游戏', emoji: '🎮', bg: 'bg-5', defaultIcon: 'icons/265575EF-976D-4A3A-B309-95E58A875AA4.png' },
+    { id: 'imessage', name: 'iMessage', emoji: '💬', bg: 'bg-2', defaultIcon: 'icons/96F5628F-BDB4-485D-B17A-80107A8961A7.png' }
   ];
 
   root.innerHTML =
