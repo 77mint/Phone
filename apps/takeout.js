@@ -2,7 +2,7 @@
   var root = document.getElementById('app-takeout');
   if (!root) return;
 
-  var STORES_KEY = 'phone_takeout_stores_v1';
+  var STORES_KEY = 'phone_takeout_stores_v2';
   var ORDERS_KEY = 'phone_takeout_orders_v1';
 
   var CATEGORIES = [
@@ -18,28 +18,89 @@
     { id: 'market', name: '超市', mealQuery: 'Vegetarian', icon: '<svg viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>' }
   ];
 
-  var STORE_TEMPLATES = {
-    breakfast: { name: '晨光豆浆手作铺', dishes: ['现磨热豆浆', '流心蛋煎饼', '黄金油条', '鲜肉小笼包'] },
-    lunch: { name: '一碗热饭 · 简餐', dishes: ['黑椒牛肉饭', '照烧鸡腿饭', '番茄滑蛋盖饭', '酸辣土豆丝'] },
-    dinner: { name: '巷口小炒馆', dishes: ['小炒黄牛肉', '糖醋里脊', '蒜蓉西兰花', '砂锅排骨汤'] },
-    supper: { name: '深夜炭火烧烤', dishes: ['炭烤羊肉串', '蒜蓉烤茄子', '脆皮鸡翅', '冰镇酸梅汤'] },
-    milktea: { name: '山茶花制茶局', dishes: ['芝士多肉葡萄', '烤椰生打拿铁', '黑糖波波牛乳', '茉莉奶绿'] },
-    dessert: { name: '白日梦甜品屋', dishes: ['草莓千层蛋糕', '焦糖布丁', '抹茶巴斯克', '海盐奶油泡芙'] },
-    japanese: { name: '月见居酒屋', dishes: ['三文鱼刺身拼盘', '豚骨拉面', '炙烤鳗鱼饭', '抹茶大福'] },
-    korean: { name: '首尔夜食屋', dishes: ['芝士火鸡面', '蜂蜜炸鸡', '泡菜肥牛锅', '鱼饼年糕'] },
-    market: { name: '24H 便利超市', dishes: ['冰镇气泡水', '海苔脆片', '鲜切水果盒', '关东煮拼盘'] }
+  var BANNER_THEMES = [
+    'linear-gradient(135deg, #2b2d42 0%, #5c677d 100%)',
+    'linear-gradient(135deg, #5e503f 0%, #a9927d 100%)',
+    'linear-gradient(135deg, #3d5a80 0%, #98c1d9 100%)',
+    'linear-gradient(135deg, #6d597a 0%, #b56576 100%)',
+    'linear-gradient(135deg, #354f52 0%, #84a98c 100%)',
+    'linear-gradient(135deg, #7f4f24 0%, #b08968 100%)'
+  ];
+
+  var CATALOG = {
+    breakfast: [
+      { name: '晨光豆浆手作铺', dishes: ['现磨热豆浆', '流心蛋煎饼', '黄金酥脆油条', '鲜肉小笼包', '紫米饭团'] },
+      { name: '南城早茶点心局', dishes: ['水晶虾饺皇', '干蒸烧卖', '叉烧包', '皮蛋瘦肉粥', '红米肠粉'] },
+      { name: '麦田烘焙早餐屋', dishes: ['黄油可颂', '火腿芝士三明治', '牛油果滑蛋吐司', '冰美式咖啡', '热燕麦拿铁'] },
+      { name: '老巷胡辣汤馆', dishes: ['牛肉胡辣汤', '水煎包', '茶叶蛋', '葱油拌面', '南瓜小米粥'] },
+      { name: '街角手抓饼铺', dishes: ['培根肉松手抓饼', '里脊烤冷面', '玉米蔬菜粥', '豆沙烧饼', '原味豆奶'] }
+    ],
+    lunch: [
+      { name: '一碗热饭 · 简餐', dishes: ['黑椒牛肉饭', '照烧鸡腿饭', '番茄滑蛋盖饭', '川香回锅肉饭', '例汤拼配'] },
+      { name: '川味小厨便当', dishes: ['麻婆豆腐盖饭', '水煮肉片套餐', '辣子鸡丁饭', '酸辣土豆丝', '冰镇酸梅汤'] },
+      { name: '粤式烧腊专门店', dishes: ['深井烧鹅饭', '蜜汁叉烧双拼', '白切鸡饭', '老火排骨汤', '白灼菜心'] },
+      { name: '麦香牛肉面馆', dishes: ['红烧牛肉面', '番茄牛腩刀削面', '凉拌黄瓜', '卤牛腱切片', '酱香卤蛋'] },
+      { name: '轻食能量碗', dishes: ['炙烤鸡胸沙拉', '烟熏三文鱼藜麦碗', '牛油果温泉蛋饭', '南瓜浓汤', '鲜榨橙汁'] }
+    ],
+    dinner: [
+      { name: '巷口小炒馆', dishes: ['小炒黄牛肉', '糖醋里脊', '蒜蓉西兰花', '砂锅排骨汤', '扬州炒饭'] },
+      { name: '渝味老火锅', dishes: ['麻辣牛肉锅底', '鲜毛肚', '手打虾滑', '脆嫩鸭肠', '红糖糍粑'] },
+      { name: '江南本帮菜馆', dishes: ['外婆红烧肉', '松鼠桂鱼', '蟹粉豆腐', '清炒虾仁', '桂花酒酿圆子'] },
+      { name: '湘里人家土菜', dishes: ['剁椒鱼头', '辣椒炒肉', '金钱蛋', '干锅花菜', '擂辣椒皮蛋'] },
+      { name: '潮汕牛肉砂锅粥', dishes: ['鲜虾干贝砂锅粥', '手打牛肉丸', '湿炒牛河', '普宁炸豆腐', '凉拌鱼皮'] }
+    ],
+    supper: [
+      { name: '深夜炭火烧烤', dishes: ['炭烤羊肉串', '蒜蓉烤茄子', '蜜汁烤鸡翅', '烤五花肉', '冰镇酸梅汤'] },
+      { name: '十三香小龙虾馆', dishes: ['蒜蓉小龙虾', '麻辣小龙虾', '冰镇毛豆', '拍黄瓜', '烤冷面'] },
+      { name: '阿婆麻辣烫', dishes: ['骨汤麻辣烫', '干拌麻辣拌', '炸蛋', '手打贡丸', '冰粉'] },
+      { name: '夜猫子炒粉档', dishes: ['干炒牛河', '铁板炒方便面', '椒盐鸡脆骨', '炸年糕', '维他柠檬茶'] },
+      { name: '老街卤味铺', dishes: ['秘制鸭脖', '麻辣鸭锁骨', '五香卤鸡爪', '卤藕片', '毛豆花生拼盘'] }
+    ],
+    milktea: [
+      { name: '山茶花制茶局', dishes: ['山茶花乌龙奶绿', '芝士多肉葡萄', '烤椰生打拿铁', '黑糖波波牛乳', '杨枝甘露'] },
+      { name: '清风鲜果茶室', dishes: ['手打柠檬茶', '生椰芒芒', '满杯百香果', '芝士莓莓', '冰糖雪梨'] },
+      { name: '鹿岛咖啡茶饮', dishes: ['焦糖玛奇朵', '抹茶拿铁', '海盐芝士红茶', '桃桃乌龙', '厚乳波波'] },
+      { name: '古法黑糖铺', dishes: ['黑糖珍珠鲜奶', '芋泥波波奶茶', '布蕾脆脆奶绿', '红豆双皮奶', '桂花冻乌龙'] },
+      { name: '一隅手作茶室', dishes: ['白桃乌龙冷泡', '西柚气泡茶', '奶盖四季春', '燕麦红茶拿铁', '冻顶乌龙'] }
+    ],
+    dessert: [
+      { name: '白日梦甜品屋', dishes: ['草莓千层蛋糕', '焦糖布丁', '抹茶巴斯克', '海盐奶油泡芙', '冰美式'] },
+      { name: '可可实验室', dishes: ['生巧熔岩蛋糕', '提拉米苏', '榛子费南雪', '热可可', '法式马卡龙'] },
+      { name: '糖水记广式甜品', dishes: ['杨枝甘露', '芒果班戟', '双皮奶', '芝麻糊', '芋圆仙草冻'] },
+      { name: '云朵舒芙蕾', dishes: ['厚切草莓舒芙蕾', '焦糖海盐舒芙蕾', '抹茶红豆松饼', '水果酸奶碗', '白桃气泡水'] },
+      { name: '法式塔点小铺', dishes: ['柠檬蛋白塔', '栗子蒙布朗', '蓝莓芝士蛋糕', '肉桂卷', '香草拿铁'] }
+    ],
+    japanese: [
+      { name: '月见居酒屋', dishes: ['三文鱼刺身拼盘', '豚骨叉烧拉面', '炙烤鳗鱼饭', '章鱼小丸子', '抹茶大福'] },
+      { name: '一风堂拉面屋', dishes: ['白丸元味拉面', '赤丸辣味拉面', '唐扬炸鸡块', '温泉蛋', '可尔必思'] },
+      { name: '森之寿喜烧', dishes: ['和牛寿喜烧便当', '肥牛乌冬面', '玉子烧', '芝麻菠菜', '玄米茶'] },
+      { name: '筑地海鲜丼', dishes: ['鹅肝三文鱼丼', '炙烤金枪鱼寿司', '甜虾刺身', '味噌汤', '梅子酒'] },
+      { name: '鸟贵族烧鸟屋', dishes: ['明太子鸡肉串', '烤鸡皮', '盐烤牛舌', '日式炒乌冬', '土豆泥沙拉'] }
+    ],
+    korean: [
+      { name: '首尔夜食屋', dishes: ['芝士火鸡面', '蜂蜜蒜香炸鸡', '泡菜肥牛锅', '鱼饼年糕', '草莓牛奶'] },
+      { name: '明洞部队火锅', dishes: ['芝士部队锅', '辣炒年糕', '金枪鱼饭团', '炸酱面', '米露'] },
+      { name: '釜山烤肉专门店', dishes: ['厚切五花肉便当', '秘制猪颈肉', '海鲜葱饼', '大酱汤', '气泡烧酒'] },
+      { name: '梨泰院炸鸡社', dishes: ['甜辣双拼炸鸡', '芝士雪花炸鸡', '炸薯条', '腌萝卜块', '冰可乐'] },
+      { name: '江南石锅拌饭', dishes: ['全州石锅拌饭', '牛肉海带汤', '辣白菜五花肉', '冷面', '香蕉牛奶'] }
+    ],
+    market: [
+      { name: '24H 便利超市', dishes: ['冰镇气泡水', '海苔脆片', '鲜切水果盒', '关东煮拼盘', '草莓三明治'] },
+      { name: '鲜丰水果严选', dishes: ['阳光玫瑰青提', '红颜草莓盒', '甘草芭乐', '鲜切芒果', '椰青'] },
+      { name: '零食研究所', dishes: ['原味薯片', '辣条大礼包', '炭烤牛肉干', '夹心麻薯', '无糖乌龙茶'] },
+      { name: '生活百货速达', dishes: ['维达抽纸整提', '一次性洗脸巾', '蒸汽眼罩', '矿泉水整箱', '润唇膏'] },
+      { name: '深夜酒水便利', dishes: ['百香果果酒', '白桃气泡酒', '冰杯', '盐焗腰果', '柠檬片'] }
+    ]
   };
 
   var stores = loadJson(STORES_KEY, []);
   var orders = loadJson(ORDERS_KEY, []);
-  var currentTab = 'home'; // 'home' | 'orders'
-  var activeCat = 'all';
+  var currentTab = 'home';
+  var activeCatView = '';
   var activeStoreId = '';
   var cart = {};
-  var tempStoreCover = '';
-  var tempNewCat = 'lunch';
   var tempPayTarget = 'self';
-  var isBusy = false;
+  var isLoadingCat = false;
 
   function loadJson(key, fallback) {
     try {
@@ -91,47 +152,74 @@
     }).then(function (data) {
       var meals = Array.isArray(data && data.meals) ? data.meals : [];
       if (!meals.length) return [];
-      var shuffled = meals.slice().sort(function () { return Math.random() - 0.5; });
-      return shuffled.slice(0, count).map(function (m) {
-        return m.strMealThumb ? (m.strMealThumb + '/medium') : '';
-      }).filter(Boolean);
+      var list = [];
+      for (var i = 0; i < count; i++) {
+        var item = meals[i % meals.length];
+        list.push(item.strMealThumb ? (item.strMealThumb + '/medium') : '');
+      }
+      return list;
     }).catch(function () {
       return [];
     });
   }
 
-  function generateStoreForCategory(catId) {
-    var targetCat = (catId && catId !== 'all') ? catId : 'lunch';
-    var tpl = STORE_TEMPLATES[targetCat] || STORE_TEMPLATES.lunch;
-    isBusy = true;
-    renderHomePanel();
+  function ensureCategoryStores(catId) {
+    var existing = stores.filter(function (s) { return s.category === catId; });
+    if (existing.length >= 5) return Promise.resolve(existing);
 
-    fetchFoodPhotos(targetCat, 5).then(function (photos) {
-      var storeId = 'st_' + Date.now();
-      var dishes = tpl.dishes.map(function (dName, idx) {
-        return {
-          id: 'ds_' + Date.now() + '_' + idx,
-          name: dName,
-          price: 16 + Math.floor(Math.random() * 28),
-          desc: '招牌现做 · 好评热卖',
-          img: photos[idx + 1] || photos[0] || ''
-        };
+    var templates = CATALOG[catId] || CATALOG.lunch;
+    var need = 5 - existing.length;
+    isLoadingCat = true;
+    renderCategoryView();
+
+    return fetchFoodPhotos(catId, 25).then(function (photos) {
+      var usedNames = existing.map(function (s) { return s.name; });
+      var added = 0;
+      templates.forEach(function (tpl, tIdx) {
+        if (added >= need) return;
+        if (usedNames.indexOf(tpl.name) !== -1) return;
+
+        var dishes = tpl.dishes.map(function (dName, dIdx) {
+          return {
+            id: 'ds_' + catId + '_' + Date.now() + '_' + tIdx + '_' + dIdx,
+            name: dName,
+            price: 15 + ((tIdx * 3 + dIdx * 5) % 28),
+            desc: '门店招牌 · 新鲜现做',
+            img: photos[(tIdx * 5 + dIdx) % Math.max(1, photos.length)] || ''
+          };
+        });
+
+        stores.push({
+          id: 'st_' + catId + '_' + Date.now() + '_' + tIdx,
+          name: tpl.name,
+          category: catId,
+          bannerBg: BANNER_THEMES[(tIdx + catId.length) % BANNER_THEMES.length],
+          score: (4.7 + (tIdx % 3) * 0.1).toFixed(1),
+          deliveryMin: 20 + tIdx * 3,
+          deliveryFee: tIdx % 2 === 0 ? 0 : 3,
+          dishes: dishes
+        });
+        added++;
       });
 
-      stores.unshift({
-        id: storeId,
-        name: tpl.name,
-        category: targetCat,
-        cover: photos[0] || '',
-        score: (4.7 + Math.random() * 0.25).toFixed(1),
-        deliveryMin: 22 + Math.floor(Math.random() * 18),
-        deliveryFee: Math.random() > 0.5 ? 0 : 3,
-        dishes: dishes
-      });
       saveStores();
-      isBusy = false;
+      isLoadingCat = false;
+      renderCategoryView();
       renderHomePanel();
-      showToast('已生成「' + tpl.name + '」');
+      return stores.filter(function (s) { return s.category === catId; });
+    });
+  }
+
+  function ensureHomeRecommendations() {
+    if (stores.length >= 4) return;
+    isLoadingCat = true;
+    renderHomePanel();
+    Promise.all([
+      ensureCategoryStores('breakfast'),
+      ensureCategoryStores('milktea')
+    ]).then(function () {
+      isLoadingCat = false;
+      renderHomePanel();
     });
   }
 
@@ -143,9 +231,6 @@
             '<svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg>' +
           '</div>' +
           '<div class="tk-title" id="tkTitle">小团外卖</div>' +
-        '</div>' +
-        '<div class="tk-header-actions">' +
-          '<button class="tk-pill-btn" id="tkNewStoreBtn" type="button">+ 开新店</button>' +
         '</div>' +
       '</div>' +
 
@@ -160,32 +245,8 @@
         '<div class="tk-tab" data-tk-tab="orders">订单</div>' +
       '</div>' +
 
+      '<div class="tk-cat-view" id="tkCatView"></div>' +
       '<div class="tk-detail" id="tkDetail"></div>' +
-
-      '<div class="tk-modal" id="tkStoreModal">' +
-        '<div class="tk-dialog">' +
-          '<div class="tk-dialog-head">' +
-            '<div class="tk-dialog-title">开一家新店</div>' +
-            '<button class="tk-icon-circle" id="tkCloseStoreModal" type="button">' +
-              '<svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>' +
-            '</button>' +
-          '</div>' +
-          '<div class="tk-label">店铺名称</div>' +
-          '<div class="tk-input-box"><input type="text" class="tk-input" id="tkNewStoreName" placeholder="例如：街角手作奶茶"></div>' +
-          '<div class="tk-field">' +
-            '<div class="tk-label">所属分类</div>' +
-            '<div class="tk-chips" id="tkNewCatChips"></div>' +
-          '</div>' +
-          '<div class="tk-field">' +
-            '<div class="tk-label">店铺招牌图（可贴链接或相册选图，留空自动配图）</div>' +
-            '<div class="tk-input-box">' +
-              '<input type="text" class="tk-input" id="tkNewStoreImgUrl" placeholder="https://... 或点右侧选图">' +
-              '<button class="tk-btn" id="tkPickStoreImgBtn" type="button" style="padding:5px 10px;font-size:12px;">相册</button>' +
-            '</div>' +
-          '</div>' +
-          '<button class="tk-primary-btn" id="tkSaveStoreBtn" type="button">创建店铺</button>' +
-        '</div>' +
-      '</div>' +
 
       '<div class="tk-modal" id="tkCheckoutModal">' +
         '<div class="tk-dialog">' +
@@ -206,13 +267,35 @@
       '</div>' +
 
       '<div class="tk-toast" id="tkToast"></div>' +
-      '<input type="file" id="tkFileStoreImg" accept="image/*" style="display:none;">' +
+      '<input type="file" id="tkFileStoreCover" accept="image/*" style="display:none;">' +
     '</div>';
+
+  function renderStoreCardHtml(s) {
+    var bgStyle = s.cover
+      ? 'background-image:url(\'' + escapeHtml(s.cover) + '\');'
+      : 'background:' + (s.bannerBg || BANNER_THEMES[0]) + ';';
+    var feeTxt = s.deliveryFee ? ('配送费 ¥' + s.deliveryFee) : '免配送费';
+    return (
+      '<div class="tk-store-card" data-open-store="' + escapeHtml(s.id) + '">' +
+        '<div class="tk-store-cover" style="' + bgStyle + '">' +
+          '<span class="tk-store-badge">' + escapeHtml(catLabel(s.category)) + '</span>' +
+          (!s.cover ? '<div class="tk-store-sign">' + escapeHtml(s.name) + '</div>' : '') +
+        '</div>' +
+        '<div class="tk-store-info">' +
+          '<div class="tk-store-top">' +
+            '<div class="tk-store-name">' + escapeHtml(s.name) + '</div>' +
+            '<div class="tk-store-score">★ ' + escapeHtml(s.score || '4.9') + '</div>' +
+          '</div>' +
+          '<div class="tk-store-meta">约 ' + (s.deliveryMin || 25) + ' 分钟送达 · ' + feeTxt + ' · ' + ((s.dishes || []).length) + ' 款热卖</div>' +
+        '</div>' +
+      '</div>'
+    );
+  }
 
   function renderHomePanel() {
     var box = document.getElementById('tkPanelHome');
     var catsHtml = '<div class="tk-cats-card">' + CATEGORIES.map(function (c) {
-      var on = activeCat === c.id ? ' active' : '';
+      var on = c.id === 'all' ? ' active' : '';
       return (
         '<div class="tk-cat-item' + on + '" data-tk-cat="' + c.id + '">' +
           '<div class="tk-cat-icon">' + c.icon + '</div>' +
@@ -221,58 +304,34 @@
       );
     }).join('') + '</div>';
 
-    var filtered = activeCat === 'all'
-      ? stores
-      : stores.filter(function (s) { return s.category === activeCat; });
-
-    var secTitle = activeCat === 'all' ? '为你推荐' : (catLabel(activeCat) + '推荐');
-    var listHtml = '';
-    if (!filtered.length) {
-      listHtml =
-        '<div class="tk-empty">' +
-          '<div class="tk-empty-title">「' + escapeHtml(catLabel(activeCat)) + '」暂无店铺</div>' +
-          '<div class="tk-empty-sub">点下面按钮自动生成一家带高清美食图的店铺，或自己开一家</div>' +
-          '<div class="tk-empty-btns">' +
-            '<button class="tk-btn is-dark" id="tkGenStoreBtn" type="button">' + (isBusy ? '正在配图中...' : '一键开店（自动配图）') + '</button>' +
-            '<button class="tk-btn" id="tkEmptyNewBtn" type="button">手动开店</button>' +
-          '</div>' +
-        '</div>';
-    } else {
-      listHtml = '<div class="tk-store-list">' + filtered.map(function (s) {
-        var coverStyle = s.cover ? ' style="background-image:url(\'' + escapeHtml(s.cover) + '\');"' : '';
-        var feeTxt = s.deliveryFee ? ('配送费 ¥' + s.deliveryFee) : '免配送费';
-        var thumbsHtml = (s.dishes || []).slice(0, 4).map(function (d) {
-          return '<div class="tk-dish-chip">' +
-            (d.img ? '<img src="' + escapeHtml(d.img) + '" alt="">' : '') +
-            '<span>' + escapeHtml(d.name) + '</span>' +
-          '</div>';
-        }).join('');
-
-        return (
-          '<div class="tk-store-card" data-open-store="' + escapeHtml(s.id) + '">' +
-            '<div class="tk-store-cover"' + coverStyle + '>' +
-              '<span class="tk-store-badge">' + escapeHtml(catLabel(s.category)) + '</span>' +
-            '</div>' +
-            '<div class="tk-store-info">' +
-              '<div class="tk-store-top">' +
-                '<div class="tk-store-name">' + escapeHtml(s.name) + '</div>' +
-                '<div class="tk-store-score">★ ' + escapeHtml(s.score || '4.9') + '</div>' +
-              '</div>' +
-              '<div class="tk-store-meta">约 ' + (s.deliveryMin || 28) + ' 分钟送达 · ' + feeTxt + '</div>' +
-              (thumbsHtml ? '<div class="tk-dish-thumbs">' + thumbsHtml + '</div>' : '') +
-            '</div>' +
-          '</div>'
-        );
-      }).join('') + '</div>';
-    }
+    var recList = stores.slice(0, 8);
+    var listHtml = !recList.length
+      ? '<div class="tk-empty"><div class="tk-empty-title">正在准备为你推荐的店铺...</div><div class="tk-empty-sub">点击上方任意分类也可直接进入全屏逛店</div></div>'
+      : '<div class="tk-store-list">' + recList.map(renderStoreCardHtml).join('') + '</div>';
 
     box.innerHTML =
       catsHtml +
-      '<div class="tk-sec-head">' +
-        '<div class="tk-sec-title">' + escapeHtml(secTitle) + '</div>' +
-        '<div class="tk-sec-action" id="tkQuickGenBtn">' + (isBusy ? '生成中...' : '+ 随机逛一家新店') + '</div>' +
-      '</div>' +
+      '<div class="tk-sec-head"><div class="tk-sec-title">为你推荐</div></div>' +
       listHtml;
+  }
+
+  function renderCategoryView() {
+    var view = document.getElementById('tkCatView');
+    if (!activeCatView) return;
+    var list = stores.filter(function (s) { return s.category === activeCatView; });
+
+    view.innerHTML =
+      '<div class="tk-cat-head">' +
+        '<div class="tk-title">' + escapeHtml(catLabel(activeCatView)) + '</div>' +
+        '<button class="tk-icon-circle" id="tkCloseCatBtn" type="button">' +
+          '<svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>' +
+        '</button>' +
+      '</div>' +
+      '<div class="tk-cat-scroll">' +
+        (isLoadingCat && !list.length
+          ? '<div class="tk-empty"><div class="tk-empty-title">正在加载「' + escapeHtml(catLabel(activeCatView)) + '」店铺...</div></div>'
+          : '<div class="tk-store-list">' + list.map(renderStoreCardHtml).join('') + '</div>') +
+      '</div>';
   }
 
   function renderStoreDetail() {
@@ -280,7 +339,10 @@
     var s = stores.find(function (x) { return x.id === activeStoreId; });
     if (!s) return;
 
-    var coverStyle = s.cover ? ' style="background-image:url(\'' + escapeHtml(s.cover) + '\');"' : '';
+    var bgStyle = s.cover
+      ? 'background-image:url(\'' + escapeHtml(s.cover) + '\');'
+      : 'background:' + (s.bannerBg || BANNER_THEMES[0]) + ';';
+
     var dishes = s.dishes || [];
     var totalCount = 0;
     var totalPrice = 0;
@@ -295,7 +357,7 @@
       var q = cart[d.id] || 0;
       return (
         '<div class="tk-dish-card">' +
-          '<img class="tk-dish-img" src="' + escapeHtml(d.img || s.cover || '') + '" alt="">' +
+          '<img class="tk-dish-img" src="' + escapeHtml(d.img || '') + '" alt="">' +
           '<div class="tk-dish-body">' +
             '<div>' +
               '<div class="tk-dish-name">' + escapeHtml(d.name) + '</div>' +
@@ -315,19 +377,19 @@
     }).join('');
 
     detailEl.innerHTML =
-      '<div class="tk-detail-banner"' + coverStyle + '>' +
+      '<div class="tk-detail-banner" style="' + bgStyle + '">' +
         '<div class="tk-detail-overlay">' +
           '<div class="tk-detail-topbar">' +
-            '<button class="tk-icon-circle" id="tkDelStoreBtn" type="button" title="删除店铺">' +
-              '<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>' +
+            '<button class="tk-icon-circle" id="tkChangeCoverBtn" type="button" title="更换店铺封面">' +
+              '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>' +
             '</button>' +
             '<button class="tk-icon-circle" id="tkCloseDetailBtn" type="button">' +
-              '<svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
+              '<svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>' +
             '</button>' +
           '</div>' +
           '<div>' +
             '<div class="tk-detail-title">' + escapeHtml(s.name) + '</div>' +
-            '<div class="tk-detail-sub">' + escapeHtml(catLabel(s.category)) + ' · 约 ' + (s.deliveryMin || 28) + ' 分钟 · ' + (s.deliveryFee ? ('配送 ¥' + s.deliveryFee) : '免配送费') + '</div>' +
+            '<div class="tk-detail-sub">' + escapeHtml(catLabel(s.category)) + ' · 约 ' + (s.deliveryMin || 25) + ' 分钟 · ' + (s.deliveryFee ? ('配送 ¥' + s.deliveryFee) : '免配送费') + '</div>' +
           '</div>' +
         '</div>' +
       '</div>' +
@@ -362,7 +424,7 @@
           '</div>' +
           '<div class="tk-order-items">' +
             '<div>' + escapeHtml(itemText) + '</div>' +
-            '<div style="color:#8e8e93;font-size:12px;margin-top:4px;">对象：' + escapeHtml(o.targetLabel || '自己') + (o.note ? (' · 备注：' + escapeHtml(o.note)) : '') + '</div>' +
+            '<div style="color:#8e8e93;font-size:12px;margin-top:4px;">对象：' + escapeHtml(o.targetLabel || '自己吃') + (o.note ? (' · 备注：' + escapeHtml(o.note)) : '') + '</div>' +
           '</div>' +
           '<div class="tk-order-foot">' +
             '<div style="font-weight:700;">实付 ¥' + o.total + '</div>' +
@@ -388,22 +450,6 @@
     else renderHomePanel();
   }
 
-  function openNewStoreModal() {
-    tempStoreCover = '';
-    tempNewCat = activeCat !== 'all' ? activeCat : 'lunch';
-    document.getElementById('tkNewStoreName').value = '';
-    document.getElementById('tkNewStoreImgUrl').value = '';
-    renderNewCatChips();
-    document.getElementById('tkStoreModal').classList.add('open');
-  }
-
-  function renderNewCatChips() {
-    var html = CATEGORIES.filter(function (c) { return c.id !== 'all'; }).map(function (c) {
-      return '<div class="tk-chip' + (tempNewCat === c.id ? ' active' : '') + '" data-new-cat="' + c.id + '">' + escapeHtml(c.name) + '</div>';
-    }).join('');
-    document.getElementById('tkNewCatChips').innerHTML = html;
-  }
-
   function renderPayTargetChips() {
     var chars = (window.PhoneArchive && window.PhoneArchive.getChars) ? window.PhoneArchive.getChars() : [];
     var opts = [{ id: 'self', label: '自己吃' }];
@@ -423,84 +469,29 @@
     });
   });
 
-  document.getElementById('tkNewStoreBtn').addEventListener('click', openNewStoreModal);
-  document.getElementById('tkCloseStoreModal').addEventListener('click', function () {
-    document.getElementById('tkStoreModal').classList.remove('open');
-  });
-  document.getElementById('tkNewCatChips').addEventListener('click', function (e) {
-    var chip = e.target.closest('[data-new-cat]');
-    if (!chip) return;
-    tempNewCat = chip.getAttribute('data-new-cat');
-    renderNewCatChips();
-  });
-
-  document.getElementById('tkPickStoreImgBtn').addEventListener('click', function () {
-    document.getElementById('tkFileStoreImg').click();
-  });
-  document.getElementById('tkFileStoreImg').addEventListener('change', function () {
-    var file = this.files && this.files[0];
-    this.value = '';
-    if (!file) return;
-    var reader = new FileReader();
-    reader.onload = function () {
-      tempStoreCover = reader.result;
-      document.getElementById('tkNewStoreImgUrl').value = '已选本地图片';
-    };
-    reader.readAsDataURL(file);
-  });
-
-  document.getElementById('tkSaveStoreBtn').addEventListener('click', function () {
-    var name = document.getElementById('tkNewStoreName').value.trim();
-    if (!name) {
-      showToast('请输入店铺名称');
-      return;
-    }
-    var urlInput = document.getElementById('tkNewStoreImgUrl').value.trim();
-    var finalCover = tempStoreCover || (/^https?:\/\//i.test(urlInput) ? urlInput : '');
-    document.getElementById('tkStoreModal').classList.remove('open');
-
-    fetchFoodPhotos(tempNewCat, 4).then(function (photos) {
-      var tpl = STORE_TEMPLATES[tempNewCat] || STORE_TEMPLATES.lunch;
-      var cover = finalCover || photos[0] || '';
-      var dishes = tpl.dishes.map(function (dName, idx) {
-        return {
-          id: 'ds_' + Date.now() + '_' + idx,
-          name: dName,
-          price: 18 + idx * 4,
-          desc: '店内招牌 · 现点现做',
-          img: photos[idx] || cover
-        };
-      });
-      stores.unshift({
-        id: 'st_' + Date.now(),
-        name: name,
-        category: tempNewCat,
-        cover: cover,
-        score: '4.9',
-        deliveryMin: 25,
-        deliveryFee: 0,
-        dishes: dishes
-      });
-      saveStores();
-      activeCat = tempNewCat;
-      renderHomePanel();
-      showToast('已开店「' + name + '」');
-    });
-  });
-
   document.getElementById('tkPanelHome').addEventListener('click', function (e) {
     var catItem = e.target.closest('[data-tk-cat]');
     if (catItem) {
-      activeCat = catItem.getAttribute('data-tk-cat');
-      renderHomePanel();
+      var cid = catItem.getAttribute('data-tk-cat');
+      if (cid === 'all') return;
+      activeCatView = cid;
+      renderCategoryView();
+      document.getElementById('tkCatView').classList.add('open');
+      ensureCategoryStores(cid);
       return;
     }
-    if (e.target.closest('#tkGenStoreBtn') || e.target.closest('#tkQuickGenBtn')) {
-      if (!isBusy) generateStoreForCategory(activeCat);
-      return;
+    var storeCard = e.target.closest('[data-open-store]');
+    if (storeCard) {
+      activeStoreId = storeCard.getAttribute('data-open-store');
+      cart = {};
+      renderStoreDetail();
+      document.getElementById('tkDetail').classList.add('open');
     }
-    if (e.target.closest('#tkEmptyNewBtn')) {
-      openNewStoreModal();
+  });
+
+  document.getElementById('tkCatView').addEventListener('click', function (e) {
+    if (e.target.closest('#tkCloseCatBtn')) {
+      document.getElementById('tkCatView').classList.remove('open');
       return;
     }
     var storeCard = e.target.closest('[data-open-store]');
@@ -517,12 +508,8 @@
       document.getElementById('tkDetail').classList.remove('open');
       return;
     }
-    if (e.target.closest('#tkDelStoreBtn')) {
-      stores = stores.filter(function (s) { return s.id !== activeStoreId; });
-      saveStores();
-      document.getElementById('tkDetail').classList.remove('open');
-      renderHomePanel();
-      showToast('已删除店铺');
+    if (e.target.closest('#tkChangeCoverBtn')) {
+      document.getElementById('tkFileStoreCover').click();
       return;
     }
     var addBtn = e.target.closest('[data-qty-add]');
@@ -546,6 +533,24 @@
       renderPayTargetChips();
       document.getElementById('tkCheckoutModal').classList.add('open');
     }
+  });
+
+  document.getElementById('tkFileStoreCover').addEventListener('change', function () {
+    var file = this.files && this.files[0];
+    this.value = '';
+    if (!file || !activeStoreId) return;
+    var s = stores.find(function (x) { return x.id === activeStoreId; });
+    if (!s) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      s.cover = reader.result;
+      saveStores();
+      renderStoreDetail();
+      renderHomePanel();
+      renderCategoryView();
+      showToast('已更新店铺封面');
+    };
+    reader.readAsDataURL(file);
   });
 
   document.getElementById('tkCloseCheckoutModal').addEventListener('click', function () {
@@ -593,6 +598,7 @@
     cart = {};
     document.getElementById('tkCheckoutModal').classList.remove('open');
     document.getElementById('tkDetail').classList.remove('open');
+    document.getElementById('tkCatView').classList.remove('open');
     switchTab('orders');
     showToast('下单成功，骑手配送中');
   });
@@ -611,4 +617,5 @@
   });
 
   renderHomePanel();
+  ensureHomeRecommendations();
 })();
