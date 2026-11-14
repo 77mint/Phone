@@ -31,8 +31,12 @@
       var raw = JSON.parse(localStorage.getItem(CFG_KEY) || '{}');
       return {
         autoEnabled: raw.autoEnabled !== false,
+        autoSummarize: !!raw.autoSummarize, // 默认关闭，绝不偷偷调付费 API
         autoEvery: Number(raw.autoEvery) || 15,
         topK: Number(raw.topK) || 4,
+        sumUrl: raw.sumUrl || '',
+        sumKey: raw.sumKey || '',
+        sumModel: raw.sumModel || '',
         embedEnabled: !!raw.embedEnabled,
         embedUrl: raw.embedUrl || '',
         embedKey: raw.embedKey || '',
@@ -41,8 +45,12 @@
     } catch (e) {
       return {
         autoEnabled: true,
+        autoSummarize: false,
         autoEvery: 15,
         topK: 4,
+        sumUrl: '',
+        sumKey: '',
+        sumModel: '',
         embedEnabled: false,
         embedUrl: '',
         embedKey: '',
@@ -82,6 +90,51 @@
       String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
   }
 
+  function normalizeChatUrl(rawUrl) {
+    var u = String(rawUrl || '').trim().replace(/\/+$/, '');
+    if (!u) return '';
+    if (/\/chat\/completions$/i.test(u)) return u;
+    return u + '/chat/completions';
+  }
+
+  function normalizeEmbedUrl(rawUrl) {
+    var u = String(rawUrl || '').trim().replace(/\/+$/, '');
+    if (!u) return '';
+    if (/\/embeddings$/i.test(u)) return u;
+    return u + '/embeddings';
+  }
+
+  function callSummaryAPI(promptText) {
+    var url = normalizeChatUrl(cfg.sumUrl);
+    var key = (cfg.sumKey || '').trim();
+    var model = (cfg.sumModel || '').trim();
+    if (!url || !key || !model) {
+      return Promise.reject(new Error('请先填写完整总结 API 信息'));
+    }
+
+    return fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + key,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: model,
+        temperature: 0.3,
+        messages: [{ role: 'user', content: promptText }]
+      })
+    }).then(function (res) {
+      return res.json().then(function (data) {
+        if (!res.ok) {
+          throw new Error((data && data.error && data.error.message) || ('请求失败 ' + res.status));
+        }
+        var content = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+        if (!content) throw new Error('接口未返回内容');
+        return content.trim();
+      });
+    });
+  }
+
   /* ====== 向量计算 & 本地智能检索 ====== */
   function cosineSim(a, b) {
     if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length || !a.length) return 0;
@@ -96,7 +149,7 @@
   }
 
   function fetchEmbedding(text) {
-    var url = (cfg.embedUrl || '').trim();
+    var url = normalizeEmbedUrl(cfg.embedUrl);
     var key = (cfg.embedKey || '').trim();
     var model = (cfg.embedModel || '').trim();
     if (!url || !key || !model) {
@@ -231,7 +284,19 @@
     });
   }
 
-  /* 供 iMessage / 线下在达到设定轮数时后台静默调用 */
+  function filterMeaningfulLines(msgs, charName) {
+    var fillerRe = /^(哈哈+|嗯+|哦+|好[的啊呀]?|行|可以|早安?|晚安|在吗|睡了吗|拜拜|ok|okay)[！!。.~～]*$/i;
+    var lines = [];
+    msgs.forEach(function (m) {
+      var txt = String(m.content || '').replace(/\s+/g, ' ').trim();
+      if (!txt || txt.length <= 2 || fillerRe.test(txt)) return;
+      var who = m.role === 'user' ? 'User' : charName;
+      lines.push(who + '：' + txt);
+    });
+    return lines;
+  }
+
+  /* 供 iMessage / 线下在达到设定轮数时调用 */
   function autoCapture(params) {
     if (!cfg.autoEnabled) return Promise.resolve(null);
     var p = params || {};
@@ -240,16 +305,22 @@
     var msgs = Array.isArray(p.messages) ? p.messages : [];
     if (!msgs.length) return Promise.resolve(null);
 
-    var transcript = msgs.map(function (m) {
-      var who = m.role === 'user' ? 'User' : charName;
-      return who + '：' + String(m.content || '').trim();
-    }).join('\n');
+    var lines = filterMeaningfulLines(msgs, charName);
+    if (!lines.length) return Promise.resolve(null);
+    var transcript = lines.join('\n');
 
-    if (typeof p.callLLM === 'function') {
+    /* 只有用户主动开启 autoSummarize 才调用总结 API，默认 0 消耗 */
+    if (cfg.autoSummarize) {
       var prompt =
-        '请把下面这段对话提炼成 1-2 句极简长期记忆（只保留时间、地点、核心事件、承诺或重要情绪，去掉寒暄水话，必须写清人名，不要用“他/她”指代）：\n\n' +
+        '请把下面这段对话提炼成 1-2 句极简长期记忆（只保留时间、地点、核心事件、承诺或重要情绪，必须写清人名，不要用“他/她”指代）：\n\n' +
         transcript;
-      return Promise.resolve(p.callLLM(prompt)).then(function (summary) {
+
+      var hasCustomSum = !!(cfg.sumUrl && cfg.sumKey && cfg.sumModel);
+      var runner = hasCustomSum
+        ? callSummaryAPI(prompt)
+        : (typeof p.callLLM === 'function' ? Promise.resolve(p.callLLM(prompt)) : Promise.reject(new Error('no_llm')));
+
+      return runner.then(function (summary) {
         var text = String(summary || '').trim();
         if (!text) return null;
         return addMemoryItem({ charId: charId, content: text, source: 'auto' });
@@ -332,7 +403,7 @@
             '<div class="mm-input-box"><textarea class="mm-textarea" id="mmModalContent" placeholder="例如：11月3日雨夜，某某把黑伞留给了 User，两人约好下周去吃火锅。"></textarea></div>' +
           '</div>' +
           '<div class="mm-row" style="margin-top:12px;">' +
-            '<span class="mm-label" style="margin:0;">置顶为重要记忆（优先保留）</span>' +
+            '<span class="mm-label" style="margin:0;">置顶为重要记忆（每次聊天必带）</span>' +
             '<button class="mm-switch" id="mmModalPinSwitch" type="button"><div class="mm-switch-thumb"></div></button>' +
           '</div>' +
           '<button class="mm-primary-btn" id="mmSaveBtn" type="button">保存记忆</button>' +
@@ -404,10 +475,37 @@
         '<div class="mm-row">' +
           '<div>' +
             '<div class="mm-row-title">聊天自动记事</div>' +
-            '<div class="mm-row-sub">打开后不用手动总结，聊满轮数自动记进记忆本</div>' +
+            '<div class="mm-row-sub">默认只免费保存过滤水话后的关键原话，绝不偷偷扣费</div>' +
           '</div>' +
           '<button class="mm-switch' + (cfg.autoEnabled ? ' on' : '') + '" id="mmAutoSwitch" type="button"><div class="mm-switch-thumb"></div></button>' +
         '</div>' +
+
+        '<div class="mm-row" style="margin-top:14px;padding-top:14px;border-top:1px solid #f2f2f7;">' +
+          '<div>' +
+            '<div class="mm-row-title">用 API 总结成小日记</div>' +
+            '<div class="mm-row-sub">默认关闭；打开后才会调用模型帮你浓缩总结，记得更精炼</div>' +
+          '</div>' +
+          '<button class="mm-switch' + (cfg.autoSummarize ? ' on' : '') + '" id="mmSummarizeSwitch" type="button"><div class="mm-switch-thumb"></div></button>' +
+        '</div>' +
+
+        (cfg.autoSummarize ? (
+          '<div style="margin-top:12px;padding-top:12px;border-top:1px solid #f2f2f7;">' +
+            '<div class="mm-label">总结专用 API（留空则自动用「API」里的副模型）</div>' +
+            '<div class="mm-field">' +
+              '<div class="mm-label">Base URL</div>' +
+              '<div class="mm-input-box"><input type="text" class="mm-input" id="mmSumUrl" value="' + escapeHtml(cfg.sumUrl) + '" placeholder="https://api.siliconflow.cn/v1"></div>' +
+            '</div>' +
+            '<div class="mm-field">' +
+              '<div class="mm-label">API Key</div>' +
+              '<div class="mm-input-box"><input type="password" class="mm-input" id="mmSumKey" value="' + escapeHtml(cfg.sumKey) + '" placeholder="sk-..."></div>' +
+            '</div>' +
+            '<div class="mm-field">' +
+              '<div class="mm-label">便宜小模型名</div>' +
+              '<div class="mm-input-box"><input type="text" class="mm-input" id="mmSumModel" value="' + escapeHtml(cfg.sumModel) + '" placeholder="例如：Qwen/Qwen2.5-7B-Instruct"></div>' +
+            '</div>' +
+            '<button class="mm-action-btn" id="mmTestSumBtn" type="button" style="width:100%;margin-top:12px;">测试总结 API 连通</button>' +
+          '</div>'
+        ) : '') +
 
         '<div class="mm-field">' +
           '<div class="mm-label">每隔几句自动记一次</div>' +
@@ -431,17 +529,18 @@
       '<div class="mm-card">' +
         '<div class="mm-row">' +
           '<div>' +
-            '<div class="mm-row-title">启用向量模型（可选加强）</div>' +
-            '<div class="mm-row-sub">不开也能直接用本地检索；配了硅基流动等免费向量接口后按意思检索更准</div>' +
+            '<div class="mm-row-title">启用向量模型（可选免费增强）</div>' +
+            '<div class="mm-row-sub">默认关闭（走免费本地检索）；配了硅基流动免费 bge-m3 后按意思检索更准</div>' +
           '</div>' +
           '<button class="mm-switch' + (cfg.embedEnabled ? ' on' : '') + '" id="mmEmbedSwitch" type="button"><div class="mm-switch-thumb"></div></button>' +
         '</div>' +
 
         (cfg.embedEnabled ? (
           '<div>' +
+            '<button class="mm-action-btn" id="mmPresetSfBtn" type="button" style="width:100%;margin-top:12px;">一键填好硅基流动免费 bge-m3</button>' +
             '<div class="mm-field">' +
-              '<div class="mm-label">向量接口地址 (Embeddings URL)</div>' +
-              '<div class="mm-input-box"><input type="text" class="mm-input" id="mmEmbedUrl" value="' + escapeHtml(cfg.embedUrl) + '" placeholder="https://api.siliconflow.cn/v1/embeddings"></div>' +
+              '<div class="mm-label">Base URL（自动补全 /embeddings）</div>' +
+              '<div class="mm-input-box"><input type="text" class="mm-input" id="mmEmbedUrl" value="' + escapeHtml(cfg.embedUrl) + '" placeholder="https://api.siliconflow.cn/v1"></div>' +
             '</div>' +
             '<div class="mm-field">' +
               '<div class="mm-label">API Key</div>' +
@@ -457,7 +556,18 @@
             '</div>' +
           '</div>'
         ) : '') +
+      '</div>' +
+
+      '<div class="mm-card" style="text-align:center;">' +
+        '<button class="mm-mini-btn is-danger" id="mmClearAllBtn" type="button" style="padding:8px 18px;font-size:13px;">一键清空全部本地记忆</button>' +
       '</div>';
+
+    var sumUrlEl = document.getElementById('mmSumUrl');
+    var sumKeyEl = document.getElementById('mmSumKey');
+    var sumModelEl = document.getElementById('mmSumModel');
+    if (sumUrlEl) sumUrlEl.addEventListener('input', function () { cfg.sumUrl = sumUrlEl.value; saveCfg(); });
+    if (sumKeyEl) sumKeyEl.addEventListener('input', function () { cfg.sumKey = sumKeyEl.value; saveCfg(); });
+    if (sumModelEl) sumModelEl.addEventListener('input', function () { cfg.sumModel = sumModelEl.value; saveCfg(); });
 
     var urlEl = document.getElementById('mmEmbedUrl');
     var keyEl = document.getElementById('mmEmbedKey');
@@ -608,10 +718,33 @@
       renderSettingsPanel();
       return;
     }
+    if (e.target.closest('#mmSummarizeSwitch')) {
+      cfg.autoSummarize = !cfg.autoSummarize;
+      saveCfg();
+      renderSettingsPanel();
+      return;
+    }
+    if (e.target.closest('#mmTestSumBtn')) {
+      showToast('正在测试总结 API...');
+      callSummaryAPI('只回复：ok').then(function () {
+        showToast('总结 API 连通成功');
+      }).catch(function (err) {
+        showToast((err && err.message) ? err.message : '连接失败');
+      });
+      return;
+    }
     if (e.target.closest('#mmEmbedSwitch')) {
       cfg.embedEnabled = !cfg.embedEnabled;
       saveCfg();
       renderSettingsPanel();
+      return;
+    }
+    if (e.target.closest('#mmPresetSfBtn')) {
+      cfg.embedUrl = 'https://api.siliconflow.cn/v1';
+      cfg.embedModel = 'BAAI/bge-m3';
+      saveCfg();
+      renderSettingsPanel();
+      showToast('已填好硅基流动免费配置，填入 Key 即可');
       return;
     }
     var everyBtn = e.target.closest('[data-set-every]');
@@ -648,6 +781,21 @@
         renderBookPanel();
         showToast('向量补全完成');
       });
+      return;
+    }
+    if (e.target.closest('#mmClearAllBtn')) {
+      if (!memories.length) {
+        showToast('当前没有记忆可清空');
+        return;
+      }
+      if (!confirm('确定要清空全部本地记忆吗？此操作不可撤销。')) return;
+      var old = memories.slice();
+      memories = [];
+      saveList();
+      if (window.PhoneDB) {
+        old.forEach(function (m) { window.PhoneDB.del('memory_vec_' + m.id); });
+      }
+      showToast('已清空全部本地记忆');
     }
   });
 
