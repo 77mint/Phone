@@ -1,9 +1,8 @@
 /* =========================================================
    Chat 主页 (apps/chat.js)
    - 底部 4 格液态玻璃底栏：讯息 | 联系人 | 朋友圈 | 我的
-   - 全宽平铺列表（无小卡片框），内置小助手水小九（icons/IMG_0288.jpeg）
+   - 微信小圆角头像 + 名字对齐头像上缘 + 联系人页仅显示头像与名字
    - 讯息右上角 +：搜索添加联系人（读取档案 Char）、发起群聊
-   - 联系人支持点击查看完整档案资料
    ========================================================= */
 
 (function () {
@@ -56,7 +55,11 @@
     }
 
     function getAllChars() {
-        return [BUILTIN_ASSISTANT, ...getArchiveChars()];
+        const archive = getArchiveChars();
+        if (archive.some(c => c.id === BUILTIN_ASSISTANT.id)) {
+            return archive;
+        }
+        return [BUILTIN_ASSISTANT, ...archive];
     }
 
     function getContactIds() {
@@ -347,7 +350,6 @@
                     ${renderAvatarHtml(c, false)}
                     <div class="ct-row-main">
                         <div class="ct-row-name">${escapeHtml(c.name || '未命名')}</div>
-                        <div class="ct-row-sub">${escapeHtml(c.bio || c.role || c.group || '档案角色')}</div>
                     </div>
                 </div>
             `).join('') + '</div>';
