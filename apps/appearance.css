@@ -395,13 +395,41 @@
   font-size: calc(var(--app-font-size, 15px) - 1px);
   color: #8e8e93;
 }
+
 /* 图标页（模仿 p2） */
+.icon-sec-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 6px 8px;
+  gap: 8px;
+}
+
 .icon-sec-title {
   font-size: 12px;
   font-weight: 600;
   color: #8e8e93;
   letter-spacing: 0.6px;
-  padding: 6px 6px 8px;
+}
+
+.icon-sec-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.icon-pack-btn {
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #111111;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.icon-pack-btn:active {
+  transform: scale(0.95);
 }
 
 .home-icon-card {
@@ -555,4 +583,89 @@
   font-size: calc(var(--app-font-size, 15px) - 3px);
   color: #111111;
   text-align: center;
+}
+
+/* 图标包导出预览弹窗 */
+.icon-pack-modal {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  background: rgba(0, 0, 0, 0.42);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.icon-pack-modal.open {
+  display: flex;
+}
+
+.icon-pack-sheet {
+  width: 100%;
+  max-width: 340px;
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.22);
+}
+
+.icon-pack-sheet-title {
+  font-size: calc(var(--app-font-size, 15px) + 1px);
+  font-weight: 600;
+  color: #111111;
+  text-align: center;
+}
+
+.icon-pack-sheet-tip {
+  font-size: 12px;
+  color: #8e8e93;
+  text-align: center;
+  line-height: 1.45;
+}
+
+.icon-pack-preview-wrap {
+  background: #f2f2f7;
+  border-radius: 16px;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-pack-preview-img {
+  width: 100%;
+  max-height: 52vh;
+  object-fit: contain;
+  border-radius: 10px;
+  display: block;
+  -webkit-touch-callout: default;
+}
+
+.icon-pack-sheet-btns {
+  display: flex;
+  gap: 10px;
+}
+
+.icon-pack-action {
+  flex: 1;
+  text-align: center;
+  padding: 11px 0;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 500;
+  background: #f2f2f7;
+  color: #111111;
+}
+
+.icon-pack-action.primary {
+  background: #111111;
+  color: #ffffff;
+}
+
+.icon-pack-action:active {
+  transform: scale(0.96);
 }
