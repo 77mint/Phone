@@ -122,7 +122,7 @@ window.applyHomeScreenIcon = function (url) {
   PhoneDB.get('home_screen_icon').then(function (url) {
     if (url) window.applyHomeScreenIcon(url);
   });
-  ['appearance', 'api', 'books', 'offline', 'archive', 'presets', 'lorebook', 'beautify', 'memory', 'takeout', 'appstore', 'games', 'converter', 'imessage', 'photos', 'music', 'settings'].forEach(function (id) {
+  ['appearance', 'api', 'books', 'offline', 'archive', 'presets', 'lorebook', 'beautify', 'memory', 'takeout', 'appstore', 'games', 'shopping', 'chat', 'netflix', 'converter', 'imessage', 'photos', 'music', 'settings'].forEach(function (id) {
     PhoneDB.get('icon_' + id).then(function (url) {
       if (url) window.applyAppIcon(id, url);
     });
