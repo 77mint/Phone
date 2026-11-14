@@ -371,7 +371,7 @@
 }
 
 /* =========================================================
-   全屏聊天窗口（微信经典气泡样式，后续聊天美化基础源码）
+   全屏聊天窗口（原背景色 + 微信气泡样式，后续聊天美化基础源码）
    ========================================================= */
 .ct-room {
     position: absolute;
@@ -379,7 +379,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: #ededed;
+    background: #f2f2f7;
     z-index: 45;
     display: none;
     flex-direction: column;
@@ -393,7 +393,9 @@
     align-items: center;
     justify-content: space-between;
     padding: calc(env(safe-area-inset-top) + 4px) 14px 8px;
-    background: #ededed;
+    background: rgba(242, 242, 247, 0.94);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
     border-bottom: 0.5px solid rgba(0, 0, 0, 0.08);
 }
 
@@ -426,7 +428,7 @@
     display: flex;
     flex-direction: column;
     gap: 14px;
-    background: #ededed;
+    background: #f2f2f7;
 }
 
 .ct-room-messages::-webkit-scrollbar { display: none; }
@@ -482,6 +484,7 @@
     background: #ffffff;
     color: #111111;
     word-break: break-word;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 .ct-msg-bubble::before {
@@ -508,14 +511,14 @@
     border-color: transparent transparent transparent #95ec69;
 }
 
-/* 输入栏：下移贴近底部，键盘弹出时收紧底边距 */
+/* 输入栏：[语音] [输入框] [加号] [发送图标] */
 .ct-room-input-bar {
     flex-shrink: 0;
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 8px 12px max(8px, calc(env(safe-area-inset-bottom, 0px) - 18px));
-    background: #f7f7f7;
+    padding: 8px 10px max(8px, calc(env(safe-area-inset-bottom, 0px) - 18px));
+    background: rgba(255, 255, 255, 0.96);
     border-top: 0.5px solid rgba(0, 0, 0, 0.08);
 }
 
@@ -523,28 +526,59 @@
     padding-bottom: 8px;
 }
 
+.ct-room-icon-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    color: #111111;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    padding: 0;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.ct-room-icon-btn:active {
+    opacity: 0.55;
+    transform: scale(0.92);
+}
+
 .ct-room-input {
     flex: 1;
+    min-width: 0;
     border: none;
-    background: #ffffff;
-    border-radius: 8px;
-    padding: 9px 12px;
+    background: #f2f2f7;
+    border-radius: 999px;
+    padding: 9px 14px;
     font-size: var(--app-font-size, 15px);
     color: #111111;
     outline: none;
     font-family: inherit;
 }
 
-.ct-room-send {
+.ct-room-send-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
     border: none;
     background: #111111;
     color: #ffffff;
-    border-radius: 8px;
-    padding: 9px 15px;
-    font-size: calc(var(--app-font-size, 15px) - 2px);
-    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     cursor: pointer;
     flex-shrink: 0;
+    padding: 0;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.ct-room-send-icon:active {
+    opacity: 0.75;
+    transform: scale(0.92);
 }
 
 /* 弹窗 */
