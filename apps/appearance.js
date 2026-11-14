@@ -129,6 +129,8 @@
   var bottomBar = document.getElementById('lgBottomBar');
   var backBtn = root.querySelector('.app-back');
   var tabs = root.querySelectorAll('.lg-tab');
+  var iconTabLoaded = false;
+
   tabs.forEach(function (tab) {
     tab.addEventListener('click', function () {
       tabs.forEach(function (t) { t.classList.remove('active'); });
@@ -139,6 +141,11 @@
       root.querySelectorAll('.tab-panel').forEach(function (p) {
         p.classList.toggle('active', p.id === 'panel-' + target);
       });
+      if (target === 'icons' && !iconTabLoaded) {
+        iconTabLoaded = true;
+        PhoneDB.get('home_screen_icon').then(syncHomeScreenIconUI);
+        renderIconGrid();
+      }
     });
   });
 
@@ -382,8 +389,6 @@
     }
   }
 
-  PhoneDB.get('home_screen_icon').then(syncHomeScreenIconUI);
-
   document.getElementById('btnUploadHomeIcon').addEventListener('click', function () {
     inputHomeScreenIcon.click();
   });
@@ -447,8 +452,6 @@
       });
     });
   }
-
-  renderIconGrid();
 
   iconGrid.addEventListener('click', function (e) {
     var resetId = e.target.getAttribute('data-reset-icon');
