@@ -514,10 +514,15 @@
     this.value = '';
   });
 
-  /* ===== 一键导出 / 导入整张 PNG 图标包（4×5 固定网格） ===== */
+  /* ===== 一键导出 / 导入整张淡灰 PNG 图标包（4×5 固定网格） ===== */
   var PACK_COLS = 4;
   var PACK_ROWS = 5;
-  var EXPORT_CELL = 256;
+  var EXPORT_CELL = 200;
+  var EXPORT_GAP = 36;
+  var EXPORT_PAD = 48;
+  var EXPORT_RADIUS = 44;
+  var EXPORT_W = EXPORT_PAD * 2 + PACK_COLS * EXPORT_CELL + (PACK_COLS - 1) * EXPORT_GAP;
+  var EXPORT_H = EXPORT_PAD * 2 + PACK_ROWS * EXPORT_CELL + (PACK_ROWS - 1) * EXPORT_GAP;
   var IMPORT_CELL = 192;
 
   var btnExportIconPack = document.getElementById('btnExportIconPack');
@@ -541,6 +546,20 @@
     });
   }
 
+  function traceRoundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
   function drawCoverImage(ctx, img, dx, dy, dw, dh) {
     var iw = img.naturalWidth || img.width;
     var ih = img.naturalHeight || img.height;
@@ -553,23 +572,42 @@
     ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
   }
 
-  function drawDefaultIconTile(ctx, app, dx, dy, size) {
+  function drawRoundedTile(ctx, dx, dy, size, r, drawContent) {
     ctx.save();
-    ctx.fillStyle = '#e5e5ea';
-    ctx.fillRect(dx, dy, size, size);
-    ctx.fillStyle = '#111111';
-    ctx.font = Math.round(size * 0.48) + 'px -apple-system, BlinkMacSystemFont, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(app.emoji, dx + size / 2, dy + size / 2 + size * 0.03);
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.08)';
+    ctx.shadowBlur = 18;
+    ctx.shadowOffsetY = 5;
+    traceRoundRect(ctx, dx, dy, size, size, r);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
     ctx.restore();
+
+    ctx.save();
+    traceRoundRect(ctx, dx, dy, size, size, r);
+    ctx.clip();
+    drawContent();
+    ctx.restore();
+  }
+
+  function drawDefaultIconTile(ctx, app, dx, dy, size) {
+    drawRoundedTile(ctx, dx, dy, size, EXPORT_RADIUS, function () {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(dx, dy, size, size);
+      ctx.fillStyle = '#111111';
+      ctx.font = Math.round(size * 0.46) + 'px -apple-system, BlinkMacSystemFont, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(app.emoji, dx + size / 2, dy + size / 2 + size * 0.03);
+    });
   }
 
   function buildCurrentPackCanvas() {
     var canvas = document.createElement('canvas');
-    canvas.width = PACK_COLS * EXPORT_CELL;
-    canvas.height = PACK_ROWS * EXPORT_CELL;
+    canvas.width = EXPORT_W;
+    canvas.height = EXPORT_H;
     var ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#f2f2f7';
+    ctx.fillRect(0, 0, EXPORT_W, EXPORT_H);
 
     return Promise.all(APPS_LIST.map(function (app) {
       return PhoneDB.get('icon_' + app.id);
@@ -577,15 +615,17 @@
       return Promise.all(APPS_LIST.map(function (app, idx) {
         var col = idx % PACK_COLS;
         var row = Math.floor(idx / PACK_COLS);
-        var dx = col * EXPORT_CELL;
-        var dy = row * EXPORT_CELL;
+        var dx = EXPORT_PAD + col * (EXPORT_CELL + EXPORT_GAP);
+        var dy = EXPORT_PAD + row * (EXPORT_CELL + EXPORT_GAP);
         var url = urls[idx];
         if (!url) {
           drawDefaultIconTile(ctx, app, dx, dy, EXPORT_CELL);
           return Promise.resolve();
         }
         return loadImage(url).then(function (img) {
-          drawCoverImage(ctx, img, dx, dy, EXPORT_CELL, EXPORT_CELL);
+          drawRoundedTile(ctx, dx, dy, EXPORT_CELL, EXPORT_RADIUS, function () {
+            drawCoverImage(ctx, img, dx, dy, EXPORT_CELL, EXPORT_CELL);
+          });
         }).catch(function () {
           drawDefaultIconTile(ctx, app, dx, dy, EXPORT_CELL);
         });
@@ -595,12 +635,35 @@
     });
   }
 
+  function isPaddedGrayPack(img) {
+    var iw = img.naturalWidth || img.width;
+    var ih = img.naturalHeight || img.height;
+    if (Math.abs((iw / ih) - (EXPORT_W / EXPORT_H)) < 0.008) return true;
+    try {
+      var probe = document.createElement('canvas');
+      probe.width = 4;
+      probe.height = 4;
+      var pctx = probe.getContext('2d');
+      pctx.drawImage(img, 0, 0, 4, 4, 0, 0, 4, 4);
+      var d = pctx.getImageData(1, 1, 1, 1).data;
+      return d[3] > 240 && d[0] >= 235 && d[1] >= 235 && d[2] >= 240;
+    } catch (e) {
+      return false;
+    }
+  }
+
   function applyPackFromImageSrc(src) {
     return loadImage(src).then(function (img) {
       var iw = img.naturalWidth || img.width;
       var ih = img.naturalHeight || img.height;
-      var cellW = iw / PACK_COLS;
-      var cellH = ih / PACK_ROWS;
+      var padded = isPaddedGrayPack(img);
+
+      var padX = padded ? iw * (EXPORT_PAD / EXPORT_W) : 0;
+      var padY = padded ? ih * (EXPORT_PAD / EXPORT_H) : 0;
+      var gapX = padded ? iw * (EXPORT_GAP / EXPORT_W) : 0;
+      var gapY = padded ? ih * (EXPORT_GAP / EXPORT_H) : 0;
+      var cellW = padded ? iw * (EXPORT_CELL / EXPORT_W) : (iw / PACK_COLS);
+      var cellH = padded ? ih * (EXPORT_CELL / EXPORT_H) : (ih / PACK_ROWS);
 
       var tileCanvas = document.createElement('canvas');
       tileCanvas.width = IMPORT_CELL;
@@ -611,8 +674,8 @@
       APPS_LIST.forEach(function (app, idx) {
         var col = idx % PACK_COLS;
         var row = Math.floor(idx / PACK_COLS);
-        var sx = col * cellW;
-        var sy = row * cellH;
+        var sx = padX + col * (cellW + gapX);
+        var sy = padY + row * (cellH + gapY);
         tileCtx.clearRect(0, 0, IMPORT_CELL, IMPORT_CELL);
         tileCtx.drawImage(img, sx, sy, cellW, cellH, 0, 0, IMPORT_CELL, IMPORT_CELL);
         var tileUrl = tileCanvas.toDataURL('image/png');
