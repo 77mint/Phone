@@ -1,0 +1,469 @@
+/* =========================================================
+   Chat 朋友圈页（仿微信朋友圈独立模块，预留美化变量）
+   ========================================================= */
+#app-chat .ct-app.is-moments-tab {
+  --ctm-bg: #ffffff;
+  --ctm-text: #111111;
+  --ctm-muted: #8e8e93;
+  --ctm-link: #576b95;
+  --ctm-divider: rgba(0, 0, 0, 0.07);
+}
+
+#app-chat .ct-app.is-moments-tab .ct-topbar {
+  display: none;
+}
+
+#app-chat .ct-app.is-moments-tab #ctMainScroll {
+  background: var(--ctm-bg);
+  padding: 0;
+}
+
+.ctm-wrap {
+  min-height: 100%;
+  background: var(--ctm-bg);
+  padding-bottom: 96px;
+}
+
+.ctm-cover-area {
+  position: relative;
+  height: calc(env(safe-area-inset-top) + 230px);
+  background: #ffffff;
+  background-size: cover;
+  background-position: center;
+  border-bottom: 0.5px solid var(--ctm-divider);
+}
+
+.ctm-cover-area.has-cover {
+  border-bottom: none;
+}
+
+.ctm-cover-hint {
+  position: absolute;
+  left: 50%;
+  top: calc(env(safe-area-inset-top) + 96px);
+  transform: translateX(-50%);
+  font-size: 13px;
+  color: #aeaeb2;
+  pointer-events: none;
+}
+
+.ctm-cover-area.has-cover .ctm-cover-hint {
+  display: none;
+}
+
+.ctm-camera-btn {
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + 12px);
+  right: 16px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: #111111;
+  z-index: 5;
+  padding: 0;
+}
+
+.ctm-cover-area.has-cover .ctm-camera-btn {
+  color: #ffffff;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.45));
+}
+
+.ctm-camera-btn:active {
+  opacity: 0.6;
+}
+
+.ctm-me-corner {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 0 16px;
+  margin-top: -42px;
+  margin-bottom: 24px;
+  pointer-events: none;
+}
+
+.ctm-me-name {
+  font-size: calc(var(--app-font-size, 15px) + 1px);
+  font-weight: 600;
+  color: #111111;
+  padding-bottom: 24px;
+}
+
+.ctm-cover-area.has-cover + .ctm-me-corner .ctm-me-name {
+  color: #ffffff;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+}
+
+.ctm-me-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 8px;
+  background: #f2f2f7;
+  color: #111111;
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.10);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: 600;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.ctm-me-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ctm-feed {
+  display: flex;
+  flex-direction: column;
+}
+
+.ctm-empty {
+  text-align: center;
+  padding: 46px 24px;
+  font-size: calc(var(--app-font-size, 15px) - 1px);
+  color: var(--ctm-muted);
+  line-height: 1.6;
+}
+
+.ctm-post {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  border-bottom: 0.5px solid var(--ctm-divider);
+}
+
+.ctm-post-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 6px;
+  background: #f2f2f7;
+  color: #111111;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 600;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.ctm-post-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ctm-post-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.ctm-post-author {
+  font-size: var(--app-font-size, 15px);
+  font-weight: 600;
+  color: var(--ctm-link);
+  margin-bottom: 4px;
+}
+
+.ctm-post-text {
+  font-size: var(--app-font-size, 15px);
+  color: var(--ctm-text);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin-bottom: 8px;
+}
+
+.ctm-post-imgs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+  max-width: 260px;
+  margin-bottom: 8px;
+}
+
+.ctm-post-imgs.is-single {
+  grid-template-columns: 1fr;
+  max-width: 210px;
+}
+
+.ctm-post-img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 4px;
+  display: block;
+  background: #f2f2f7;
+}
+
+.ctm-post-imgs.is-single .ctm-post-img {
+  aspect-ratio: auto;
+  max-height: 240px;
+}
+
+.ctm-post-loc {
+  font-size: 12px;
+  color: var(--ctm-link);
+  margin-bottom: 6px;
+}
+
+.ctm-post-meta {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+}
+
+.ctm-post-meta-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--ctm-muted);
+}
+
+.ctm-post-del {
+  color: var(--ctm-link);
+  font-size: 12px;
+}
+
+.ctm-more-btn {
+  width: 30px;
+  height: 20px;
+  border-radius: 4px;
+  background: #f2f2f7;
+  color: var(--ctm-link);
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.ctm-action-pop {
+  position: absolute;
+  right: 38px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #4c4c4c;
+  color: #ffffff;
+  border-radius: 6px;
+  display: none;
+  align-items: center;
+  overflow: hidden;
+  z-index: 10;
+}
+
+.ctm-action-pop.open {
+  display: flex;
+}
+
+.ctm-pop-btn {
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  font-size: 13px;
+  padding: 7px 14px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.ctm-pop-sep {
+  width: 0.5px;
+  height: 16px;
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.ctm-social-box {
+  margin-top: 8px;
+  background: #f7f7f7;
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: calc(var(--app-font-size, 15px) - 2px);
+  line-height: 1.5;
+}
+
+.ctm-likes-row {
+  color: var(--ctm-link);
+  font-weight: 500;
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+}
+
+.ctm-likes-row + .ctm-comments-list {
+  margin-top: 5px;
+  padding-top: 5px;
+  border-top: 0.5px solid rgba(0, 0, 0, 0.06);
+}
+
+.ctm-comment-item {
+  color: var(--ctm-text);
+}
+
+.ctm-comment-name {
+  color: var(--ctm-link);
+  font-weight: 500;
+}
+
+/* 发表动态全屏弹窗（仿 p4） */
+.ctm-compose {
+  position: absolute;
+  inset: 0;
+  z-index: 45;
+  background: #ffffff;
+  display: none;
+  flex-direction: column;
+  padding-top: env(safe-area-inset-top);
+}
+
+.ctm-compose.open {
+  display: flex;
+}
+
+.ctm-compose-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+}
+
+.ctm-compose-cancel {
+  background: transparent;
+  border: none;
+  font-size: 16px;
+  color: #111111;
+  padding: 4px 2px;
+}
+
+.ctm-compose-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #111111;
+}
+
+.ctm-compose-send {
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 14px;
+  font-weight: 500;
+  background: #f2f2f7;
+  color: #aeaeb2;
+}
+
+.ctm-compose-send.ready {
+  background: #111111;
+  color: #ffffff;
+}
+
+.ctm-compose-body {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 12px 20px 40px;
+}
+
+.ctm-compose-textarea {
+  width: 100%;
+  min-height: 110px;
+  border: none;
+  outline: none;
+  resize: none;
+  font-family: inherit;
+  font-size: var(--app-font-size, 15px);
+  color: #111111;
+  line-height: 1.55;
+  margin-bottom: 12px;
+}
+
+.ctm-compose-imgs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.ctm-compose-thumb {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #f2f2f7;
+}
+
+.ctm-compose-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ctm-compose-img-del {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #ffffff;
+  font-size: 13px;
+  line-height: 20px;
+  text-align: center;
+}
+
+.ctm-compose-add {
+  aspect-ratio: 1 / 1;
+  border-radius: 6px;
+  background: #f2f2f7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #8e8e93;
+  font-size: 28px;
+}
+
+.ctm-compose-opts {
+  border-top: 0.5px solid rgba(0, 0, 0, 0.08);
+}
+
+.ctm-opt-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 15px 2px;
+  border-bottom: 0.5px solid rgba(0, 0, 0, 0.08);
+  font-size: var(--app-font-size, 15px);
+  color: #111111;
+}
+
+.ctm-opt-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ctm-opt-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: #8e8e93;
+}
