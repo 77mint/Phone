@@ -2,7 +2,7 @@
    Chat 主页 & 聊天窗口 (apps/chat.css)
    - 紧凑顶部栏 + 顶部纯图标（无液态玻璃圆底）
    - 微信小圆角头像（6px）+ 名字对齐上缘/预览对齐下缘
-   - 严格仿微信聊天气泡、输入栏、语音浮层与引用回复（基础源码，暂不设美化入口）
+   - 严格仿微信聊天气泡、输入栏、语音浮层与滑动引用（基础源码，暂不设美化入口）
    - 全文字跟随「外观」--app-font-size 全局缩放
    ========================================================= */
 
@@ -415,6 +415,7 @@
     flex: 1;
     min-height: 0;
     overflow-y: auto;
+    overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
     padding: 14px 12px 16px;
     display: flex;
@@ -437,6 +438,7 @@
     display: flex;
     flex-direction: column;
     gap: 5px;
+    will-change: transform;
 }
 
 .ct-msg-row {
@@ -510,7 +512,7 @@
     border-color: transparent transparent transparent #95ec69;
 }
 
-/* 语音条气泡（严格仿微信 3392d9b8：小圆点 + 双弧声波） */
+/* 语音条气泡 + 播放声波闪烁动画 */
 .ct-msg-bubble.is-voice-msg {
     display: flex;
     align-items: center;
@@ -536,7 +538,20 @@
     color: #111111;
 }
 
-/* 气泡下方引用块（IMG_1603） */
+.ct-msg-bubble.is-voice-msg.is-playing .ct-vw-arc1 {
+    animation: ctVoiceBlink 0.9s steps(1, end) infinite;
+}
+
+.ct-msg-bubble.is-voice-msg.is-playing .ct-vw-arc2 {
+    animation: ctVoiceBlink 0.9s steps(1, end) infinite 0.3s;
+}
+
+@keyframes ctVoiceBlink {
+    0%, 40% { opacity: 0.15; }
+    41%, 100% { opacity: 1; }
+}
+
+/* 气泡下方引用块 */
 .ct-msg-quote {
     align-self: flex-start;
     margin-left: 51px;
@@ -634,6 +649,7 @@
     align-items: center;
     justify-content: center;
     cursor: pointer;
+    touch-action: none;
     user-select: none;
     -webkit-user-select: none;
     font-family: inherit;
@@ -652,7 +668,7 @@
     display: flex;
 }
 
-/* 输入框下方引用条（IMG_1602） */
+/* 输入框下方引用条 */
 .ct-quote-bar {
     display: none;
     align-items: center;
@@ -710,6 +726,7 @@
     justify-content: space-between;
     align-items: center;
     overflow: hidden;
+    touch-action: none;
     user-select: none;
     -webkit-user-select: none;
 }
