@@ -201,7 +201,7 @@
             '<div class="tk-label">备注（可选）</div>' +
             '<div class="tk-input-box"><input type="text" class="tk-input" id="tkOrderNote" placeholder="例如：少冰半糖，放门口就行"></div>' +
           '</div>' +
-          <button class="tk-primary-btn" id="tkSubmitOrderBtn" type="button">提交订单</button>
+          '<button class="tk-primary-btn" id="tkSubmitOrderBtn" type="button">提交订单</button>' +
         '</div>' +
       '</div>' +
 
