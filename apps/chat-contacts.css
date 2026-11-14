@@ -1,0 +1,265 @@
+/* =========================================================
+   Chat 联系人页（仿微信通讯录独立模块，预留美化变量）
+   ========================================================= */
+#app-chat .ct-app.is-contacts-tab {
+  --ctc-bg: #ededed;
+  --ctc-card-bg: #ffffff;
+  --ctc-text: #111111;
+  --ctc-muted: #7f7f7f;
+  --ctc-divider: rgba(0, 0, 0, 0.08);
+  --ctc-avatar-radius: 6px;
+}
+
+#app-chat .ct-app.is-contacts-tab .ct-topbar {
+  background: var(--ctc-bg);
+  justify-content: center;
+  position: relative;
+}
+
+#app-chat .ct-app.is-contacts-tab .ct-topbar-left {
+  justify-content: center;
+}
+
+#app-chat .ct-app.is-contacts-tab #ctTitle {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--ctc-text);
+  text-align: center;
+}
+
+.ctc-add-btn {
+  display: none;
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--ctc-text, #111111);
+  padding: 0;
+}
+
+.ctc-add-btn:active {
+  opacity: 0.55;
+}
+
+#app-chat .ct-app.is-contacts-tab .ctc-add-btn {
+  display: flex;
+}
+
+#app-chat .ct-app.is-contacts-tab #ctMainScroll {
+  background: var(--ctc-bg);
+  overflow: hidden;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.ctc-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--ctc-bg);
+}
+
+.ctc-search-bar {
+  background: var(--ctc-bg);
+  padding: 4px 12px 10px;
+  flex-shrink: 0;
+}
+
+.ctc-search-box {
+  position: relative;
+  height: 36px;
+  border-radius: 6px;
+  background: var(--ctc-card-bg);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+}
+
+.ctc-search-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font-size: 14px;
+  color: #8e8e93;
+  pointer-events: none;
+}
+
+.ctc-search-box.has-val .ctc-search-placeholder,
+.ctc-search-box.is-focus .ctc-search-placeholder {
+  display: none;
+}
+
+.ctc-search-input {
+  width: 100%;
+  height: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: var(--app-font-size, 15px);
+  color: var(--ctc-text);
+  text-align: left;
+}
+
+.ctc-list-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background: var(--ctc-bg);
+}
+
+.ctc-sec-head {
+  padding: 5px 16px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ctc-muted);
+  background: var(--ctc-bg);
+  line-height: 1.4;
+}
+
+.ctc-sec-group {
+  background: var(--ctc-card-bg);
+}
+
+.ctc-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 32px 9px 16px;
+  background: var(--ctc-card-bg);
+}
+
+.ctc-row:active {
+  background: #ececec;
+}
+
+.ctc-row::after {
+  content: "";
+  position: absolute;
+  left: 68px;
+  right: 0;
+  bottom: 0;
+  height: 0.5px;
+  background: var(--ctc-divider);
+}
+
+.ctc-row:last-child::after {
+  display: none;
+}
+
+.ctc-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--ctc-avatar-radius);
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #e5e5ea;
+  color: #111111;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.ctc-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ctc-name {
+  flex: 1;
+  min-width: 0;
+  font-size: calc(var(--app-font-size, 15px) + 1px);
+  color: var(--ctc-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ctc-total {
+  text-align: center;
+  font-size: 14px;
+  color: #8e8e93;
+  padding: 18px 0 96px;
+  background: var(--ctc-bg);
+}
+
+.ctc-empty {
+  text-align: center;
+  font-size: 14px;
+  color: #8e8e93;
+  padding: 60px 20px 96px;
+}
+
+.ctc-index-bar {
+  position: absolute;
+  right: 3px;
+  top: 52px;
+  bottom: 84px;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: 18px;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.ctc-index-item {
+  width: 16px;
+  height: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  color: #555555;
+  border-radius: 50%;
+}
+
+.ctc-index-item.active {
+  background: #07c160;
+  color: #ffffff;
+}
+
+.ctc-index-toast {
+  position: absolute;
+  right: 36px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #ffffff;
+  font-size: 22px;
+  font-weight: 600;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.ctc-index-toast.show {
+  display: flex;
+}
