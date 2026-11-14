@@ -1,0 +1,732 @@
+/* ===== 小团外卖 App (Takeout) ===== */
+#app-takeout {
+  background: #f2f2f7;
+  color: #111111;
+  font-family: var(--app-font, -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif);
+  font-size: var(--app-font-size, 15px);
+}
+
+#app-takeout * {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tk-wrap {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #f2f2f7;
+}
+
+.tk-header {
+  padding: calc(env(safe-area-inset-top) + 10px) 18px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  gap: 10px;
+}
+
+.tk-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.tk-wrap.is-subtab .tk-back,
+.tk-wrap.is-subtab .tk-header-actions {
+  display: none;
+}
+
+.tk-title {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: #111111;
+  line-height: 1.15;
+}
+
+.tk-pill-btn {
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: #111111;
+  color: #ffffff;
+  font-size: calc(var(--app-font-size, 15px) - 2px);
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.10);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  border: none;
+}
+
+.tk-body {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 6px 16px calc(env(safe-area-inset-bottom) + 96px);
+}
+
+.tk-panel {
+  display: none;
+}
+
+.tk-panel.active {
+  display: block;
+}
+
+/* 分类网格 */
+.tk-cats-card {
+  background: #ffffff;
+  border-radius: 22px;
+  padding: 14px 10px;
+  margin-bottom: 14px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px 4px;
+}
+
+.tk-cat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.tk-cat-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 15px;
+  background: #f2f2f7;
+  color: #111111;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.18s ease;
+}
+
+.tk-cat-icon svg {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.tk-cat-item.active .tk-cat-icon {
+  background: #111111;
+  color: #ffffff;
+  transform: scale(1.04);
+}
+
+.tk-cat-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6e6e73;
+}
+
+.tk-cat-item.active .tk-cat-name {
+  color: #111111;
+  font-weight: 700;
+}
+
+/* 推荐标题 */
+.tk-sec-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  padding: 0 2px;
+}
+
+.tk-sec-title {
+  font-size: calc(var(--app-font-size, 15px) + 2px);
+  font-weight: 700;
+  color: #111111;
+}
+
+.tk-sec-action {
+  font-size: calc(var(--app-font-size, 15px) - 3px);
+  font-weight: 600;
+  color: #6e6e73;
+  cursor: pointer;
+}
+
+/* 店铺卡片（全彩美食大图） */
+.tk-store-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tk-store-card {
+  background: #ffffff;
+  border-radius: 22px;
+  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.tk-store-card:active {
+  transform: scale(0.985);
+}
+
+.tk-store-cover {
+  position: relative;
+  width: 100%;
+  height: 150px;
+  background: linear-gradient(135deg, #ff9a5a, #ff6b4a);
+  background-size: cover;
+  background-position: center;
+}
+
+.tk-store-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(17, 17, 17, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.tk-store-info {
+  padding: 13px 15px 15px;
+}
+
+.tk-store-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tk-store-name {
+  font-size: calc(var(--app-font-size, 15px) + 2px);
+  font-weight: 700;
+  color: #111111;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tk-store-score {
+  font-size: 12px;
+  font-weight: 700;
+  color: #ff6b00;
+  flex-shrink: 0;
+}
+
+.tk-store-meta {
+  font-size: calc(var(--app-font-size, 15px) - 3px);
+  color: #8e8e93;
+  margin-top: 4px;
+}
+
+.tk-dish-thumbs {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tk-dish-thumbs::-webkit-scrollbar {
+  display: none;
+}
+
+.tk-dish-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #f2f2f7;
+  border-radius: 10px;
+  padding: 4px 8px 4px 4px;
+  flex-shrink: 0;
+}
+
+.tk-dish-chip img {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  object-fit: cover;
+}
+
+.tk-dish-chip span {
+  font-size: 11px;
+  font-weight: 600;
+  color: #3a3a3c;
+  max-width: 90px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 空状态 */
+.tk-empty {
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 36px 20px;
+  text-align: center;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+}
+
+.tk-empty-title {
+  font-size: calc(var(--app-font-size, 15px) + 1px);
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.tk-empty-sub {
+  font-size: calc(var(--app-font-size, 15px) - 3px);
+  color: #8e8e93;
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
+.tk-empty-btns {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.tk-btn {
+  border: none;
+  border-radius: 999px;
+  padding: 10px 16px;
+  font-size: calc(var(--app-font-size, 15px) - 2px);
+  font-weight: 600;
+  cursor: pointer;
+  background: #f2f2f7;
+  color: #111111;
+}
+
+.tk-btn.is-dark {
+  background: #111111;
+  color: #ffffff;
+}
+
+/* 满屏店铺详情页 */
+.tk-detail {
+  position: absolute;
+  inset: 0;
+  z-index: 45;
+  background: #f2f2f7;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.tk-detail.open {
+  transform: translateX(0);
+}
+
+.tk-detail-banner {
+  position: relative;
+  height: 185px;
+  background: linear-gradient(135deg, #ff9a5a, #ff6b4a);
+  background-size: cover;
+  background-position: center;
+  flex-shrink: 0;
+}
+
+.tk-detail-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.05) 45%, rgba(0,0,0,0.65) 100%);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: calc(env(safe-area-inset-top) + 10px) 16px 14px;
+}
+
+.tk-detail-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.tk-icon-circle {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: none;
+}
+
+.tk-icon-circle svg {
+  width: 15px;
+  height: 15px;
+  stroke: #111111;
+  fill: none;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+
+.tk-detail-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.tk-detail-sub {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.88);
+  margin-top: 3px;
+}
+
+.tk-detail-scroll {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 12px 16px calc(env(safe-area-inset-bottom) + 92px);
+}
+
+.tk-dish-card {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 12px;
+  margin-bottom: 10px;
+  display: flex;
+  gap: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+}
+
+.tk-dish-img {
+  width: 86px;
+  height: 86px;
+  border-radius: 14px;
+  object-fit: cover;
+  background: linear-gradient(135deg, #ffd194, #ff8c66);
+  flex-shrink: 0;
+}
+
+.tk-dish-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.tk-dish-name {
+  font-weight: 700;
+  color: #111111;
+}
+
+.tk-dish-desc {
+  font-size: 12px;
+  color: #8e8e93;
+  margin-top: 3px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.tk-dish-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+
+.tk-dish-price {
+  font-size: calc(var(--app-font-size, 15px) + 1px);
+  font-weight: 700;
+  color: #ff4d4f;
+}
+
+.tk-qty-ctrl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tk-qty-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: none;
+  background: #f2f2f7;
+  color: #111111;
+  font-size: 16px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.tk-qty-btn.is-add {
+  background: #111111;
+  color: #ffffff;
+}
+
+/* 购物车浮层 */
+.tk-cart-bar {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: calc(env(safe-area-inset-bottom) + 16px);
+  height: 54px;
+  border-radius: 999px;
+  background: #111111;
+  color: #ffffff;
+  padding: 0 6px 0 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+  z-index: 50;
+}
+
+.tk-cart-pay {
+  height: 42px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: none;
+  background: #ffffff;
+  color: #111111;
+  font-size: calc(var(--app-font-size, 15px) - 1px);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* 订单卡片 */
+.tk-order-card {
+  background: #ffffff;
+  border-radius: 22px;
+  padding: 15px 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+}
+
+.tk-order-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #f2f2f7;
+}
+
+.tk-order-status {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #f2f2f7;
+  color: #111111;
+}
+
+.tk-order-items {
+  padding: 10px 0;
+  font-size: calc(var(--app-font-size, 15px) - 2px);
+  color: #3a3a3c;
+  line-height: 1.6;
+}
+
+.tk-order-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 8px;
+  border-top: 1px solid #f2f2f7;
+}
+
+/* 底部液态玻璃双栏（点外卖 / 订单） */
+#app-takeout .tk-bottom-bar {
+  position: absolute;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom) + 18px);
+  transform: translateX(-50%);
+  width: 210px;
+  height: 52px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  z-index: 20;
+}
+
+#app-takeout .tk-tab-indicator {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: calc(50% - 4px);
+  height: calc(100% - 8px);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.08);
+  transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+  pointer-events: none;
+}
+
+#app-takeout .tk-bottom-bar.is-orders .tk-tab-indicator {
+  transform: translateX(100%);
+}
+
+#app-takeout .tk-tab {
+  position: relative;
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(var(--app-font-size, 15px) - 1px);
+  font-weight: 600;
+  color: #6e6e73;
+  cursor: pointer;
+  z-index: 2;
+  transition: color 0.2s ease;
+}
+
+#app-takeout .tk-tab.active {
+  color: #111111;
+}
+
+/* 弹窗 */
+.tk-modal {
+  position: absolute;
+  inset: 0;
+  z-index: 70;
+  background: rgba(0, 0, 0, 0.36);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.tk-modal.open {
+  display: flex;
+}
+
+.tk-dialog {
+  width: 100%;
+  max-width: 340px;
+  max-height: 82%;
+  overflow-y: auto;
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 20px 18px 18px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.20);
+}
+
+.tk-dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.tk-dialog-title {
+  font-size: calc(var(--app-font-size, 15px) + 2px);
+  font-weight: 700;
+}
+
+.tk-field {
+  margin-top: 12px;
+}
+
+.tk-label {
+  font-size: calc(var(--app-font-size, 15px) - 3px);
+  font-weight: 600;
+  color: #6e6e73;
+  margin-bottom: 6px;
+}
+
+.tk-input-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f2f2f7;
+  border-radius: 14px;
+  padding: 10px 12px;
+}
+
+.tk-input {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: calc(var(--app-font-size, 15px) - 1px);
+  color: #111111;
+}
+
+.tk-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tk-chip {
+  padding: 6px 11px;
+  border-radius: 999px;
+  background: #f2f2f7;
+  color: #3a3a3c;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tk-chip.active {
+  background: #111111;
+  color: #ffffff;
+}
+
+.tk-primary-btn {
+  margin-top: 14px;
+  width: 100%;
+  height: 44px;
+  border-radius: 999px;
+  border: none;
+  background: #111111;
+  color: #ffffff;
+  font-size: var(--app-font-size, 15px);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tk-toast {
+  position: absolute;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom) + 84px);
+  transform: translateX(-50%) translateY(10px);
+  background: rgba(17, 17, 17, 0.88);
+  color: #ffffff;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: calc(var(--app-font-size, 15px) - 2px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 90;
+  white-space: nowrap;
+}
+
+.tk-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
