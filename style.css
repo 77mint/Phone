@@ -53,12 +53,62 @@ body {
   padding-bottom: max(12px, calc(env(safe-area-inset-bottom) - 10px));
 }
 
+.home-pages {
+  flex: 1;
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.home-pages::-webkit-scrollbar {
+  display: none;
+}
+
+.home-page {
+  flex: 0 0 100%;
+  width: 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  overflow-y: auto;
+  padding-bottom: 10px;
+}
+
+.home-page::-webkit-scrollbar {
+  display: none;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   row-gap: 22px;
   justify-items: center;
   padding: 0 16px;
+}
+
+.page-dots {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 0 12px;
+  flex-shrink: 0;
+}
+
+.page-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.2);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.page-dot.active {
+  background: rgba(0, 0, 0, 0.72);
+  transform: scale(1.15);
 }
 
 .app {
@@ -85,12 +135,15 @@ body {
 }
 
 .dock {
-  margin: 0 12px;
-  padding: 14px 10px;
+  width: fit-content;
+  min-width: 92px;
+  margin: 0 auto;
+  padding: 12px 22px;
   border-radius: 32px;
   display: flex;
-  justify-content: space-around;
+  justify-content: center;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .glass {
@@ -199,11 +252,13 @@ body {
   border-radius: 999px;
   background: rgba(17, 17, 17, 0.25);
 }
+
 .app-icon.has-custom-icon {
   font-size: 0;
   background-size: cover;
   background-position: center;
 }
+
 /* 对角渐隐高光液态玻璃（左上、右下亮，左下、右上渐隐） */
 .glass,
 .app-back,
