@@ -39,7 +39,7 @@
 }
 
 .bk-title {
-  font-size: 28px;
+  font-size: calc(var(--app-font-size, 15px) + 13px);
   font-weight: 700;
   letter-spacing: -0.5px;
   color: #111111;
@@ -294,7 +294,7 @@
 }
 
 .bk-arc-time {
-  font-size: 46px;
+  font-size: calc(var(--app-font-size, 15px) + 31px);
   font-weight: 700;
   letter-spacing: -1px;
   line-height: 1.05;
@@ -521,7 +521,7 @@
 }
 
 .bk-stat-kpi-val {
-  font-size: 26px;
+  font-size: calc(var(--app-font-size, 15px) + 11px);
   font-weight: 700;
   color: #111111;
   line-height: 1.15;
@@ -951,7 +951,7 @@
 }
 
 .bk-step-val {
-  font-size: 28px;
+  font-size: calc(var(--app-font-size, 15px) + 13px);
   font-weight: 700;
   min-width: 96px;
   font-variant-numeric: tabular-nums;
