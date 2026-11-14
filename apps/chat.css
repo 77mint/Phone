@@ -2,7 +2,7 @@
    Chat 主页 & 聊天窗口 (apps/chat.css)
    - 紧凑顶部栏 + 顶部纯图标（无液态玻璃圆底）
    - 微信小圆角头像（6px）+ 名字对齐上缘/预览对齐下缘
-   - 严格仿微信聊天气泡、输入栏、语音浮层与滑动引用（基础源码，暂不设美化入口）
+   - 严格仿微信聊天气泡、输入栏、语音浮层、滑动引用与转文字/翻译白卡（基础源码，暂不设美化入口）
    - 全文字跟随「外观」--app-font-size 全局缩放
    ========================================================= */
 
@@ -551,7 +551,7 @@
     41%, 100% { opacity: 1; }
 }
 
-/* 气泡下方引用块 */
+/* 气泡下方引用块（灰底） */
 .ct-msg-quote {
     align-self: flex-start;
     margin-left: 51px;
@@ -569,6 +569,55 @@
     align-self: flex-end;
     margin-left: 0;
     margin-right: 51px;
+}
+
+/* 气泡下方转文字 / 翻译白卡（方案1：同卡上下分隔） */
+.ct-msg-subcard {
+    align-self: flex-start;
+    margin-left: 51px;
+    max-width: 72%;
+    background: #ffffff;
+    color: #111111;
+    border-radius: 5px;
+    padding: 9px 12px;
+    box-sizing: border-box;
+    font-size: var(--app-font-size, 15px);
+    line-height: 1.48;
+    word-break: break-word;
+}
+
+.ct-msg-group.me .ct-msg-subcard {
+    align-self: flex-end;
+    margin-left: 0;
+    margin-right: 51px;
+}
+
+.ct-msg-subdivider {
+    height: 0.5px;
+    background: rgba(0, 0, 0, 0.08);
+    margin: 8px 0;
+}
+
+.ct-msg-trans-foot {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 7px;
+    font-size: calc(var(--app-font-size, 15px) - 3px);
+    color: #9e9e9e;
+    line-height: 1.2;
+}
+
+.ct-msg-trans-check {
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background: #c7c7cc;
+    color: #ffffff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
 }
 
 /* 底部输入区整体容器 */
