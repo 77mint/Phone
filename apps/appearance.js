@@ -140,7 +140,7 @@
     '<div class="icon-pack-modal" id="iconPackModal">' +
       '<div class="icon-pack-sheet">' +
         '<div class="icon-pack-sheet-title">图标包已生成（PNG）</div>' +
-        '<div class="icon-pack-sheet-tip">长按下方图片即可存进相册；发给别人后，对方点「导入 PNG」就能一键换成同款图标。</div>' +
+        '<div class="icon-pack-sheet-tip">20 个图标已隐藏写入这张图里。长按保存或点「保存 / 分享」发送，发给别人时记得选「原图」哦～</div>' +
         '<div class="icon-pack-preview-wrap">' +
           '<img class="icon-pack-preview-img" id="iconPackPreviewImg" alt="图标包">' +
         '</div>' +
@@ -514,15 +514,12 @@
     this.value = '';
   });
 
-  /* ===== 一键导出 / 导入整张淡灰 PNG 图标包（4×5 固定网格） ===== */
+  /* ===== 隐写纯淡灰 PNG 图标包导出 / 导入（兼容旧网格 PNG） ===== */
+  var STEGO_W = 1080;
+  var STEGO_H = 1920;
+  var STEGO_MAGIC = [0x37, 0x37, 0x50, 0x4B]; // "77PK"
   var PACK_COLS = 4;
   var PACK_ROWS = 5;
-  var EXPORT_CELL = 200;
-  var EXPORT_GAP = 36;
-  var EXPORT_PAD = 48;
-  var EXPORT_RADIUS = 44;
-  var EXPORT_W = EXPORT_PAD * 2 + PACK_COLS * EXPORT_CELL + (PACK_COLS - 1) * EXPORT_GAP;
-  var EXPORT_H = EXPORT_PAD * 2 + PACK_ROWS * EXPORT_CELL + (PACK_ROWS - 1) * EXPORT_GAP;
   var IMPORT_CELL = 192;
 
   var btnExportIconPack = document.getElementById('btnExportIconPack');
@@ -546,138 +543,205 @@
     });
   }
 
-  function traceRoundRect(ctx, x, y, w, h, r) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.lineTo(x + w - r, y);
-    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-    ctx.lineTo(x + w, y + h - r);
-    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-    ctx.lineTo(x + r, y + h);
-    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-    ctx.lineTo(x, y + r);
-    ctx.quadraticCurveTo(x, y, x + r, y);
-    ctx.closePath();
+  function compressIconDataUrl(url, size) {
+    return loadImage(url).then(function (img) {
+      var c = document.createElement('canvas');
+      c.width = size;
+      c.height = size;
+      var ctx = c.getContext('2d');
+      var iw = img.naturalWidth || img.width;
+      var ih = img.naturalHeight || img.height;
+      var scale = Math.max(size / iw, size / ih);
+      var sw = size / scale;
+      var sh = size / scale;
+      var sx = (iw - sw) / 2;
+      var sy = (ih - sh) / 2;
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, size, size);
+      var webp = c.toDataURL('image/webp', 0.86);
+      if (webp.indexOf('data:image/webp') === 0) return webp;
+      return c.toDataURL('image/png');
+    }).catch(function () {
+      return '';
+    });
   }
 
-  function drawCoverImage(ctx, img, dx, dy, dw, dh) {
-    var iw = img.naturalWidth || img.width;
-    var ih = img.naturalHeight || img.height;
-    if (!iw || !ih) return;
-    var scale = Math.max(dw / iw, dh / ih);
-    var sw = dw / scale;
-    var sh = dh / scale;
-    var sx = (iw - sw) / 2;
-    var sy = (ih - sh) / 2;
-    ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
+  function encodeStegoIntoImageData(imgData, payloadBytes) {
+    var data = imgData.data;
+    var totalLen = payloadBytes.length;
+    var header = [
+      STEGO_MAGIC[0], STEGO_MAGIC[1], STEGO_MAGIC[2], STEGO_MAGIC[3],
+      (totalLen >>> 24) & 255,
+      (totalLen >>> 16) & 255,
+      (totalLen >>> 8) & 255,
+      totalLen & 255
+    ];
+    var all = new Uint8Array(8 + totalLen);
+    all.set(header, 0);
+    all.set(payloadBytes, 8);
+
+    var maxBytes = Math.floor(((data.length / 4) * 3) / 4);
+    if (all.length > maxBytes) {
+      throw new Error('pack_too_large');
+    }
+
+    var chanIdx = 0;
+    for (var i = 0; i < all.length; i++) {
+      var b = all[i];
+      for (var shift = 6; shift >= 0; shift -= 2) {
+        if ((chanIdx & 3) === 3) chanIdx++; // 跳过 Alpha 通道
+        data[chanIdx] = (data[chanIdx] & 0xFC) | ((b >> shift) & 3);
+        chanIdx++;
+      }
+    }
+    return imgData;
   }
 
-  function drawRoundedTile(ctx, dx, dy, size, r, drawContent) {
-    ctx.save();
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.08)';
-    ctx.shadowBlur = 18;
-    ctx.shadowOffsetY = 5;
-    traceRoundRect(ctx, dx, dy, size, size, r);
-    ctx.fillStyle = '#ffffff';
-    ctx.fill();
-    ctx.restore();
+  function decodeStegoFromImageData(imgData) {
+    var data = imgData.data;
+    var maxBytes = Math.floor(((data.length / 4) * 3) / 4);
+    if (maxBytes < 16) return null;
 
-    ctx.save();
-    traceRoundRect(ctx, dx, dy, size, size, r);
-    ctx.clip();
-    drawContent();
-    ctx.restore();
+    var chanIdx = 0;
+    function readByte() {
+      var val = 0;
+      for (var k = 0; k < 4; k++) {
+        if ((chanIdx & 3) === 3) chanIdx++;
+        val = (val << 2) | (data[chanIdx] & 3);
+        chanIdx++;
+      }
+      return val;
+    }
+
+    for (var m = 0; m < 4; m++) {
+      if (readByte() !== STEGO_MAGIC[m]) return null;
+    }
+
+    var len = ((readByte() << 24) | (readByte() << 16) | (readByte() << 8) | readByte()) >>> 0;
+    if (!len || len > maxBytes - 8) return null;
+
+    var out = new Uint8Array(len);
+    for (var i = 0; i < len; i++) {
+      out[i] = readByte();
+    }
+    var jsonStr = new TextDecoder().decode(out);
+    return JSON.parse(jsonStr);
   }
 
-  function drawDefaultIconTile(ctx, app, dx, dy, size) {
-    drawRoundedTile(ctx, dx, dy, size, EXPORT_RADIUS, function () {
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(dx, dy, size, size);
-      ctx.fillStyle = '#111111';
-      ctx.font = Math.round(size * 0.46) + 'px -apple-system, BlinkMacSystemFont, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(app.emoji, dx + size / 2, dy + size / 2 + size * 0.03);
+  function buildStegoPayloadBytes(iconSize) {
+    return Promise.all(APPS_LIST.map(function (app) {
+      return PhoneDB.get('icon_' + app.id).then(function (url) {
+        if (!url) return '';
+        return compressIconDataUrl(url, iconSize);
+      });
+    })).then(function (compressed) {
+      var iconsMap = {};
+      APPS_LIST.forEach(function (app, idx) {
+        iconsMap[app.id] = compressed[idx] || '';
+      });
+      var json = JSON.stringify({ v: 1, icons: iconsMap });
+      return new TextEncoder().encode(json);
     });
   }
 
   function buildCurrentPackCanvas() {
     var canvas = document.createElement('canvas');
-    canvas.width = EXPORT_W;
-    canvas.height = EXPORT_H;
+    canvas.width = STEGO_W;
+    canvas.height = STEGO_H;
     var ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#f2f2f7';
-    ctx.fillRect(0, 0, EXPORT_W, EXPORT_H);
 
-    return Promise.all(APPS_LIST.map(function (app) {
-      return PhoneDB.get('icon_' + app.id);
-    })).then(function (urls) {
-      return Promise.all(APPS_LIST.map(function (app, idx) {
-        var col = idx % PACK_COLS;
-        var row = Math.floor(idx / PACK_COLS);
-        var dx = EXPORT_PAD + col * (EXPORT_CELL + EXPORT_GAP);
-        var dy = EXPORT_PAD + row * (EXPORT_CELL + EXPORT_GAP);
-        var url = urls[idx];
-        if (!url) {
-          drawDefaultIconTile(ctx, app, dx, dy, EXPORT_CELL);
-          return Promise.resolve();
-        }
-        return loadImage(url).then(function (img) {
-          drawRoundedTile(ctx, dx, dy, EXPORT_CELL, EXPORT_RADIUS, function () {
-            drawCoverImage(ctx, img, dx, dy, EXPORT_CELL, EXPORT_CELL);
-          });
-        }).catch(function () {
-          drawDefaultIconTile(ctx, app, dx, dy, EXPORT_CELL);
-        });
-      }));
-    }).then(function () {
+    ctx.fillStyle = '#f2f2f7';
+    ctx.fillRect(0, 0, STEGO_W, STEGO_H);
+    ctx.fillStyle = '#c7c7cc';
+    ctx.font = '500 34px -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('图标包', STEGO_W / 2, STEGO_H / 2);
+
+    var maxBytes = Math.floor((STEGO_W * STEGO_H * 3) / 4) - 8;
+    return buildStegoPayloadBytes(144).then(function (bytes) {
+      if (bytes.length <= maxBytes) return bytes;
+      return buildStegoPayloadBytes(112);
+    }).then(function (bytes) {
+      if (bytes.length <= maxBytes) return bytes;
+      return buildStegoPayloadBytes(88);
+    }).then(function (bytes) {
+      var imgData = ctx.getImageData(0, 0, STEGO_W, STEGO_H);
+      encodeStegoIntoImageData(imgData, bytes);
+      ctx.putImageData(imgData, 0, 0);
       return canvas;
     });
   }
 
-  function isPaddedGrayPack(img) {
+  function detectLegacyLayout(img) {
     var iw = img.naturalWidth || img.width;
     var ih = img.naturalHeight || img.height;
-    if (Math.abs((iw / ih) - (EXPORT_W / EXPORT_H)) < 0.008) return true;
-    try {
-      var probe = document.createElement('canvas');
-      probe.width = 4;
-      probe.height = 4;
-      var pctx = probe.getContext('2d');
-      pctx.drawImage(img, 0, 0, 4, 4, 0, 0, 4, 4);
-      var d = pctx.getImageData(1, 1, 1, 1).data;
-      return d[3] > 240 && d[0] >= 235 && d[1] >= 235 && d[2] >= 240;
-    } catch (e) {
-      return false;
+    var ratio = iw / ih;
+    if (Math.abs(ratio - (1080 / 2340)) < 0.03) {
+      return {
+        padX: iw * (80 / 1080), padY: ih * (590 / 2340),
+        gapX: iw * (40 / 1080), gapY: ih * (40 / 2340),
+        cellW: iw * (200 / 1080), cellH: ih * (200 / 2340)
+      };
     }
+    if (Math.abs(ratio - (1004 / 1240)) < 0.008) {
+      return {
+        padX: iw * (48 / 1004), padY: ih * (48 / 1240),
+        gapX: iw * (36 / 1004), gapY: ih * (36 / 1240),
+        cellW: iw * (200 / 1004), cellH: ih * (200 / 1240)
+      };
+    }
+    return {
+      padX: 0, padY: 0, gapX: 0, gapY: 0,
+      cellW: iw / PACK_COLS, cellH: ih / PACK_ROWS
+    };
   }
 
   function applyPackFromImageSrc(src) {
     return loadImage(src).then(function (img) {
       var iw = img.naturalWidth || img.width;
       var ih = img.naturalHeight || img.height;
-      var padded = isPaddedGrayPack(img);
 
-      var padX = padded ? iw * (EXPORT_PAD / EXPORT_W) : 0;
-      var padY = padded ? ih * (EXPORT_PAD / EXPORT_H) : 0;
-      var gapX = padded ? iw * (EXPORT_GAP / EXPORT_W) : 0;
-      var gapY = padded ? ih * (EXPORT_GAP / EXPORT_H) : 0;
-      var cellW = padded ? iw * (EXPORT_CELL / EXPORT_W) : (iw / PACK_COLS);
-      var cellH = padded ? ih * (EXPORT_CELL / EXPORT_H) : (ih / PACK_ROWS);
+      var fullCanvas = document.createElement('canvas');
+      fullCanvas.width = iw;
+      fullCanvas.height = ih;
+      var fullCtx = fullCanvas.getContext('2d');
+      fullCtx.drawImage(img, 0, 0);
 
+      var decoded = null;
+      try {
+        decoded = decodeStegoFromImageData(fullCtx.getImageData(0, 0, iw, ih));
+      } catch (e) {
+        decoded = null;
+      }
+
+      var chain = Promise.resolve();
+
+      if (decoded && decoded.icons) {
+        APPS_LIST.forEach(function (app) {
+          var iconUrl = decoded.icons[app.id] || '';
+          if (window.applyAppIcon) window.applyAppIcon(app.id, iconUrl);
+          var box = document.getElementById('gridIcon-' + app.id);
+          if (box) setGridBoxPreview(box, app, iconUrl);
+          chain = chain.then(function () {
+            return iconUrl ? PhoneDB.set('icon_' + app.id, iconUrl) : PhoneDB.del('icon_' + app.id);
+          });
+        });
+        return chain;
+      }
+
+      var layout = detectLegacyLayout(img);
       var tileCanvas = document.createElement('canvas');
       tileCanvas.width = IMPORT_CELL;
       tileCanvas.height = IMPORT_CELL;
       var tileCtx = tileCanvas.getContext('2d');
 
-      var chain = Promise.resolve();
       APPS_LIST.forEach(function (app, idx) {
         var col = idx % PACK_COLS;
         var row = Math.floor(idx / PACK_COLS);
-        var sx = padX + col * (cellW + gapX);
-        var sy = padY + row * (cellH + gapY);
+        var sx = layout.padX + col * (layout.cellW + layout.gapX);
+        var sy = layout.padY + row * (layout.cellH + layout.gapY);
         tileCtx.clearRect(0, 0, IMPORT_CELL, IMPORT_CELL);
-        tileCtx.drawImage(img, sx, sy, cellW, cellH, 0, 0, IMPORT_CELL, IMPORT_CELL);
+        tileCtx.drawImage(img, sx, sy, layout.cellW, layout.cellH, 0, 0, IMPORT_CELL, IMPORT_CELL);
         var tileUrl = tileCanvas.toDataURL('image/png');
 
         if (window.applyAppIcon) window.applyAppIcon(app.id, tileUrl);
@@ -748,7 +812,7 @@
     applyPackFromImageSrc(objUrl).then(function () {
       URL.revokeObjectURL(objUrl);
       btnImportIconPack.textContent = '导入 PNG';
-      iconSecTitle.textContent = '应用图标（已导入 20 个）';
+      iconSecTitle.textContent = '应用图标（已导入）';
       setTimeout(function () {
         iconSecTitle.textContent = '应用图标';
       }, 2500);
