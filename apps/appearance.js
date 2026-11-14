@@ -3,26 +3,26 @@
   if (!root) return;
 
   var APPS_LIST = [
-    { id: 'appearance', name: '外观', emoji: '🎨', bg: 'bg-1', defaultIcon: 'icons/BCE7A823-CED3-4517-93FD-51CA4F02B1CB.png' },
-    { id: 'api', name: 'API', emoji: '🔌', bg: 'bg-5', defaultIcon: 'icons/1F98AF52-FDDC-462E-9C0F-C248B59C1F8A.png' },
-    { id: 'books', name: '图书', emoji: '📖', bg: 'bg-1', defaultIcon: 'icons/FE1D44B7-0313-4551-A668-7AC831164C94.png' },
-    { id: 'music', name: '音乐', emoji: '🎵', bg: 'bg-4', defaultIcon: 'icons/F7E634B7-96B3-4975-981A-213BF88525AB.png' },
-    { id: 'archive', name: '档案', emoji: '🗂️', bg: 'bg-4', defaultIcon: 'icons/89F33D59-1FAC-4A7E-A3BE-4108BF89EF01.png' },
-    { id: 'presets', name: '预设', emoji: '📁', bg: 'bg-3', defaultIcon: 'icons/D18A90EB-494C-42A1-AB6A-DC95855BE154.png' },
-    { id: 'lorebook', name: '世界书', emoji: '📘', bg: 'bg-3', defaultIcon: 'icons/E47F6601-2028-4169-AF53-07CB6F2643F3.png' },
-    { id: 'memory', name: '记忆', emoji: '🧠', bg: 'bg-3', defaultIcon: 'icons/F01F79C4-185C-4024-9B48-B521890AC8D8.png' },
-    { id: 'takeout', name: '小团外卖', emoji: '🛍️', bg: 'bg-3', defaultIcon: 'icons/FC915576-BA05-4B05-8AA2-BC35C10C1666.png' },
-    { id: 'converter', name: '转换器', emoji: '🔄', bg: 'bg-3', defaultIcon: 'icons/1FDA4798-DC11-472E-B410-C6E241E18FDD.png' },
-    { id: 'offline', name: '线下', emoji: '📍', bg: 'bg-2', defaultIcon: 'icons/585720EB-9A0B-4804-B08A-1057EBBCF505.png' },
-    { id: 'beautify', name: '美化', emoji: '✨', bg: 'bg-1', defaultIcon: 'icons/A1064DCD-D94D-408A-95A0-D2B72B4ACEB4.png' },
-    { id: 'photos', name: '照片', emoji: '🖼️', bg: 'bg-3', defaultIcon: 'icons/01417F73-A868-4D58-91C3-96D1BFAA243E.png' },
-    { id: 'settings', name: '设置', emoji: '⚙️', bg: 'bg-5', defaultIcon: 'icons/0344588B-36B5-4191-BB45-8C3B4D3D3C11.png' },
-    { id: 'appstore', name: 'App Store', emoji: '🅰️', bg: 'bg-3', defaultIcon: 'icons/44338454-03E6-44C1-B306-57D7206E0E1F.png' },
-    { id: 'games', name: '游戏', emoji: '🎮', bg: 'bg-5', defaultIcon: 'icons/265575EF-976D-4A3A-B309-95E58A875AA4.png' },
-    { id: 'shopping', name: '购物', emoji: '🛒', bg: 'bg-3', defaultIcon: 'icons/6A6124D7-3493-4E80-8FA0-A3C42AE2F7C7.png' },
-    { id: 'chat', name: 'Chat', emoji: '💬', bg: 'bg-2', defaultIcon: 'icons/CA2B3048-0854-4BE8-90FA-D3B304B30770.png' },
-    { id: 'netflix', name: 'Netflix', emoji: '🎬', bg: 'bg-5', defaultIcon: 'icons/DFA43ABB-1532-44E2-81CE-6CAE3EECB2A3.png' },
-    { id: 'imessage', name: 'iMessage', emoji: '💬', bg: 'bg-2', defaultIcon: 'icons/96F5628F-BDB4-485D-B17A-80107A8961A7.png' }
+    { id: 'appearance', name: '外观', emoji: '🎨', bg: 'bg-3' },
+    { id: 'api', name: 'API', emoji: '🔌', bg: 'bg-3' },
+    { id: 'books', name: '图书', emoji: '📖', bg: 'bg-3' },
+    { id: 'music', name: '音乐', emoji: '🎵', bg: 'bg-3' },
+    { id: 'archive', name: '档案', emoji: '🗂️', bg: 'bg-3' },
+    { id: 'presets', name: '预设', emoji: '📁', bg: 'bg-3' },
+    { id: 'lorebook', name: '世界书', emoji: '📘', bg: 'bg-3' },
+    { id: 'memory', name: '记忆', emoji: '🧠', bg: 'bg-3' },
+    { id: 'takeout', name: '小团外卖', emoji: '🛍️', bg: 'bg-3' },
+    { id: 'converter', name: '转换器', emoji: '🔄', bg: 'bg-3' },
+    { id: 'offline', name: '线下', emoji: '📍', bg: 'bg-3' },
+    { id: 'beautify', name: '美化', emoji: '✨', bg: 'bg-3' },
+    { id: 'photos', name: '照片', emoji: '🖼️', bg: 'bg-3' },
+    { id: 'settings', name: '设置', emoji: '⚙️', bg: 'bg-3' },
+    { id: 'appstore', name: 'App Store', emoji: '🅰️', bg: 'bg-3' },
+    { id: 'games', name: '游戏', emoji: '🎮', bg: 'bg-3' },
+    { id: 'shopping', name: '购物', emoji: '🛒', bg: 'bg-3' },
+    { id: 'chat', name: 'Chat', emoji: '💬', bg: 'bg-3' },
+    { id: 'netflix', name: 'Netflix', emoji: '🎬', bg: 'bg-3' },
+    { id: 'imessage', name: 'iMessage', emoji: '💭', bg: 'bg-3' }
   ];
 
   root.innerHTML =
@@ -420,10 +420,6 @@
       box.style.backgroundImage = 'url("' + url + '")';
       box.style.fontSize = '0';
       box.classList.add('has-img');
-    } else if (app && app.defaultIcon) {
-      box.style.backgroundImage = 'url("' + app.defaultIcon + '")';
-      box.style.fontSize = '0';
-      box.classList.remove('has-img');
     } else {
       box.style.backgroundImage = '';
       box.style.fontSize = '';
