@@ -9,7 +9,7 @@
   var cfg = loadCfg();
   var historyList = loadHistory();
   var currentTab = 'convert';
-  var currentMode = cfg.mode || 'catbox'; // 'catbox' | 'github' | 'base64'
+  var currentMode = cfg.mode === 'github' ? 'github' : 'catbox';
   var qualityVal = cfg.quality || 85;
   var lastResult = null;
   var isBusy = false;
@@ -58,9 +58,7 @@
   }
 
   function modeLabel(mode) {
-    if (mode === 'github') return '个人 GitHub';
-    if (mode === 'base64') return '本地编码';
-    return '公共图床';
+    return mode === 'github' ? '个人 GitHub' : '公共图床';
   }
 
   var toastTimer = null;
@@ -72,7 +70,7 @@
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function () {
       el.classList.remove('show');
-    }, 1800);
+    }, 2000);
   }
 
   function copyText(text, label) {
@@ -104,9 +102,79 @@
     document.body.removeChild(ta);
   }
 
+  function ensureGithubRepo(token, repoNameOnly) {
+    return fetch('https://api.github.com/user/repos', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Accept': 'application/vnd.github+json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        name: repoNameOnly,
+        description: 'Image host for Phone',
+        private: false,
+        auto_init: true
+      })
+    }).then(function (res) {
+      if (res.ok || res.status === 422) return true;
+      return false;
+    }).catch(function () {
+      return false;
+    });
+  }
+
+  function handleOAuthCallback() {
+    var hash = window.location.hash || '';
+    if (!hash) return;
+
+    if (hash.indexOf('gh_token=') !== -1) {
+      var m = hash.match(/gh_token=([^&]+)/);
+      var token = m ? decodeURIComponent(m[1]) : '';
+      history.replaceState(null, '', window.location.pathname + window.location.search);
+      if (!token) return;
+
+      cfg.ghToken = token;
+      currentMode = 'github';
+      saveCfg();
+      root.classList.add('open');
+      renderConvertPanel();
+      showToast('正在同步 GitHub 账号...');
+
+      fetch('https://api.github.com/user', {
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Accept': 'application/vnd.github+json'
+        }
+      }).then(function (res) {
+        return res.json();
+      }).then(function (user) {
+        if (user && user.login) {
+          cfg.ghUser = user.login;
+          if (!cfg.ghRepo) cfg.ghRepo = user.login + '/phone-images';
+          if (!cfg.ghBranch) cfg.ghBranch = 'main';
+          saveCfg();
+          ensureGithubRepo(token, 'phone-images').then(function () {
+            renderConvertPanel();
+            showToast('已登录 GitHub：' + user.login);
+          });
+        }
+      }).catch(function () {
+        showToast('已登录 GitHub');
+      });
+    } else if (hash.indexOf('gh_error=') !== -1) {
+      history.replaceState(null, '', window.location.pathname + window.location.search);
+      currentMode = 'github';
+      saveCfg();
+      root.classList.add('open');
+      renderConvertPanel();
+      showToast('GitHub 登录未完成，请重试');
+    }
+  }
+
   function processImageFile(file, qualityPercent) {
     return new Promise(function (resolve, reject) {
-      if (qualityPercent >= 100 && currentMode !== 'base64') {
+      if (qualityPercent >= 100) {
         var r0 = new FileReader();
         r0.onload = function () {
           resolve({ blob: file, dataUrl: r0.result, ext: (file.name.split('.').pop() || 'png').toLowerCase() });
@@ -135,17 +203,15 @@
           ctx.drawImage(img, 0, 0, w, h);
 
           var q = Math.min(0.98, Math.max(0.4, qualityPercent / 100));
-          var mime = qualityPercent >= 100 ? 'image/png' : 'image/jpeg';
-          var ext = mime === 'image/png' ? 'png' : 'jpg';
-          var dataUrl = canvas.toDataURL(mime, q);
+          var dataUrl = canvas.toDataURL('image/jpeg', q);
 
           canvas.toBlob(function (blob) {
             if (!blob) {
               reject(new Error('图片压缩失败'));
               return;
             }
-            resolve({ blob: blob, dataUrl: dataUrl, ext: ext });
-          }, mime, q);
+            resolve({ blob: blob, dataUrl: dataUrl, ext: 'jpg' });
+          }, 'image/jpeg', q);
         };
         img.onerror = function () { reject(new Error('图片格式不支持')); };
         img.src = reader.result;
@@ -176,33 +242,48 @@
     var repo = (cfg.ghRepo || '').trim().replace(/^https?:\/\/github\.com\//i, '').replace(/\/+$/, '');
     var branch = (cfg.ghBranch || 'main').trim() || 'main';
 
-    if (!token || !repo || repo.indexOf('/') === -1) {
-      return Promise.reject(new Error('请先填写 GitHub Token 和「用户名/仓库名」'));
+    if (!token) {
+      return Promise.reject(new Error('请先点击上方按钮登录 GitHub'));
+    }
+    if (!repo || repo.indexOf('/') === -1) {
+      return Promise.reject(new Error('请填写正确的「用户名/仓库名」'));
     }
 
     var base64 = dataUrl.split(',')[1] || '';
     var filePath = 'images/' + Date.now() + '_' + Math.random().toString(36).slice(2, 6) + '.' + ext;
     var apiUrl = 'https://api.github.com/repos/' + repo + '/contents/' + filePath;
 
-    return fetch(apiUrl, {
-      method: 'PUT',
-      headers: {
-        'Authorization': 'Bearer ' + token,
-        'Accept': 'application/vnd.github+json',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        message: 'upload image via Phone',
-        content: base64,
-        branch: branch
-      })
-    }).then(function (res) {
-      return res.json().then(function (data) {
-        if (!res.ok) {
-          throw new Error((data && data.message) || ('GitHub 返回错误 ' + res.status));
-        }
-        return 'https://cdn.jsdelivr.net/gh/' + repo + '@' + branch + '/' + filePath;
+    function doPut() {
+      return fetch(apiUrl, {
+        method: 'PUT',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Accept': 'application/vnd.github+json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          message: 'upload image via Phone',
+          content: base64,
+          branch: branch
+        })
+      }).then(function (res) {
+        return res.json().then(function (data) {
+          if (!res.ok) {
+            throw new Error((data && data.message) || ('GitHub 返回错误 ' + res.status));
+          }
+          return 'https://cdn.jsdelivr.net/gh/' + repo + '@' + branch + '/' + filePath;
+        });
       });
+    }
+
+    return doPut().catch(function (err) {
+      if (err && String(err.message).indexOf('Not Found') !== -1) {
+        var repoOnly = repo.split('/')[1];
+        return ensureGithubRepo(token, repoOnly).then(function () {
+          return doPut();
+        });
+      }
+      throw err;
     });
   }
 
@@ -237,27 +318,38 @@
     var box = document.getElementById('cvPanelConvert');
     var hintText = currentMode === 'catbox'
       ? '免登录直接上传到公共图床，不占用你的 GitHub，所有人打开小手机都能直接用。'
-      : (currentMode === 'github'
-        ? '只存在你自己的 GitHub 公开仓库里，Token 仅保存在本地手机中。'
-        : '纯本地压缩转成 data:image 编码，不用联网，适合小图标或直接贴进代码。');
+      : '登录你自己的 GitHub 后，图片只存在你自己的公开仓库里，互不干扰。';
 
-    var ghFormHtml = currentMode === 'github'
-      ? '<div class="cv-card">' +
-          '<div class="cv-label">个人 GitHub 图床设置（仅存本地）</div>' +
-          '<div class="cv-field">' +
-            '<div class="cv-label">GitHub Token</div>' +
-            '<div class="cv-input-box"><input type="password" class="cv-input" id="cvGhToken" value="' + escapeHtml(cfg.ghToken || '') + '" placeholder="ghp_xxxxxxxxxxxx"></div>' +
-          '</div>' +
-          '<div class="cv-field">' +
-            '<div class="cv-label">仓库名（用户名/仓库名）</div>' +
-            '<div class="cv-input-box"><input type="text" class="cv-input" id="cvGhRepo" value="' + escapeHtml(cfg.ghRepo || '') + '" placeholder="例如：77mint/img"></div>' +
-          '</div>' +
-          '<div class="cv-field">' +
-            '<div class="cv-label">分支（默认 main）</div>' +
-            '<div class="cv-input-box"><input type="text" class="cv-input" id="cvGhBranch" value="' + escapeHtml(cfg.ghBranch || 'main') + '" placeholder="main"></div>' +
-          '</div>' +
-        '</div>'
-      : '';
+    var ghFormHtml = '';
+    if (currentMode === 'github') {
+      if (!cfg.ghToken) {
+        ghFormHtml =
+          '<div class="cv-card">' +
+            '<div class="cv-label">个人 GitHub 图床</div>' +
+            '<div class="cv-hint" style="margin-top:0;">点下面按钮跳转到 GitHub 授权同意后会自动返回，不用手动复制任何密钥。</div>' +
+            '<button class="cv-primary-btn" id="cvGhLoginBtn" type="button">跳转登录 GitHub</button>' +
+          '</div>';
+      } else {
+        ghFormHtml =
+          '<div class="cv-card">' +
+            '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">' +
+              '<div>' +
+                '<div style="font-weight:700;color:#111111;">已登录 GitHub' + (cfg.ghUser ? '（' + escapeHtml(cfg.ghUser) + '）' : '') + '</div>' +
+                '<div class="cv-hint" style="margin-top:2px;">图片将直接上传到你自己的仓库</div>' +
+              '</div>' +
+              '<button class="cv-mini-btn is-danger" id="cvGhLogoutBtn" type="button">退出</button>' +
+            '</div>' +
+            '<div class="cv-field">' +
+              '<div class="cv-label">存放仓库（默认自动建好 phone-images）</div>' +
+              '<div class="cv-input-box"><input type="text" class="cv-input" id="cvGhRepo" value="' + escapeHtml(cfg.ghRepo || '') + '" placeholder="用户名/phone-images"></div>' +
+            '</div>' +
+            '<div class="cv-field">' +
+              '<div class="cv-label">分支（默认 main）</div>' +
+              '<div class="cv-input-box"><input type="text" class="cv-input" id="cvGhBranch" value="' + escapeHtml(cfg.ghBranch || 'main') + '" placeholder="main"></div>' +
+            '</div>' +
+          '</div>';
+      }
+    }
 
     var resultHtml = '';
     if (lastResult) {
@@ -284,10 +376,9 @@
     box.innerHTML =
       '<div class="cv-card">' +
         '<div class="cv-label">转换方式</div>' +
-        '<div class="cv-seg">' +
+        '<div class="cv-seg is-2">' +
           '<button class="cv-seg-btn' + (currentMode === 'catbox' ? ' active' : '') + '" data-set-mode="catbox" type="button">公共图床</button>' +
           '<button class="cv-seg-btn' + (currentMode === 'github' ? ' active' : '') + '" data-set-mode="github" type="button">个人仓库</button>' +
-          '<button class="cv-seg-btn' + (currentMode === 'base64' ? ' active' : '') + '" data-set-mode="base64" type="button">本地编码</button>' +
         '</div>' +
         '<div class="cv-hint">' + hintText + '</div>' +
         '<div class="cv-range-row">' +
@@ -304,22 +395,15 @@
           '<div class="cv-drop-icon">' +
             '<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>' +
           '</div>' +
-          '<div class="cv-drop-title">' + (isBusy ? '正在处理中，请稍候...' : '点击从相册选择图片') + '</div>' +
-          '<div class="cv-drop-sub">' + (currentMode === 'base64' ? '自动生成 Base64 编码' : '上传后自动生成 https:// 图片链接') + '</div>' +
+          '<div class="cv-drop-title">' + (isBusy ? '正在上传中，请稍候...' : '点击从相册选择图片') + '</div>' +
+          '<div class="cv-drop-sub">上传后自动生成 https:// 图片链接</div>' +
         '</div>' +
       '</div>' +
 
       resultHtml;
 
-    var ghTokenEl = document.getElementById('cvGhToken');
     var ghRepoEl = document.getElementById('cvGhRepo');
     var ghBranchEl = document.getElementById('cvGhBranch');
-    if (ghTokenEl) {
-      ghTokenEl.addEventListener('input', function () {
-        cfg.ghToken = ghTokenEl.value;
-        saveCfg();
-      });
-    }
     if (ghRepoEl) {
       ghRepoEl.addEventListener('input', function () {
         cfg.ghRepo = ghRepoEl.value;
@@ -412,6 +496,20 @@
       return;
     }
 
+    if (e.target.closest('#cvGhLoginBtn')) {
+      window.location.href = '/api/github/login';
+      return;
+    }
+
+    if (e.target.closest('#cvGhLogoutBtn')) {
+      cfg.ghToken = '';
+      cfg.ghUser = '';
+      saveCfg();
+      renderConvertPanel();
+      showToast('已退出 GitHub 登录');
+      return;
+    }
+
     var pickBtn = e.target.closest('#cvPickBtn');
     if (pickBtn) {
       if (isBusy) return;
@@ -456,20 +554,6 @@
     renderConvertPanel();
 
     processImageFile(file, qualityVal).then(function (processed) {
-      if (currentMode === 'base64') {
-        lastResult = {
-          name: file.name || 'image.' + processed.ext,
-          mode: 'base64',
-          url: processed.dataUrl,
-          preview: processed.dataUrl,
-          sizeText: formatSize(processed.blob.size)
-        };
-        isBusy = false;
-        renderConvertPanel();
-        showToast('已生成 Base64 编码');
-        return;
-      }
-
       var uploadTask = currentMode === 'github'
         ? uploadToGithub(processed.dataUrl, processed.ext)
         : uploadToCatbox(processed.blob, (file.name ? file.name.replace(/\.[^.]+$/, '') : 'image') + '.' + processed.ext);
@@ -499,9 +583,10 @@
     }).catch(function (err) {
       isBusy = false;
       renderConvertPanel();
-      showToast((err && err.message) ? err.message : '处理失败');
+      showToast((err && err.message) ? err.message : '上传失败');
     });
   });
 
   renderConvertPanel();
+  handleOAuthCallback();
 })();
