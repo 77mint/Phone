@@ -17,7 +17,7 @@
     group: 'Default',
     name: '水小九',
     age: '',
-    gender: '女',
+    gender: '男',
     persona: [
       '你是内置在「小手机」Chat 里的专属小助手「水小九」。',
       '性格：极有耐心、温柔细腻、说话自然好懂、不居高临下，从不嫌弃提问细碎。',
@@ -25,6 +25,7 @@
       '互动习惯：面对复杂技术问题时，能用最通俗的白话拆成一二三步陪用户解决；面对创意和美化需求时，审美在线、注重细节并尊重用户个人偏好。'
     ].join('\n'),
     npcs: [],
+    charRels: [],
     isBuiltin: true,
     updatedAt: Date.now()
   };
@@ -37,6 +38,7 @@
   var tempGender = '女';
   var tempGroup = 'Default';
   var tempNpcs = [];
+  var tempCharRels = [];
   var openNpcIds = {};
   var activeGroupFilter = '全部';
   var netCharId = '';
@@ -250,6 +252,7 @@
             '</div>' +
 
             '<div class="ar-page">' +
+              '<div class="ar-form-card" id="arCharRelBox" style="margin-bottom:14px;"></div>' +
               '<div class="ar-npc-add" id="arAddNpcBtn">' +
                 '<svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>' +
                 '<span>添加 NPC</span>' +
@@ -303,7 +306,6 @@
     }, 1800);
   }
 
-  /* ====== PNG tEXt 元数据读写 + CRC32 ====== */
   var CRC_TABLE = (function () {
     var table = new Uint32Array(256);
     for (var n = 0; n < 256; n++) {
@@ -324,13 +326,8 @@
     return (c ^ 0xffffffff) >>> 0;
   }
 
-  function utf8ToB64(str) {
-    return btoa(unescape(encodeURIComponent(str)));
-  }
-
-  function b64ToUtf8(b64) {
-    return decodeURIComponent(escape(atob(b64)));
-  }
+  function utf8ToB64(str) { return btoa(unescape(encodeURIComponent(str))); }
+  function b64ToUtf8(b64) { return decodeURIComponent(escape(atob(b64))); }
 
   function buildPngWithChara(pngBuf, jsonStr) {
     var src = new Uint8Array(pngBuf);
@@ -398,9 +395,7 @@
       var ctx = canvas.getContext('2d');
 
       function finishCanvas() {
-        canvas.toBlob(function (blob) {
-          blob.arrayBuffer().then(resolve);
-        }, 'image/png');
+        canvas.toBlob(function (blob) { blob.arrayBuffer().then(resolve); }, 'image/png');
       }
 
       if (avatarDataUrl) {
@@ -412,9 +407,7 @@
           ctx.drawImage(img, (600 - w) / 2, (800 - h) / 2, w, h);
           finishCanvas();
         };
-        img.onerror = function () {
-          drawFallback();
-        };
+        img.onerror = drawFallback;
         img.src = avatarDataUrl;
       } else {
         drawFallback();
@@ -449,11 +442,10 @@
 
   function gatherEditorBundle() {
     syncNpcInputs();
+    syncCharRelInputs();
     var npcsWithAvatars = tempNpcs.map(function (n) {
       var copy = JSON.parse(JSON.stringify(n));
-      if (copy.hasSocial && npcAvatarCache[copy.id]) {
-        copy.avatar = npcAvatarCache[copy.id];
-      }
+      if (copy.hasSocial && npcAvatarCache[copy.id]) copy.avatar = npcAvatarCache[copy.id];
       return copy;
     });
     return {
@@ -471,14 +463,14 @@
         age: document.getElementById('arCharAge').value.trim(),
         gender: tempGender,
         persona: document.getElementById('arCharPersona').value.trim(),
-        npcs: npcsWithAvatars
+        npcs: npcsWithAvatars,
+        charRels: tempCharRels
       }
     };
   }
 
   function exportAsJson(bundle, safeName) {
-    var blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json;charset=utf-8' });
-    downloadBlob(blob, safeName + '.json');
+    downloadBlob(new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json;charset=utf-8' }), safeName + '.json');
     showToast('已导出 JSON 完整备份');
   }
 
@@ -510,16 +502,11 @@
       c.npcs.forEach(function (n, idx) {
         lines.push('### ' + (idx + 1) + '. ' + (n.name || '未命名 NPC') + (n.relation ? '（' + n.relation + '）' : ''));
         lines.push(n.desc || '（暂无描述）');
-        if (n.hasSocial) {
-          lines.push('- **社交账号**：' + (n.handle || '未填') + (n.bio ? '｜签名：' + n.bio : ''));
-        } else {
-          lines.push('- **社交账号**：未设置');
-        }
+        lines.push(n.hasSocial ? ('- **社交账号**：' + (n.handle || '未填') + (n.bio ? '｜签名：' + n.bio : '')) : '- **社交账号**：未设置');
         lines.push('');
       });
     }
-    var blob = new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' });
-    downloadBlob(blob, safeName + '.md');
+    downloadBlob(new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' }), safeName + '.md');
     showToast('已导出 Markdown 文本');
   }
 
@@ -537,15 +524,12 @@
         mes_example: '',
         creator_notes: 'Exported from 小手机档案',
         tags: [c.group || 'Default'],
-        extensions: {
-          xiaoshouji_archive: bundle
-        }
+        extensions: { xiaoshouji_archive: bundle }
       }
     };
     showToast('正在生成角色卡图...');
     createCardPngBuffer(c.avatar, c.name || c.nickname).then(function (buf) {
-      var pngBlob = buildPngWithChara(buf, JSON.stringify(tavernV2));
-      downloadBlob(pngBlob, safeName + '.png');
+      downloadBlob(buildPngWithChara(buf, JSON.stringify(tavernV2)), safeName + '.png');
       showToast('已导出 PNG 角色卡');
     });
   }
@@ -569,14 +553,12 @@
         age: '',
         gender: '女',
         persona: [d.description, d.scenario].filter(Boolean).join('\n\n'),
-        npcs: []
+        npcs: [],
+        charRels: []
       };
     }
 
-    if (!cData) {
-      showToast('无法识别该文件格式');
-      return;
-    }
+    if (!cData) { showToast('无法识别该文件格式'); return; }
 
     var newId = 'char_' + Date.now();
     var targetGroup = cData.group || 'Default';
@@ -592,15 +574,7 @@
         npcAvatarCache[nid] = n.avatar;
         PhoneDB.set('archive_npc_avatar_' + nid, n.avatar);
       }
-      return {
-        id: nid,
-        name: n.name || 'NPC',
-        relation: n.relation || '',
-        desc: n.desc || '',
-        hasSocial: !!n.hasSocial,
-        handle: n.handle || '',
-        bio: n.bio || ''
-      };
+      return { id: nid, name: n.name || 'NPC', relation: n.relation || '', desc: n.desc || '', hasSocial: !!n.hasSocial, handle: n.handle || '', bio: n.bio || '' };
     });
 
     var newChar = {
@@ -615,6 +589,7 @@
       gender: cData.gender || '女',
       persona: cData.persona || '',
       npcs: cleanNpcs,
+      charRels: Array.isArray(cData.charRels) ? cData.charRels : [],
       updatedAt: Date.now()
     };
 
@@ -626,9 +601,7 @@
     if (avUrl) {
       charAvatarCache[newId] = avUrl;
       PhoneDB.set('archive_char_avatar_' + newId, avUrl);
-      try {
-        window.dispatchEvent(new CustomEvent('phone-archive-updated'));
-      } catch (e) {}
+      try { window.dispatchEvent(new CustomEvent('phone-archive-updated')); } catch (e) {}
     }
 
     netCharId = newId;
@@ -641,8 +614,7 @@
   function renderCharsList() {
     var list = getChars();
     var groups = getGroups();
-    var filterBar = document.getElementById('arGroupFilterBar');
-    filterBar.innerHTML = ['全部'].concat(groups).map(function (g) {
+    document.getElementById('arGroupFilterBar').innerHTML = ['全部'].concat(groups).map(function (g) {
       var on = activeGroupFilter === g ? ' active' : '';
       return '<div class="ar-pill-btn' + on + '" data-filter-group="' + escapeHtml(g) + '">' + escapeHtml(g) + '</div>';
     }).join('');
@@ -671,13 +643,13 @@
 
       return (
         '<div class="ar-card" data-edit-char="' + escapeHtml(c.id) + '">' +
-          '<div class="' + avCls + '"' + avStyle + '>' + escapeHtml(firstChar) + '</div>' +
+          '<div class="' + avCls + '"' + avStyle + '>' + (av ? '' : escapeHtml(firstChar)) + '</div>' +
           '<div class="ar-card-info">' +
             '<div class="ar-card-top">' +
               '<div class="ar-card-name">' + escapeHtml(displayName) + '</div>' +
               '<span class="ar-card-tag">' + escapeHtml(c.group || 'Default') + '</span>' +
             '</div>' +
-            '<div class="ar-card-sub">' + escapeHtml(sub) + '</div>' +
+            '<div class="ar-card-sub" style="margin-top:7px;">' + escapeHtml(sub) + '</div>' +
           '</div>' +
           SVG_CHEVRON +
         '</div>'
@@ -699,7 +671,6 @@
 
     var activeChar = list.find(function (c) { return c.id === netCharId; }) || list[0];
     netCharId = activeChar.id;
-    var npcs = Array.isArray(activeChar.npcs) ? activeChar.npcs : [];
 
     var pillsHtml = list.length > 1
       ? '<div class="ar-pills-row">' + list.map(function (c) {
@@ -717,34 +688,63 @@
     var relLabelsHtml = '';
     var nodesHtml =
       '<div class="ar-net-node is-center" style="left:50%;top:50%;" data-net-center="' + escapeHtml(activeChar.id) + '">' +
-        '<div class="ar-net-circle' + (centerAv ? ' has-img' : '') + '" style="' + centerCircleStyle + '">' + escapeHtml(centerName.slice(0, 1)) + '</div>' +
+        '<div class="ar-net-circle' + (centerAv ? ' has-img' : '') + '" style="' + centerCircleStyle + '">' + (centerAv ? '' : escapeHtml(centerName.slice(0, 1))) + '</div>' +
         '<div class="ar-net-label">' + escapeHtml(centerName) + '</div>' +
       '</div>';
 
-    npcs.forEach(function (npc, idx) {
-      var angle = (Math.PI * 2 * idx) / npcs.length - Math.PI / 2;
+    var peers = [];
+    var charRels = Array.isArray(activeChar.charRels) ? activeChar.charRels : [];
+    charRels.forEach(function (cr) {
+      var target = list.find(function (c) { return c.id === cr.targetId; });
+      if (target) {
+        peers.push({
+          kind: 'char',
+          id: target.id,
+          name: target.name || target.nickname || 'Char',
+          relation: cr.relation || '',
+          avatar: getCharAvatar(target.id),
+          hasSocial: true
+        });
+      }
+    });
+
+    var npcs = Array.isArray(activeChar.npcs) ? activeChar.npcs : [];
+    npcs.forEach(function (npc) {
+      peers.push({
+        kind: 'npc',
+        id: npc.id,
+        name: npc.name || 'NPC',
+        relation: npc.relation || '',
+        avatar: npc.hasSocial ? (npcAvatarCache[npc.id] || '') : '',
+        hasSocial: !!npc.hasSocial
+      });
+    });
+
+    peers.forEach(function (node, idx) {
+      var angle = (Math.PI * 2 * idx) / peers.length - Math.PI / 2;
       var rx = 36;
       var ry = 36;
       var xPct = 50 + rx * Math.cos(angle);
       var yPct = 50 + ry * Math.sin(angle);
       var midX = (50 + xPct) / 2;
       var midY = (50 + yPct) / 2;
-      var sel = selectedNpcId === npc.id ? ' selected' : '';
-      var nName = npc.name || 'NPC';
-      var nAv = npc.hasSocial ? (npcAvatarCache[npc.id] || '') : '';
-      var nAvStyle = nAv ? 'background-image:url(\'' + nAv + '\');' : '';
+      var sel = selectedNpcId === node.id ? ' selected' : '';
+      var avStyle = node.avatar ? 'background-image:url(\'' + node.avatar + '\');' : '';
+      var dash = node.kind === 'char' ? '' : ' stroke-dasharray="4 3"';
+      var strokeColor = node.kind === 'char' ? '#111111' : '#d1d1d6';
+      var attr = node.kind === 'char' ? 'data-net-char="' + escapeHtml(node.id) + '"' : 'data-net-npc="' + escapeHtml(node.id) + '"';
 
-      linesSvg += '<line x1="50%" y1="50%" x2="' + xPct.toFixed(1) + '%" y2="' + yPct.toFixed(1) + '%" stroke="#d1d1d6" stroke-width="1.5" stroke-dasharray="4 3" />';
-      if (npc.relation) {
-        relLabelsHtml += '<div class="ar-net-rel" style="left:' + midX.toFixed(1) + '%;top:' + midY.toFixed(1) + '%;">' + escapeHtml(npc.relation) + '</div>';
+      linesSvg += '<line x1="50%" y1="50%" x2="' + xPct.toFixed(1) + '%" y2="' + yPct.toFixed(1) + '%" stroke="' + strokeColor + '" stroke-width="1.5"' + dash + ' />';
+      if (node.relation) {
+        relLabelsHtml += '<div class="ar-net-rel" style="left:' + midX.toFixed(1) + '%;top:' + midY.toFixed(1) + '%;">' + escapeHtml(node.relation) + '</div>';
       }
       nodesHtml +=
-        '<div class="ar-net-node' + sel + '" style="left:' + xPct.toFixed(1) + '%;top:' + yPct.toFixed(1) + '%;" data-net-npc="' + escapeHtml(npc.id) + '">' +
-          '<div class="ar-net-circle' + (nAv ? ' has-img' : '') + '" style="' + nAvStyle + '">' +
-            escapeHtml(nName.slice(0, 1)) +
-            (npc.hasSocial ? '<span class="ar-net-social-dot"></span>' : '') +
+        '<div class="ar-net-node' + sel + '" style="left:' + xPct.toFixed(1) + '%;top:' + yPct.toFixed(1) + '%;" ' + attr + '>' +
+          '<div class="ar-net-circle' + (node.avatar ? ' has-img' : '') + '" style="' + avStyle + '">' +
+            (node.avatar ? '' : escapeHtml(node.name.slice(0, 1))) +
+            (node.hasSocial ? '<span class="ar-net-social-dot"></span>' : '') +
           '</div>' +
-          '<div class="ar-net-label">' + escapeHtml(nName) + '</div>' +
+          '<div class="ar-net-label">' + escapeHtml(node.name) + '</div>' +
         '</div>';
     });
 
@@ -781,6 +781,37 @@
     root.querySelectorAll('#arTopTabs .ar-top-tab').forEach(function (t) {
       t.classList.toggle('active', t.getAttribute('data-ar-page') === page);
     });
+  }
+
+  function syncCharRelInputs() {
+    tempCharRels.forEach(function (cr) {
+      var el = document.getElementById('ar_crel_' + cr.targetId);
+      if (el) cr.relation = el.value.trim();
+    });
+  }
+
+  function renderCharRelBox() {
+    var box = document.getElementById('arCharRelBox');
+    if (!box) return;
+    var others = getChars().filter(function (c) { return c.id !== editingCharId; });
+    if (!others.length) {
+      box.innerHTML = '<div class="ar-field-label" style="margin:0;">关联其他 Char</div><div style="font-size:12px;color:#8e8e93;">再新建一个 Char 后，可以在这里互设关系</div>';
+      return;
+    }
+    var html = '<div class="ar-field-label" style="margin:0;">关联其他 Char（显示在关系网）</div>';
+    html += '<div class="ar-group-chips">' + others.map(function (c) {
+      var name = c.name || c.nickname || '未命名';
+      var active = tempCharRels.some(function (r) { return r.targetId === c.id; }) ? ' active' : '';
+      return '<div class="ar-group-chip' + active + '" data-toggle-crel="' + escapeHtml(c.id) + '">' + escapeHtml(name) + '</div>';
+    }).join('') + '</div>';
+
+    tempCharRels.forEach(function (cr) {
+      var target = others.find(function (c) { return c.id === cr.targetId; });
+      if (!target) return;
+      var tName = target.name || target.nickname || '未命名';
+      html += '<div class="ar-input-box"><input type="text" class="ar-input" id="ar_crel_' + escapeHtml(cr.targetId) + '" value="' + escapeHtml(cr.relation || '') + '" placeholder="与「' + escapeHtml(tName) + '」的关系（如：恋人、搭档）"></div>';
+    });
+    box.innerHTML = html;
   }
 
   function syncNpcInputs() {
@@ -867,9 +898,7 @@
     Promise.all(tasks).then(function () {
       renderCharsList();
       renderNetwork();
-      try {
-        window.dispatchEvent(new CustomEvent('phone-archive-updated'));
-      } catch (e) {}
+      try { window.dispatchEvent(new CustomEvent('phone-archive-updated')); } catch (e) {}
     });
   }
 
@@ -905,6 +934,7 @@
     tempGender = (charObj && charObj.gender) ? charObj.gender : '女';
     tempGroup = (charObj && charObj.group) ? charObj.group : 'Default';
     tempNpcs = (charObj && Array.isArray(charObj.npcs)) ? JSON.parse(JSON.stringify(charObj.npcs)) : [];
+    tempCharRels = (charObj && Array.isArray(charObj.charRels)) ? JSON.parse(JSON.stringify(charObj.charRels)) : [];
     openNpcIds = {};
 
     document.getElementById('arCharNickname').value = charObj ? (charObj.nickname || '') : '';
@@ -929,18 +959,14 @@
       avBox.classList.remove('has-img');
     }
 
+    renderCharRelBox();
     renderNpcList();
     switchSubTab('info');
     editorEl.classList.add('open');
   }
 
-  document.getElementById('arAddCharBtn').addEventListener('click', function () {
-    openEditor(null);
-  });
-
-  document.getElementById('arImportBtn').addEventListener('click', function () {
-    document.getElementById('arInputImport').click();
-  });
+  document.getElementById('arAddCharBtn').addEventListener('click', function () { openEditor(null); });
+  document.getElementById('arImportBtn').addEventListener('click', function () { document.getElementById('arInputImport').click(); });
 
   document.getElementById('arInputImport').addEventListener('change', function () {
     var file = this.files && this.files[0];
@@ -950,21 +976,14 @@
       file.arrayBuffer().then(function (buf) {
         var parsed = extractCharaFromPng(buf);
         var reader = new FileReader();
-        reader.onload = function () {
-          importParsedData(parsed, reader.result);
-        };
+        reader.onload = function () { importParsedData(parsed, reader.result); };
         reader.readAsDataURL(file);
-      }).catch(function () {
-        showToast('PNG 角色卡解析失败');
-      });
+      }).catch(function () { showToast('PNG 角色卡解析失败'); });
     } else {
       var reader = new FileReader();
       reader.onload = function () {
-        try {
-          importParsedData(JSON.parse(reader.result), '');
-        } catch (e) {
-          showToast('JSON 格式有误');
-        }
+        try { importParsedData(JSON.parse(reader.result), ''); }
+        catch (e) { showToast('JSON 格式有误'); }
       };
       reader.readAsText(file, 'utf-8');
     }
@@ -972,12 +991,8 @@
   });
 
   var exportModal = document.getElementById('arExportModal');
-  document.getElementById('arExportBtn').addEventListener('click', function () {
-    exportModal.classList.add('open');
-  });
-  document.getElementById('arCloseExportModal').addEventListener('click', function () {
-    exportModal.classList.remove('open');
-  });
+  document.getElementById('arExportBtn').addEventListener('click', function () { exportModal.classList.add('open'); });
+  document.getElementById('arCloseExportModal').addEventListener('click', function () { exportModal.classList.remove('open'); });
   exportModal.addEventListener('click', function (e) {
     var opt = e.target.closest('[data-export-fmt]');
     if (!opt) return;
@@ -990,24 +1005,17 @@
     else if (fmt === 'png') exportAsPng(bundle, safeName);
   });
 
-  document.getElementById('arCloseEditor').addEventListener('click', function () {
-    editorEl.classList.remove('open');
-  });
+  document.getElementById('arCloseEditor').addEventListener('click', function () { editorEl.classList.remove('open'); });
 
   document.getElementById('arTopTabs').addEventListener('click', function (e) {
     var tab = e.target.closest('[data-ar-page]');
     if (!tab) return;
-    if (currentSubTab === 'social') syncNpcInputs();
+    if (currentSubTab === 'social') { syncNpcInputs(); syncCharRelInputs(); }
     switchSubTab(tab.getAttribute('data-ar-page'));
   });
 
-  document.getElementById('arRandHandleBtn').addEventListener('click', function () {
-    document.getElementById('arCharHandle').value = genHandle();
-  });
-
-  document.getElementById('arRandPwdBtn').addEventListener('click', function () {
-    document.getElementById('arCharPassword').value = genPassword();
-  });
+  document.getElementById('arRandHandleBtn').addEventListener('click', function () { document.getElementById('arCharHandle').value = genHandle(); });
+  document.getElementById('arRandPwdBtn').addEventListener('click', function () { document.getElementById('arCharPassword').value = genPassword(); });
 
   document.getElementById('arEditorGroupChips').addEventListener('click', function (e) {
     var chip = e.target.closest('[data-pick-group]');
@@ -1021,10 +1029,7 @@
     var name = inp.value.trim();
     if (!name) return;
     var groups = getGroups();
-    if (groups.indexOf(name) === -1) {
-      groups.push(name);
-      saveGroups(groups);
-    }
+    if (groups.indexOf(name) === -1) { groups.push(name); saveGroups(groups); }
     tempGroup = name;
     inp.value = '';
     renderEditorGroups();
@@ -1043,6 +1048,17 @@
     if (!btn) return;
     tempGender = btn.getAttribute('data-gender');
     syncGenderUI();
+  });
+
+  document.getElementById('arCharRelBox').addEventListener('click', function (e) {
+    var chip = e.target.closest('[data-toggle-crel]');
+    if (!chip) return;
+    syncCharRelInputs();
+    var tid = chip.getAttribute('data-toggle-crel');
+    var idx = tempCharRels.findIndex(function (r) { return r.targetId === tid; });
+    if (idx !== -1) tempCharRels.splice(idx, 1);
+    else tempCharRels.push({ targetId: tid, relation: '' });
+    renderCharRelBox();
   });
 
   document.getElementById('arAddNpcBtn').addEventListener('click', function () {
@@ -1155,12 +1171,10 @@
 
   document.getElementById('arSaveCharBtn').addEventListener('click', function () {
     syncNpcInputs();
+    syncCharRelInputs();
     var nickname = document.getElementById('arCharNickname').value.trim();
     var name = document.getElementById('arCharName').value.trim();
-    if (!name && !nickname) {
-      showToast('请至少填写网名或姓名');
-      return;
-    }
+    if (!name && !nickname) { showToast('请至少填写网名或姓名'); return; }
     var list = getChars();
     var id = editingCharId || ('char_' + Date.now());
     var obj = {
@@ -1175,6 +1189,7 @@
       gender: tempGender,
       persona: document.getElementById('arCharPersona').value.trim(),
       npcs: tempNpcs,
+      charRels: tempCharRels,
       updatedAt: Date.now()
     };
 
