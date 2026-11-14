@@ -109,7 +109,13 @@
           '</div>' +
           '<div class="home-icon-note">换完需要重新「添加到主屏幕」才会在桌面生效。</div>' +
         '</div>' +
-        '<div class="icon-sec-title">应用图标</div>' +
+        '<div class="icon-sec-row">' +
+          '<div class="icon-sec-title" id="iconSecTitle">应用图标</div>' +
+          '<div class="icon-sec-actions">' +
+            '<div class="icon-pack-btn" id="btnImportIconPack">导入 PNG</div>' +
+            '<div class="icon-pack-btn" id="btnExportIconPack">导出 PNG</div>' +
+          '</div>' +
+        '</div>' +
         '<div class="lg-card">' +
           '<div class="icon-grid" id="iconGrid"></div>' +
         '</div>' +
@@ -120,11 +126,25 @@
       '<div class="lg-tab active" data-tab="theme">主题</div>' +
       '<div class="lg-tab" data-tab="icons">图标</div>' +
     '</div>' +
+    '<div class="icon-pack-modal" id="iconPackModal">' +
+      '<div class="icon-pack-sheet">' +
+        '<div class="icon-pack-sheet-title">图标包已生成（PNG）</div>' +
+        '<div class="icon-pack-sheet-tip">长按下方图片即可存进相册；发给别人后，对方点「导入 PNG」就能一键换成同款图标。</div>' +
+        '<div class="icon-pack-preview-wrap">' +
+          '<img class="icon-pack-preview-img" id="iconPackPreviewImg" alt="图标包">' +
+        '</div>' +
+        '<div class="icon-pack-sheet-btns">' +
+          '<div class="icon-pack-action" id="btnCloseIconPack">关闭</div>' +
+          '<div class="icon-pack-action primary" id="btnSaveIconPack">保存 / 分享</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
     '<input type="file" id="inputLockWall" accept="image/*" style="display:none;">' +
     '<input type="file" id="inputHomeWall" accept="image/*" style="display:none;">' +
     '<input type="file" id="inputFont" accept=".ttf,.otf,.woff,.woff2,font/*" multiple style="display:none;">' +
     '<input type="file" id="inputHomeScreenIcon" accept="image/*" style="display:none;">' +
-    '<input type="file" id="inputAppIcon" accept="image/*" style="display:none;">';
+    '<input type="file" id="inputAppIcon" accept="image/*" style="display:none;">' +
+    '<input type="file" id="inputIconPack" accept="image/*" style="display:none;">';
 
   var bottomBar = document.getElementById('lgBottomBar');
   var backBtn = root.querySelector('.app-back');
@@ -477,6 +497,172 @@
       var box = document.getElementById('gridIcon-' + targetId);
       var appObj = APPS_LIST.find(function (a) { return a.id === targetId; });
       if (box) setGridBoxPreview(box, appObj, url);
+    });
+    this.value = '';
+  });
+
+  /* ===== 一键导出 / 导入整张 PNG 图标包（4×5 固定网格） ===== */
+  var PACK_COLS = 4;
+  var PACK_ROWS = 5;
+  var EXPORT_CELL = 256;
+  var IMPORT_CELL = 192;
+
+  var btnExportIconPack = document.getElementById('btnExportIconPack');
+  var btnImportIconPack = document.getElementById('btnImportIconPack');
+  var inputIconPack = document.getElementById('inputIconPack');
+  var iconSecTitle = document.getElementById('iconSecTitle');
+
+  var iconPackModal = document.getElementById('iconPackModal');
+  var iconPackPreviewImg = document.getElementById('iconPackPreviewImg');
+  var btnCloseIconPack = document.getElementById('btnCloseIconPack');
+  var btnSaveIconPack = document.getElementById('btnSaveIconPack');
+  var lastExportDataUrl = '';
+  var lastExportBlob = null;
+
+  function loadImage(src) {
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      img.onload = function () { resolve(img); };
+      img.onerror = function () { reject(new Error('load failed')); };
+      img.src = src;
+    });
+  }
+
+  function drawCoverImage(ctx, img, dx, dy, dw, dh) {
+    var iw = img.naturalWidth || img.width;
+    var ih = img.naturalHeight || img.height;
+    if (!iw || !ih) return;
+    var scale = Math.max(dw / iw, dh / ih);
+    var sw = dw / scale;
+    var sh = dh / scale;
+    var sx = (iw - sw) / 2;
+    var sy = (ih - sh) / 2;
+    ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
+  }
+
+  function drawDefaultIconTile(ctx, app, dx, dy, size) {
+    ctx.save();
+    ctx.fillStyle = '#e5e5ea';
+    ctx.fillRect(dx, dy, size, size);
+    ctx.fillStyle = '#111111';
+    ctx.font = Math.round(size * 0.48) + 'px -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(app.emoji, dx + size / 2, dy + size / 2 + size * 0.03);
+    ctx.restore();
+  }
+
+  btnExportIconPack.addEventListener('click', function () {
+    btnExportIconPack.textContent = '生成中...';
+    var canvas = document.createElement('canvas');
+    canvas.width = PACK_COLS * EXPORT_CELL;
+    canvas.height = PACK_ROWS * EXPORT_CELL;
+    var ctx = canvas.getContext('2d');
+
+    Promise.all(APPS_LIST.map(function (app) {
+      return PhoneDB.get('icon_' + app.id);
+    })).then(function (urls) {
+      return Promise.all(APPS_LIST.map(function (app, idx) {
+        var col = idx % PACK_COLS;
+        var row = Math.floor(idx / PACK_COLS);
+        var dx = col * EXPORT_CELL;
+        var dy = row * EXPORT_CELL;
+        var url = urls[idx];
+        if (!url) {
+          drawDefaultIconTile(ctx, app, dx, dy, EXPORT_CELL);
+          return Promise.resolve();
+        }
+        return loadImage(url).then(function (img) {
+          drawCoverImage(ctx, img, dx, dy, EXPORT_CELL, EXPORT_CELL);
+        }).catch(function () {
+          drawDefaultIconTile(ctx, app, dx, dy, EXPORT_CELL);
+        });
+      }));
+    }).then(function () {
+      lastExportDataUrl = canvas.toDataURL('image/png');
+      iconPackPreviewImg.src = lastExportDataUrl;
+      iconPackModal.classList.add('open');
+      btnExportIconPack.textContent = '导出 PNG';
+      if (canvas.toBlob) {
+        canvas.toBlob(function (blob) { lastExportBlob = blob; }, 'image/png');
+      } else {
+        lastExportBlob = null;
+      }
+    }).catch(function () {
+      btnExportIconPack.textContent = '导出 PNG';
+    });
+  });
+
+  btnCloseIconPack.addEventListener('click', function () {
+    iconPackModal.classList.remove('open');
+  });
+
+  iconPackModal.addEventListener('click', function (e) {
+    if (e.target === iconPackModal) iconPackModal.classList.remove('open');
+  });
+
+  btnSaveIconPack.addEventListener('click', function () {
+    if (!lastExportDataUrl) return;
+    if (navigator.share && navigator.canShare && lastExportBlob) {
+      var shareFile = new File([lastExportBlob], 'phone-icons.png', { type: 'image/png' });
+      if (navigator.canShare({ files: [shareFile] })) {
+        navigator.share({ files: [shareFile], title: '小手机图标包' }).catch(function () {});
+        return;
+      }
+    }
+    var a = document.createElement('a');
+    a.href = lastExportDataUrl;
+    a.download = 'phone-icons.png';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  });
+
+  btnImportIconPack.addEventListener('click', function () {
+    inputIconPack.click();
+  });
+
+  inputIconPack.addEventListener('change', function () {
+    var file = this.files && this.files[0];
+    if (!file) return;
+    btnImportIconPack.textContent = '导入中...';
+    readImageAsDataUrl(file, function (url) {
+      loadImage(url).then(function (img) {
+        var iw = img.naturalWidth || img.width;
+        var ih = img.naturalHeight || img.height;
+        var cellW = iw / PACK_COLS;
+        var cellH = ih / PACK_ROWS;
+
+        var tileCanvas = document.createElement('canvas');
+        tileCanvas.width = IMPORT_CELL;
+        tileCanvas.height = IMPORT_CELL;
+        var tileCtx = tileCanvas.getContext('2d');
+
+        var tasks = APPS_LIST.map(function (app, idx) {
+          var col = idx % PACK_COLS;
+          var row = Math.floor(idx / PACK_COLS);
+          var sx = col * cellW;
+          var sy = row * cellH;
+          tileCtx.clearRect(0, 0, IMPORT_CELL, IMPORT_CELL);
+          tileCtx.drawImage(img, sx, sy, cellW, cellH, 0, 0, IMPORT_CELL, IMPORT_CELL);
+          var tileUrl = tileCanvas.toDataURL('image/png');
+          return Promise.resolve(PhoneDB.set('icon_' + app.id, tileUrl)).then(function () {
+            if (window.applyAppIcon) window.applyAppIcon(app.id, tileUrl);
+            var box = document.getElementById('gridIcon-' + app.id);
+            if (box) setGridBoxPreview(box, app, tileUrl);
+          });
+        });
+
+        return Promise.all(tasks);
+      }).then(function () {
+        btnImportIconPack.textContent = '导入 PNG';
+        iconSecTitle.textContent = '应用图标（已导入 20 个）';
+        setTimeout(function () {
+          iconSecTitle.textContent = '应用图标';
+        }, 2500);
+      }).catch(function () {
+        btnImportIconPack.textContent = '导入 PNG';
+      });
     });
     this.value = '';
   });
