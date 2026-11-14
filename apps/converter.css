@@ -85,6 +85,10 @@
   gap: 6px;
 }
 
+.cv-seg.is-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
 .cv-seg-btn {
   border: none;
   border-radius: 12px;
@@ -109,7 +113,7 @@
   line-height: 1.5;
 }
 
-/* 选图/选字体上传区 */
+/* 选图/选文件上传区 */
 .cv-drop {
   border: 1.5px dashed #d1d1d6;
   border-radius: 18px;
@@ -334,13 +338,13 @@
   color: #ffffff;
 }
 
-/* 底部液态玻璃双栏（图片 / 字体） */
+/* 底部液态玻璃三栏（图片 / 字体 / 小说） */
 #app-converter .cv-bottom-bar {
   position: absolute;
   left: 50%;
   bottom: calc(env(safe-area-inset-bottom) + 18px);
   transform: translateX(-50%);
-  width: 210px;
+  width: 264px;
   height: 52px;
   border-radius: 999px;
   display: flex;
@@ -353,7 +357,7 @@
   position: absolute;
   top: 4px;
   left: 4px;
-  width: calc(50% - 4px);
+  width: calc(33.333% - 2.66px);
   height: calc(100% - 8px);
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.08);
@@ -363,6 +367,10 @@
 
 #app-converter .cv-bottom-bar.is-font .cv-tab-indicator {
   transform: translateX(100%);
+}
+
+#app-converter .cv-bottom-bar.is-novel .cv-tab-indicator {
+  transform: translateX(200%);
 }
 
 #app-converter .cv-tab {
