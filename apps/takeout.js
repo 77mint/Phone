@@ -1,621 +1,889 @@
+/* =========================================================
+   小团外卖 (apps/takeout.js)
+   - 首页：分类入口 + 为你推荐（仅全部）；店铺封面采用非美食实景氛围图
+   - 9 大分类全屏页：每类 5 家独立店铺，每家 5 道以上菜品（含西餐）
+   - 店铺详情页：真实美食图 + 可点击展开的购物车抽屉 + 结算（自己吃 / 投喂 Char / 找 Char 代付）
+   ========================================================= */
+
 (function () {
-  var root = document.getElementById('app-takeout');
-  if (!root) return;
+    const STORAGE_ORDERS_KEY = 'takeout_orders_v1';
+    const STORAGE_COVERS_KEY = 'takeout_store_covers_v1';
+    const STORAGE_PHOTO_CACHE_KEY = 'takeout_meal_photo_cache_v1';
+    const STORAGE_AMBIENT_CACHE_KEY = 'takeout_ambient_cache_v1';
 
-  var STORES_KEY = 'phone_takeout_stores_v2';
-  var ORDERS_KEY = 'phone_takeout_orders_v1';
+    const CATEGORIES = [
+        {
+            id: 'all',
+            name: '全部',
+            icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>'
+        },
+        {
+            id: 'breakfast',
+            name: '早餐',
+            icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>'
+        },
+        {
+            id: 'lunch',
+            name: '午餐',
+            icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18"/><path d="M4 12a8 8 0 0 0 16 0"/><path d="M9 20h6"/></svg>'
+        },
+        {
+            id: 'dinner',
+            name: '晚餐',
+            icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/></svg>'
+        },
+        {
+            id: 'supper',
+            name: '夜宵',
+            icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c1.5 3 4 4.5 4 8a4 4 0 1 1-8 0c0-2 1-3.5 2-5 .5 1.5 1.5 2 2 2 0-2 0-3.5 0-5z"/></svg>'
+        },
+        {
+            id: 'milktea',
+            name: '奶茶',
+            icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 8h10l-1 13H8L7 8z"/><path d="M5 8h14"/><path d="M12 8l2-5"/></svg>'
+        },
+        {
+            id: 'dessert',
+            name: '甜点',
+            icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 13h12a2 2 0 0 1 2 2v5H4v-5a2 2 0 0 1 2-2z"/><path d="M8 13v-2a4 4 0 0 1 8 0v2"/><circle cx="12" cy="5" r="1.5"/></svg>'
+        },
+        {
+            id: 'japanese',
+            name: '日料',
+            icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="12" rx="9" ry="5.5"/><circle cx="12" cy="12" r="2"/></svg>'
+        },
+        {
+            id: 'korean',
+            name: '韩料',
+            icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11h16a8 8 0 0 1-16 0Z"/><path d="M8 19h8"/><path d="M6 7h12"/></svg>'
+        },
+        {
+            id: 'western',
+            name: '西餐',
+            icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3v7a2 2 0 0 0 2 2v9"/><path d="M9 3v7a2 2 0 0 1-2 2"/><path d="M7 3v4"/><path d="M16 3v18"/><path d="M16 3c2.5 0 3.5 2 3.5 5s-1 5-3.5 5"/></svg>'
+        }
+    ];
 
-  var CATEGORIES = [
-    { id: 'all', name: '全部', mealQuery: 'Chicken', icon: '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>' },
-    { id: 'breakfast', name: '早餐', mealQuery: 'Breakfast', icon: '<svg viewBox="0 0 24 24"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>' },
-    { id: 'lunch', name: '午餐', mealQuery: 'Beef', icon: '<svg viewBox="0 0 24 24"><path d="M3 12h18"/><path d="M5 12a7 7 0 0 0 14 0"/><path d="M8 21h8"/></svg>' },
-    { id: 'dinner', name: '晚餐', mealQuery: 'Pork', icon: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/></svg>' },
-    { id: 'supper', name: '夜宵', mealQuery: 'Lamb', icon: '<svg viewBox="0 0 24 24"><path d="M12 2c1 4-2 6-2 10a4 4 0 0 0 8 0c0-3-2-5-2-8"/><path d="M7 14a5 5 0 0 0 10 0"/></svg>' },
-    { id: 'milktea', name: '奶茶', mealQuery: 'Dessert', icon: '<svg viewBox="0 0 24 24"><path d="M7 8h10l-1 13H8L7 8z"/><path d="M5 8h14"/><path d="M12 2l2 6"/></svg>' },
-    { id: 'dessert', name: '甜点', mealQuery: 'Dessert', icon: '<svg viewBox="0 0 24 24"><path d="M4 14h16v6H4z"/><path d="M4 14c0-3 3-5 8-5s8 2 8 5"/><circle cx="12" cy="6" r="2"/></svg>' },
-    { id: 'japanese', name: '日料', mealQuery: 'Seafood', icon: '<svg viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="9" ry="5"/><circle cx="12" cy="12" r="2"/></svg>' },
-    { id: 'korean', name: '韩料', mealQuery: 'Chicken', icon: '<svg viewBox="0 0 24 24"><path d="M4 10h16a6 6 0 0 1-6 6h-4a6 6 0 0 1-6-6z"/><line x1="7" y1="20" x2="17" y2="20"/></svg>' },
-    { id: 'market', name: '超市', mealQuery: 'Vegetarian', icon: '<svg viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>' }
-  ];
-
-  var BANNER_THEMES = [
-    'linear-gradient(135deg, #2b2d42 0%, #5c677d 100%)',
-    'linear-gradient(135deg, #5e503f 0%, #a9927d 100%)',
-    'linear-gradient(135deg, #3d5a80 0%, #98c1d9 100%)',
-    'linear-gradient(135deg, #6d597a 0%, #b56576 100%)',
-    'linear-gradient(135deg, #354f52 0%, #84a98c 100%)',
-    'linear-gradient(135deg, #7f4f24 0%, #b08968 100%)'
-  ];
-
-  var CATALOG = {
-    breakfast: [
-      { name: '晨光豆浆手作铺', dishes: ['现磨热豆浆', '流心蛋煎饼', '黄金酥脆油条', '鲜肉小笼包', '紫米饭团'] },
-      { name: '南城早茶点心局', dishes: ['水晶虾饺皇', '干蒸烧卖', '叉烧包', '皮蛋瘦肉粥', '红米肠粉'] },
-      { name: '麦田烘焙早餐屋', dishes: ['黄油可颂', '火腿芝士三明治', '牛油果滑蛋吐司', '冰美式咖啡', '热燕麦拿铁'] },
-      { name: '老巷胡辣汤馆', dishes: ['牛肉胡辣汤', '水煎包', '茶叶蛋', '葱油拌面', '南瓜小米粥'] },
-      { name: '街角手抓饼铺', dishes: ['培根肉松手抓饼', '里脊烤冷面', '玉米蔬菜粥', '豆沙烧饼', '原味豆奶'] }
-    ],
-    lunch: [
-      { name: '一碗热饭 · 简餐', dishes: ['黑椒牛肉饭', '照烧鸡腿饭', '番茄滑蛋盖饭', '川香回锅肉饭', '例汤拼配'] },
-      { name: '川味小厨便当', dishes: ['麻婆豆腐盖饭', '水煮肉片套餐', '辣子鸡丁饭', '酸辣土豆丝', '冰镇酸梅汤'] },
-      { name: '粤式烧腊专门店', dishes: ['深井烧鹅饭', '蜜汁叉烧双拼', '白切鸡饭', '老火排骨汤', '白灼菜心'] },
-      { name: '麦香牛肉面馆', dishes: ['红烧牛肉面', '番茄牛腩刀削面', '凉拌黄瓜', '卤牛腱切片', '酱香卤蛋'] },
-      { name: '轻食能量碗', dishes: ['炙烤鸡胸沙拉', '烟熏三文鱼藜麦碗', '牛油果温泉蛋饭', '南瓜浓汤', '鲜榨橙汁'] }
-    ],
-    dinner: [
-      { name: '巷口小炒馆', dishes: ['小炒黄牛肉', '糖醋里脊', '蒜蓉西兰花', '砂锅排骨汤', '扬州炒饭'] },
-      { name: '渝味老火锅', dishes: ['麻辣牛肉锅底', '鲜毛肚', '手打虾滑', '脆嫩鸭肠', '红糖糍粑'] },
-      { name: '江南本帮菜馆', dishes: ['外婆红烧肉', '松鼠桂鱼', '蟹粉豆腐', '清炒虾仁', '桂花酒酿圆子'] },
-      { name: '湘里人家土菜', dishes: ['剁椒鱼头', '辣椒炒肉', '金钱蛋', '干锅花菜', '擂辣椒皮蛋'] },
-      { name: '潮汕牛肉砂锅粥', dishes: ['鲜虾干贝砂锅粥', '手打牛肉丸', '湿炒牛河', '普宁炸豆腐', '凉拌鱼皮'] }
-    ],
-    supper: [
-      { name: '深夜炭火烧烤', dishes: ['炭烤羊肉串', '蒜蓉烤茄子', '蜜汁烤鸡翅', '烤五花肉', '冰镇酸梅汤'] },
-      { name: '十三香小龙虾馆', dishes: ['蒜蓉小龙虾', '麻辣小龙虾', '冰镇毛豆', '拍黄瓜', '烤冷面'] },
-      { name: '阿婆麻辣烫', dishes: ['骨汤麻辣烫', '干拌麻辣拌', '炸蛋', '手打贡丸', '冰粉'] },
-      { name: '夜猫子炒粉档', dishes: ['干炒牛河', '铁板炒方便面', '椒盐鸡脆骨', '炸年糕', '维他柠檬茶'] },
-      { name: '老街卤味铺', dishes: ['秘制鸭脖', '麻辣鸭锁骨', '五香卤鸡爪', '卤藕片', '毛豆花生拼盘'] }
-    ],
-    milktea: [
-      { name: '山茶花制茶局', dishes: ['山茶花乌龙奶绿', '芝士多肉葡萄', '烤椰生打拿铁', '黑糖波波牛乳', '杨枝甘露'] },
-      { name: '清风鲜果茶室', dishes: ['手打柠檬茶', '生椰芒芒', '满杯百香果', '芝士莓莓', '冰糖雪梨'] },
-      { name: '鹿岛咖啡茶饮', dishes: ['焦糖玛奇朵', '抹茶拿铁', '海盐芝士红茶', '桃桃乌龙', '厚乳波波'] },
-      { name: '古法黑糖铺', dishes: ['黑糖珍珠鲜奶', '芋泥波波奶茶', '布蕾脆脆奶绿', '红豆双皮奶', '桂花冻乌龙'] },
-      { name: '一隅手作茶室', dishes: ['白桃乌龙冷泡', '西柚气泡茶', '奶盖四季春', '燕麦红茶拿铁', '冻顶乌龙'] }
-    ],
-    dessert: [
-      { name: '白日梦甜品屋', dishes: ['草莓千层蛋糕', '焦糖布丁', '抹茶巴斯克', '海盐奶油泡芙', '冰美式'] },
-      { name: '可可实验室', dishes: ['生巧熔岩蛋糕', '提拉米苏', '榛子费南雪', '热可可', '法式马卡龙'] },
-      { name: '糖水记广式甜品', dishes: ['杨枝甘露', '芒果班戟', '双皮奶', '芝麻糊', '芋圆仙草冻'] },
-      { name: '云朵舒芙蕾', dishes: ['厚切草莓舒芙蕾', '焦糖海盐舒芙蕾', '抹茶红豆松饼', '水果酸奶碗', '白桃气泡水'] },
-      { name: '法式塔点小铺', dishes: ['柠檬蛋白塔', '栗子蒙布朗', '蓝莓芝士蛋糕', '肉桂卷', '香草拿铁'] }
-    ],
-    japanese: [
-      { name: '月见居酒屋', dishes: ['三文鱼刺身拼盘', '豚骨叉烧拉面', '炙烤鳗鱼饭', '章鱼小丸子', '抹茶大福'] },
-      { name: '一风堂拉面屋', dishes: ['白丸元味拉面', '赤丸辣味拉面', '唐扬炸鸡块', '温泉蛋', '可尔必思'] },
-      { name: '森之寿喜烧', dishes: ['和牛寿喜烧便当', '肥牛乌冬面', '玉子烧', '芝麻菠菜', '玄米茶'] },
-      { name: '筑地海鲜丼', dishes: ['鹅肝三文鱼丼', '炙烤金枪鱼寿司', '甜虾刺身', '味噌汤', '梅子酒'] },
-      { name: '鸟贵族烧鸟屋', dishes: ['明太子鸡肉串', '烤鸡皮', '盐烤牛舌', '日式炒乌冬', '土豆泥沙拉'] }
-    ],
-    korean: [
-      { name: '首尔夜食屋', dishes: ['芝士火鸡面', '蜂蜜蒜香炸鸡', '泡菜肥牛锅', '鱼饼年糕', '草莓牛奶'] },
-      { name: '明洞部队火锅', dishes: ['芝士部队锅', '辣炒年糕', '金枪鱼饭团', '炸酱面', '米露'] },
-      { name: '釜山烤肉专门店', dishes: ['厚切五花肉便当', '秘制猪颈肉', '海鲜葱饼', '大酱汤', '气泡烧酒'] },
-      { name: '梨泰院炸鸡社', dishes: ['甜辣双拼炸鸡', '芝士雪花炸鸡', '炸薯条', '腌萝卜块', '冰可乐'] },
-      { name: '江南石锅拌饭', dishes: ['全州石锅拌饭', '牛肉海带汤', '辣白菜五花肉', '冷面', '香蕉牛奶'] }
-    ],
-    market: [
-      { name: '24H 便利超市', dishes: ['冰镇气泡水', '海苔脆片', '鲜切水果盒', '关东煮拼盘', '草莓三明治'] },
-      { name: '鲜丰水果严选', dishes: ['阳光玫瑰青提', '红颜草莓盒', '甘草芭乐', '鲜切芒果', '椰青'] },
-      { name: '零食研究所', dishes: ['原味薯片', '辣条大礼包', '炭烤牛肉干', '夹心麻薯', '无糖乌龙茶'] },
-      { name: '生活百货速达', dishes: ['维达抽纸整提', '一次性洗脸巾', '蒸汽眼罩', '矿泉水整箱', '润唇膏'] },
-      { name: '深夜酒水便利', dishes: ['百香果果酒', '白桃气泡酒', '冰杯', '盐焗腰果', '柠檬片'] }
-    ]
-  };
-
-  var stores = loadJson(STORES_KEY, []);
-  var orders = loadJson(ORDERS_KEY, []);
-  var currentTab = 'home';
-  var activeCatView = '';
-  var activeStoreId = '';
-  var cart = {};
-  var tempPayTarget = 'self';
-  var isLoadingCat = false;
-
-  function loadJson(key, fallback) {
-    try {
-      var val = JSON.parse(localStorage.getItem(key) || 'null');
-      return Array.isArray(val) ? val : fallback;
-    } catch (e) {
-      return fallback;
-    }
-  }
-
-  function saveStores() {
-    localStorage.setItem(STORES_KEY, JSON.stringify(stores));
-  }
-
-  function saveOrders() {
-    localStorage.setItem(ORDERS_KEY, JSON.stringify(orders));
-  }
-
-  function escapeHtml(str) {
-    return String(str || '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-  }
-
-  function catLabel(catId) {
-    var c = CATEGORIES.find(function (x) { return x.id === catId; });
-    return c ? c.name : '午餐';
-  }
-
-  var toastTimer = null;
-  function showToast(msg) {
-    var el = document.getElementById('tkToast');
-    if (!el) return;
-    el.textContent = msg;
-    el.classList.add('show');
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () {
-      el.classList.remove('show');
-    }, 2000);
-  }
-
-  function fetchFoodPhotos(catId, count) {
-    var catObj = CATEGORIES.find(function (c) { return c.id === catId; }) || CATEGORIES[0];
-    var url = 'https://www.themealdb.com/api/json/v1/1/filter.php?c=' + encodeURIComponent(catObj.mealQuery || 'Chicken');
-    return fetch(url).then(function (res) {
-      return res.json();
-    }).then(function (data) {
-      var meals = Array.isArray(data && data.meals) ? data.meals : [];
-      if (!meals.length) return [];
-      var list = [];
-      for (var i = 0; i < count; i++) {
-        var item = meals[i % meals.length];
-        list.push(item.strMealThumb ? (item.strMealThumb + '/medium') : '');
-      }
-      return list;
-    }).catch(function () {
-      return [];
-    });
-  }
-
-  function ensureCategoryStores(catId) {
-    var existing = stores.filter(function (s) { return s.category === catId; });
-    if (existing.length >= 5) return Promise.resolve(existing);
-
-    var templates = CATALOG[catId] || CATALOG.lunch;
-    var need = 5 - existing.length;
-    isLoadingCat = true;
-    renderCategoryView();
-
-    return fetchFoodPhotos(catId, 25).then(function (photos) {
-      var usedNames = existing.map(function (s) { return s.name; });
-      var added = 0;
-      templates.forEach(function (tpl, tIdx) {
-        if (added >= need) return;
-        if (usedNames.indexOf(tpl.name) !== -1) return;
-
-        var dishes = tpl.dishes.map(function (dName, dIdx) {
-          return {
-            id: 'ds_' + catId + '_' + Date.now() + '_' + tIdx + '_' + dIdx,
-            name: dName,
-            price: 15 + ((tIdx * 3 + dIdx * 5) % 28),
-            desc: '门店招牌 · 新鲜现做',
-            img: photos[(tIdx * 5 + dIdx) % Math.max(1, photos.length)] || ''
-          };
-        });
-
-        stores.push({
-          id: 'st_' + catId + '_' + Date.now() + '_' + tIdx,
-          name: tpl.name,
-          category: catId,
-          bannerBg: BANNER_THEMES[(tIdx + catId.length) % BANNER_THEMES.length],
-          score: (4.7 + (tIdx % 3) * 0.1).toFixed(1),
-          deliveryMin: 20 + tIdx * 3,
-          deliveryFee: tIdx % 2 === 0 ? 0 : 3,
-          dishes: dishes
-        });
-        added++;
-      });
-
-      saveStores();
-      isLoadingCat = false;
-      renderCategoryView();
-      renderHomePanel();
-      return stores.filter(function (s) { return s.category === catId; });
-    });
-  }
-
-  function ensureHomeRecommendations() {
-    if (stores.length >= 4) return;
-    isLoadingCat = true;
-    renderHomePanel();
-    Promise.all([
-      ensureCategoryStores('breakfast'),
-      ensureCategoryStores('milktea')
-    ]).then(function () {
-      isLoadingCat = false;
-      renderHomePanel();
-    });
-  }
-
-  root.innerHTML =
-    '<div class="tk-wrap" id="tkWrap">' +
-      '<div class="tk-header">' +
-        '<div class="tk-header-left">' +
-          '<div class="mu-back-sm tk-back" data-close-app>' +
-            '<svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg>' +
-          '</div>' +
-          '<div class="tk-title" id="tkTitle">小团外卖</div>' +
-        '</div>' +
-      '</div>' +
-
-      '<div class="tk-body">' +
-        '<div class="tk-panel active" id="tkPanelHome"></div>' +
-        '<div class="tk-panel" id="tkPanelOrders"></div>' +
-      '</div>' +
-
-      '<div class="lg-bottom-bar tk-bottom-bar" id="tkBottomBar">' +
-        '<div class="tk-tab-indicator"></div>' +
-        '<div class="tk-tab active" data-tk-tab="home">点外卖</div>' +
-        '<div class="tk-tab" data-tk-tab="orders">订单</div>' +
-      '</div>' +
-
-      '<div class="tk-cat-view" id="tkCatView"></div>' +
-      '<div class="tk-detail" id="tkDetail"></div>' +
-
-      '<div class="tk-modal" id="tkCheckoutModal">' +
-        '<div class="tk-dialog">' +
-          '<div class="tk-dialog-head">' +
-            '<div class="tk-dialog-title">确认下单</div>' +
-            '<button class="tk-icon-circle" id="tkCloseCheckoutModal" type="button">' +
-              '<svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>' +
-            '</button>' +
-          '</div>' +
-          '<div class="tk-label">点给谁 / 谁来付</div>' +
-          '<div class="tk-chips" id="tkPayTargetChips"></div>' +
-          '<div class="tk-field">' +
-            '<div class="tk-label">备注（可选）</div>' +
-            '<div class="tk-input-box"><input type="text" class="tk-input" id="tkOrderNote" placeholder="例如：少冰半糖，放门口就行"></div>' +
-          '</div>' +
-          '<button class="tk-primary-btn" id="tkSubmitOrderBtn" type="button">提交订单</button>' +
-        '</div>' +
-      '</div>' +
-
-      '<div class="tk-toast" id="tkToast"></div>' +
-      '<input type="file" id="tkFileStoreCover" accept="image/*" style="display:none;">' +
-    '</div>';
-
-  function renderStoreCardHtml(s) {
-    var bgStyle = s.cover
-      ? 'background-image:url(\'' + escapeHtml(s.cover) + '\');'
-      : 'background:' + (s.bannerBg || BANNER_THEMES[0]) + ';';
-    var feeTxt = s.deliveryFee ? ('配送费 ¥' + s.deliveryFee) : '免配送费';
-    return (
-      '<div class="tk-store-card" data-open-store="' + escapeHtml(s.id) + '">' +
-        '<div class="tk-store-cover" style="' + bgStyle + '">' +
-          '<span class="tk-store-badge">' + escapeHtml(catLabel(s.category)) + '</span>' +
-          (!s.cover ? '<div class="tk-store-sign">' + escapeHtml(s.name) + '</div>' : '') +
-        '</div>' +
-        '<div class="tk-store-info">' +
-          '<div class="tk-store-top">' +
-            '<div class="tk-store-name">' + escapeHtml(s.name) + '</div>' +
-            '<div class="tk-store-score">★ ' + escapeHtml(s.score || '4.9') + '</div>' +
-          '</div>' +
-          '<div class="tk-store-meta">约 ' + (s.deliveryMin || 25) + ' 分钟送达 · ' + feeTxt + ' · ' + ((s.dishes || []).length) + ' 款热卖</div>' +
-        '</div>' +
-      '</div>'
-    );
-  }
-
-  function renderHomePanel() {
-    var box = document.getElementById('tkPanelHome');
-    var catsHtml = '<div class="tk-cats-card">' + CATEGORIES.map(function (c) {
-      var on = c.id === 'all' ? ' active' : '';
-      return (
-        '<div class="tk-cat-item' + on + '" data-tk-cat="' + c.id + '">' +
-          '<div class="tk-cat-icon">' + c.icon + '</div>' +
-          '<div class="tk-cat-name">' + escapeHtml(c.name) + '</div>' +
-        '</div>'
-      );
-    }).join('') + '</div>';
-
-    var recList = stores.slice(0, 8);
-    var listHtml = !recList.length
-      ? '<div class="tk-empty"><div class="tk-empty-title">正在准备为你推荐的店铺...</div><div class="tk-empty-sub">点击上方任意分类也可直接进入全屏逛店</div></div>'
-      : '<div class="tk-store-list">' + recList.map(renderStoreCardHtml).join('') + '</div>';
-
-    box.innerHTML =
-      catsHtml +
-      '<div class="tk-sec-head"><div class="tk-sec-title">为你推荐</div></div>' +
-      listHtml;
-  }
-
-  function renderCategoryView() {
-    var view = document.getElementById('tkCatView');
-    if (!activeCatView) return;
-    var list = stores.filter(function (s) { return s.category === activeCatView; });
-
-    view.innerHTML =
-      '<div class="tk-cat-head">' +
-        '<div class="tk-title">' + escapeHtml(catLabel(activeCatView)) + '</div>' +
-        '<button class="tk-icon-circle" id="tkCloseCatBtn" type="button">' +
-          '<svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>' +
-        '</button>' +
-      '</div>' +
-      '<div class="tk-cat-scroll">' +
-        (isLoadingCat && !list.length
-          ? '<div class="tk-empty"><div class="tk-empty-title">正在加载「' + escapeHtml(catLabel(activeCatView)) + '」店铺...</div></div>'
-          : '<div class="tk-store-list">' + list.map(renderStoreCardHtml).join('') + '</div>') +
-      '</div>';
-  }
-
-  function renderStoreDetail() {
-    var detailEl = document.getElementById('tkDetail');
-    var s = stores.find(function (x) { return x.id === activeStoreId; });
-    if (!s) return;
-
-    var bgStyle = s.cover
-      ? 'background-image:url(\'' + escapeHtml(s.cover) + '\');'
-      : 'background:' + (s.bannerBg || BANNER_THEMES[0]) + ';';
-
-    var dishes = s.dishes || [];
-    var totalCount = 0;
-    var totalPrice = 0;
-    dishes.forEach(function (d) {
-      var q = cart[d.id] || 0;
-      totalCount += q;
-      totalPrice += q * (Number(d.price) || 0);
-    });
-    if (totalCount > 0) totalPrice += (Number(s.deliveryFee) || 0);
-
-    var dishesHtml = dishes.map(function (d) {
-      var q = cart[d.id] || 0;
-      return (
-        '<div class="tk-dish-card">' +
-          '<img class="tk-dish-img" src="' + escapeHtml(d.img || '') + '" alt="">' +
-          '<div class="tk-dish-body">' +
-            '<div>' +
-              '<div class="tk-dish-name">' + escapeHtml(d.name) + '</div>' +
-              '<div class="tk-dish-desc">' + escapeHtml(d.desc || '现点现做') + '</div>' +
-            '</div>' +
-            '<div class="tk-dish-foot">' +
-              '<div class="tk-dish-price">¥' + (Number(d.price) || 0) + '</div>' +
-              '<div class="tk-qty-ctrl">' +
-                (q > 0 ? '<button class="tk-qty-btn" data-qty-minus="' + escapeHtml(d.id) + '" type="button">-</button>' : '') +
-                (q > 0 ? '<span style="font-weight:700;min-width:16px;text-align:center;">' + q + '</span>' : '') +
-                '<button class="tk-qty-btn is-add" data-qty-add="' + escapeHtml(d.id) + '" type="button">+</button>' +
-              '</div>' +
-            '</div>' +
-          '</div>' +
-        '</div>'
-      );
-    }).join('');
-
-    detailEl.innerHTML =
-      '<div class="tk-detail-banner" style="' + bgStyle + '">' +
-        '<div class="tk-detail-overlay">' +
-          '<div class="tk-detail-topbar">' +
-            '<button class="tk-icon-circle" id="tkChangeCoverBtn" type="button" title="更换店铺封面">' +
-              '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>' +
-            '</button>' +
-            '<button class="tk-icon-circle" id="tkCloseDetailBtn" type="button">' +
-              '<svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>' +
-            '</button>' +
-          '</div>' +
-          '<div>' +
-            '<div class="tk-detail-title">' + escapeHtml(s.name) + '</div>' +
-            '<div class="tk-detail-sub">' + escapeHtml(catLabel(s.category)) + ' · 约 ' + (s.deliveryMin || 25) + ' 分钟 · ' + (s.deliveryFee ? ('配送 ¥' + s.deliveryFee) : '免配送费') + '</div>' +
-          '</div>' +
-        '</div>' +
-      '</div>' +
-      '<div class="tk-detail-scroll">' + dishesHtml + '</div>' +
-      (totalCount > 0 ? (
-        '<div class="tk-cart-bar">' +
-          '<div><span style="font-weight:700;font-size:17px;">¥' + totalPrice + '</span> <span style="font-size:12px;opacity:0.75;">已选 ' + totalCount + ' 件</span></div>' +
-          '<button class="tk-cart-pay" id="tkOpenCheckoutBtn" type="button">去下单</button>' +
-        '</div>'
-      ) : '');
-  }
-
-  function renderOrdersPanel() {
-    var box = document.getElementById('tkPanelOrders');
-    if (!orders.length) {
-      box.innerHTML =
-        '<div class="tk-empty">' +
-          '<div class="tk-empty-title">暂无外卖订单</div>' +
-          '<div class="tk-empty-sub">去「点外卖」选一家喜欢的店下单吧</div>' +
-        '</div>';
-      return;
-    }
-
-    box.innerHTML = orders.map(function (o) {
-      var itemText = (o.items || []).map(function (it) { return it.name + ' ×' + it.qty; }).join('、');
-      var isDone = o.status === '已送达';
-      return (
-        '<div class="tk-order-card">' +
-          '<div class="tk-order-top">' +
-            '<div style="font-weight:700;">' + escapeHtml(o.storeName) + '</div>' +
-            '<span class="tk-order-status">' + escapeHtml(o.status) + '</span>' +
-          '</div>' +
-          '<div class="tk-order-items">' +
-            '<div>' + escapeHtml(itemText) + '</div>' +
-            '<div style="color:#8e8e93;font-size:12px;margin-top:4px;">对象：' + escapeHtml(o.targetLabel || '自己吃') + (o.note ? (' · 备注：' + escapeHtml(o.note)) : '') + '</div>' +
-          '</div>' +
-          '<div class="tk-order-foot">' +
-            '<div style="font-weight:700;">实付 ¥' + o.total + '</div>' +
-            (!isDone ? '<button class="tk-btn is-dark" style="padding:6px 12px;font-size:12px;" data-order-done="' + escapeHtml(o.id) + '" type="button">确认送达</button>' : '<span style="font-size:12px;color:#8e8e93;">' + escapeHtml(o.time || '') + '</span>') +
-          '</div>' +
-        '</div>'
-      );
-    }).join('');
-  }
-
-  function switchTab(tab) {
-    currentTab = tab;
-    var isOrders = tab === 'orders';
-    document.getElementById('tkWrap').classList.toggle('is-subtab', isOrders);
-    document.getElementById('tkBottomBar').classList.toggle('is-orders', isOrders);
-    document.getElementById('tkTitle').textContent = isOrders ? '我的订单' : '小团外卖';
-    document.getElementById('tkPanelHome').classList.toggle('active', !isOrders);
-    document.getElementById('tkPanelOrders').classList.toggle('active', isOrders);
-    root.querySelectorAll('.tk-tab').forEach(function (el) {
-      el.classList.toggle('active', el.getAttribute('data-tk-tab') === tab);
-    });
-    if (isOrders) renderOrdersPanel();
-    else renderHomePanel();
-  }
-
-  function renderPayTargetChips() {
-    var chars = (window.PhoneArchive && window.PhoneArchive.getChars) ? window.PhoneArchive.getChars() : [];
-    var opts = [{ id: 'self', label: '自己吃' }];
-    chars.forEach(function (c) {
-      var name = c.name || c.nickname || 'Char';
-      opts.push({ id: 'feed_' + c.id, label: '投喂 ' + name });
-      opts.push({ id: 'pay_' + c.id, label: '找 ' + name + ' 代付' });
-    });
-    document.getElementById('tkPayTargetChips').innerHTML = opts.map(function (o) {
-      return '<div class="tk-chip' + (tempPayTarget === o.id ? ' active' : '') + '" data-pay-target="' + escapeHtml(o.id) + '">' + escapeHtml(o.label) + '</div>';
-    }).join('');
-  }
-
-  root.querySelectorAll('.tk-tab').forEach(function (el) {
-    el.addEventListener('click', function () {
-      switchTab(el.getAttribute('data-tk-tab'));
-    });
-  });
-
-  document.getElementById('tkPanelHome').addEventListener('click', function (e) {
-    var catItem = e.target.closest('[data-tk-cat]');
-    if (catItem) {
-      var cid = catItem.getAttribute('data-tk-cat');
-      if (cid === 'all') return;
-      activeCatView = cid;
-      renderCategoryView();
-      document.getElementById('tkCatView').classList.add('open');
-      ensureCategoryStores(cid);
-      return;
-    }
-    var storeCard = e.target.closest('[data-open-store]');
-    if (storeCard) {
-      activeStoreId = storeCard.getAttribute('data-open-store');
-      cart = {};
-      renderStoreDetail();
-      document.getElementById('tkDetail').classList.add('open');
-    }
-  });
-
-  document.getElementById('tkCatView').addEventListener('click', function (e) {
-    if (e.target.closest('#tkCloseCatBtn')) {
-      document.getElementById('tkCatView').classList.remove('open');
-      return;
-    }
-    var storeCard = e.target.closest('[data-open-store]');
-    if (storeCard) {
-      activeStoreId = storeCard.getAttribute('data-open-store');
-      cart = {};
-      renderStoreDetail();
-      document.getElementById('tkDetail').classList.add('open');
-    }
-  });
-
-  document.getElementById('tkDetail').addEventListener('click', function (e) {
-    if (e.target.closest('#tkCloseDetailBtn')) {
-      document.getElementById('tkDetail').classList.remove('open');
-      return;
-    }
-    if (e.target.closest('#tkChangeCoverBtn')) {
-      document.getElementById('tkFileStoreCover').click();
-      return;
-    }
-    var addBtn = e.target.closest('[data-qty-add]');
-    if (addBtn) {
-      var did = addBtn.getAttribute('data-qty-add');
-      cart[did] = (cart[did] || 0) + 1;
-      renderStoreDetail();
-      return;
-    }
-    var minusBtn = e.target.closest('[data-qty-minus]');
-    if (minusBtn) {
-      var mid = minusBtn.getAttribute('data-qty-minus');
-      if (cart[mid] > 1) cart[mid]--;
-      else delete cart[mid];
-      renderStoreDetail();
-      return;
-    }
-    if (e.target.closest('#tkOpenCheckoutBtn')) {
-      tempPayTarget = 'self';
-      document.getElementById('tkOrderNote').value = '';
-      renderPayTargetChips();
-      document.getElementById('tkCheckoutModal').classList.add('open');
-    }
-  });
-
-  document.getElementById('tkFileStoreCover').addEventListener('change', function () {
-    var file = this.files && this.files[0];
-    this.value = '';
-    if (!file || !activeStoreId) return;
-    var s = stores.find(function (x) { return x.id === activeStoreId; });
-    if (!s) return;
-    var reader = new FileReader();
-    reader.onload = function () {
-      s.cover = reader.result;
-      saveStores();
-      renderStoreDetail();
-      renderHomePanel();
-      renderCategoryView();
-      showToast('已更新店铺封面');
+    /* 每个分类对应的非美食实景氛围图检索词（Wikimedia Commons） */
+    const AMBIENT_QUERY_MAP = {
+        breakfast: 'cozy cafe interior window morning',
+        lunch: 'modern minimalist restaurant interior',
+        dinner: 'warm restaurant dining room interior',
+        supper: 'tokyo night alley lantern street',
+        milktea: 'minimalist coffee shop counter aesthetic',
+        dessert: 'french bakery storefront aesthetic',
+        japanese: 'kyoto wooden street storefront',
+        korean: 'seoul cafe street architecture',
+        western: 'european bistro street terrace'
     };
-    reader.readAsDataURL(file);
-  });
 
-  document.getElementById('tkCloseCheckoutModal').addEventListener('click', function () {
-    document.getElementById('tkCheckoutModal').classList.remove('open');
-  });
+    const STORE_BLUEPRINTS = [
+        /* ---------------- 早餐 (5家) ---------------- */
+        { id: 'bf-1', category: 'breakfast', name: '晨光豆浆手作铺', rating: 4.9, eta: 20, fee: 0, mealCat: 'Breakfast', dishes: ['现磨热豆浆', '流心蛋煎饼', '黄金酥脆油条', '鲜肉小笼包', '黑芝麻糊'] },
+        { id: 'bf-2', category: 'breakfast', name: '早安可颂烘焙坊', rating: 4.8, eta: 22, fee: 3, mealCat: 'Breakfast', dishes: ['黄油牛角可颂', '培根芝士贝果', '海盐卷面包', '燕麦拿铁', '法式蛋挞'] },
+        { id: 'bf-3', category: 'breakfast', name: '老街热粥铺', rating: 4.7, eta: 25, fee: 0, mealCat: 'Breakfast', dishes: ['皮蛋瘦肉粥', '瑶柱鲜虾粥', '酱香肉末肠粉', '蒸玉米饺', '茶叶蛋两枚'] },
+        { id: 'bf-4', category: 'breakfast', name: '三明治研究所', rating: 4.8, eta: 18, fee: 2, mealCat: 'Breakfast', dishes: ['滑蛋厚吐司', '牛油果鸡胸三明治', '金枪鱼全麦帕尼尼', '美式冰咖啡', '蓝莓酸奶杯'] },
+        { id: 'bf-5', category: 'breakfast', name: '阿婆饭团专卖', rating: 4.9, eta: 20, fee: 0, mealCat: 'Breakfast', dishes: ['咸蛋黄肉松饭团', '黑米脆油条饭团', '紫菜包饭卷', '热红豆薏米水', '卤香豆腐干'] },
 
-  document.getElementById('tkPayTargetChips').addEventListener('click', function (e) {
-    var chip = e.target.closest('[data-pay-target]');
-    if (!chip) return;
-    tempPayTarget = chip.getAttribute('data-pay-target');
-    renderPayTargetChips();
-  });
+        /* ---------------- 午餐 (5家) ---------------- */
+        { id: 'ln-1', category: 'lunch', name: '一碗热饭 · 简餐', rating: 4.9, eta: 25, fee: 3, mealCat: 'Beef', dishes: ['黑椒牛肉饭', '照烧鸡腿饭', '番茄滑蛋盖饭', '卤肉溏心蛋饭', '酸辣土豆丝配饭'] },
+        { id: 'ln-2', category: 'lunch', name: '慢炖红烧牛肉面', rating: 4.8, eta: 24, fee: 2, mealCat: 'Beef', dishes: ['招牌牛腩宽面', '酸菜肥牛米线', '红油抄手', '卤牛腱拼盘', '冰镇酸梅汤'] },
+        { id: 'ln-3', category: 'lunch', name: '轻食能量碗实验室', rating: 4.8, eta: 22, fee: 4, mealCat: 'Chicken', dishes: ['烤鸡胸藜麦碗', '烟熏三文鱼波奇饭', '牛油果温泉蛋沙拉', '黑椒牛肉荞麦面', '羽衣甘蓝果蔬汁'] },
+        { id: 'ln-4', category: 'lunch', name: '川味小炒快线', rating: 4.7, eta: 28, fee: 3, mealCat: 'Pork', dishes: ['鱼香肉丝盖饭', '宫保鸡丁套餐', '麻婆豆腐拌饭', '回锅肉小炒', '冰粉一碗'] },
+        { id: 'ln-5', category: 'lunch', name: '港式烧腊茶餐厅', rating: 4.9, eta: 26, fee: 4, mealCat: 'Pork', dishes: ['蜜汁叉烧双拼饭', '脆皮烧鸭饭', '干炒牛河', 'XO酱海鲜炒饭', '港式冻柠茶'] },
 
-  document.getElementById('tkSubmitOrderBtn').addEventListener('click', function () {
-    var s = stores.find(function (x) { return x.id === activeStoreId; });
-    if (!s) return;
-    var pickedItems = [];
-    var total = Number(s.deliveryFee) || 0;
-    (s.dishes || []).forEach(function (d) {
-      var q = cart[d.id] || 0;
-      if (q > 0) {
-        pickedItems.push({ name: d.name, price: d.price, qty: q });
-        total += q * (Number(d.price) || 0);
-      }
-    });
-    if (!pickedItems.length) return;
+        /* ---------------- 晚餐 (5家) ---------------- */
+        { id: 'dn-1', category: 'dinner', name: '烟火家常菜馆', rating: 4.9, eta: 30, fee: 4, mealCat: 'Seafood', dishes: ['糖醋排骨', '清蒸鲈鱼', '蒜蓉西兰花', '番茄牛腩煲', '老鸭粉丝汤'] },
+        { id: 'dn-2', category: 'dinner', name: '老北京铜锅小份菜', rating: 4.8, eta: 32, fee: 5, mealCat: 'Lamb', dishes: ['麻酱肥牛锅', '手切鲜羊肉单人锅', '脆炸响铃卷', '老北京糖蒜', '桂花酸梅饮'] },
+        { id: 'dn-3', category: 'dinner', name: '云贵酸汤鱼锅', rating: 4.8, eta: 29, fee: 4, mealCat: 'Seafood', dishes: ['红酸汤乌鱼片', '香茅烤罗非鱼', '折耳根拌脆笋', '菠萝紫米饭', '玫瑰冰凉糕'] },
+        { id: 'dn-4', category: 'dinner', name: '江南小馆 · 本帮菜', rating: 4.9, eta: 30, fee: 5, mealCat: 'Pork', dishes: ['外婆红烧肉', '响油鳝丝', '蟹粉豆腐煲', '清炒虾仁', '桂花糖藕'] },
+        { id: 'dn-5', category: 'dinner', name: '椰子鸡原味炖锅', rating: 4.7, eta: 28, fee: 4, mealCat: 'Chicken', dishes: ['原味椰青鸡锅', '竹荪鲜鸡单人煲', '腊味煲仔饭', '手打马蹄丸', '鲜榨椰汁'] },
 
-    var pickedChip = document.querySelector('#tkPayTargetChips .tk-chip.active');
-    var targetLabel = pickedChip ? pickedChip.textContent : '自己吃';
-    var now = new Date();
-    var timeStr = (now.getMonth() + 1) + '/' + now.getDate() + ' ' +
-      String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+        /* ---------------- 夜宵 (5家) ---------------- */
+        { id: 'sp-1', category: 'supper', name: '深夜碳水烤串铺', rating: 4.9, eta: 28, fee: 4, mealCat: 'Lamb', dishes: ['炭烤羊肉串 6 串', '蜜汁烤鸡翅', '蒜蓉烤生蚝 4 只', '锡纸酸辣金针菇', '烤面筋 3 串'] },
+        { id: 'sp-2', category: 'supper', name: '十三香小龙虾专门店', rating: 4.8, eta: 32, fee: 5, mealCat: 'Seafood', dishes: ['蒜蓉小龙虾', '麻辣小龙虾尾', '冰镇毛豆', '葱油拌面', '柠檬气泡水'] },
+        { id: 'sp-3', category: 'supper', name: '夜猫子炸鸡屋', rating: 4.8, eta: 24, fee: 3, mealCat: 'Chicken', dishes: ['脆皮整只炸鸡', '蜂蜜芥末无骨鸡块', '芝士年糕球', '黄金粗薯条', '冰可乐'] },
+        { id: 'sp-4', category: 'supper', name: '巷口麻辣烫砂锅', rating: 4.7, eta: 25, fee: 2, mealCat: 'Miscellaneous', dishes: ['牛骨浓汤麻辣烫', '麻酱干拌麻辣拌', '鲜鸭血宽粉', '炸响铃配肥牛', '冰红茶'] },
+        { id: 'sp-5', category: 'supper', name: '潮汕砂锅粥夜档', rating: 4.9, eta: 30, fee: 3, mealCat: 'Seafood', dishes: ['干贝鲜虾砂锅粥', '膏蟹海鲜粥', '普宁炸豆腐', '卤水鹅肉拼盘', '橄榄菜四季豆'] },
 
-    orders.unshift({
-      id: 'ord_' + Date.now(),
-      storeName: s.name,
-      items: pickedItems,
-      total: total,
-      targetLabel: targetLabel,
-      note: document.getElementById('tkOrderNote').value.trim(),
-      status: '骑手配送中',
-      time: timeStr
-    });
-    saveOrders();
-    cart = {};
-    document.getElementById('tkCheckoutModal').classList.remove('open');
-    document.getElementById('tkDetail').classList.remove('open');
-    document.getElementById('tkCatView').classList.remove('open');
-    switchTab('orders');
-    showToast('下单成功，骑手配送中');
-  });
+        /* ---------------- 奶茶 (5家) ---------------- */
+        { id: 'mt-1', category: 'milktea', name: '云朵茶事局', rating: 4.9, eta: 18, fee: 0, mealCat: 'Dessert', dishes: ['白桃乌龙鲜奶茶', '黑糖波波厚乳', '芝士茉莉奶绿', '杨枝甘露', '芋泥麻薯波波'] },
+        { id: 'mt-2', category: 'milktea', name: '山野冷泡茶铺', rating: 4.8, eta: 20, fee: 2, mealCat: 'Dessert', dishes: ['鸭屎香手打柠檬茶', '桂花龙井轻乳茶', '青提冻冻茶', '多肉葡萄冰沙', '栀子绿茶冰萃'] },
+        { id: 'mt-3', category: 'milktea', name: '京都宇治抹茶社', rating: 4.9, eta: 22, fee: 3, mealCat: 'Dessert', dishes: ['浓醇宇治抹茶拿铁', '海盐芝士焙茶', '黑糖豆乳抹茶', '红豆白玉抹茶冰', '玄米鲜奶茶'] },
+        { id: 'mt-4', category: 'milktea', name: '鲜果茶水铺', rating: 4.7, eta: 19, fee: 1, mealCat: 'Dessert', dishes: ['满杯百香果双响炮', '西瓜椰椰冻', '超厚芒芒甘露', '草莓芝士奶盖', '金桔柠檬水'] },
+        { id: 'mt-5', category: 'milktea', name: '手炒黑糖牛乳社', rating: 4.8, eta: 20, fee: 2, mealCat: 'Dessert', dishes: ['招牌黑糖珍珠牛乳', '奥利奥奶盖可可', '焦糖布丁烤奶', '双拼芋圆奶茶', '厚芋泥鲜奶'] },
 
-  document.getElementById('tkPanelOrders').addEventListener('click', function (e) {
-    var doneBtn = e.target.closest('[data-order-done]');
-    if (!doneBtn) return;
-    var oid = doneBtn.getAttribute('data-order-done');
-    var o = orders.find(function (x) { return x.id === oid; });
-    if (o) {
-      o.status = '已送达';
-      saveOrders();
-      renderOrdersPanel();
-      showToast('订单已送达');
+        /* ---------------- 甜点 (5家) ---------------- */
+        { id: 'ds-1', category: 'dessert', name: '糖霜兔子蛋糕房', rating: 4.9, eta: 25, fee: 4, mealCat: 'Dessert', dishes: ['草莓奶油切件', '海盐巴斯克芝士', '焦糖布丁', '法式千层酥', '开心果泡芙'] },
+        { id: 'ds-2', category: 'dessert', name: 'Gelato 意式冰淇淋', rating: 4.9, eta: 22, fee: 3, mealCat: 'Dessert', dishes: ['开心果海盐双球', '黑巧榛子意式雪糕', '白桃雪芭', '提拉米苏杯', '华夫脆筒'] },
+        { id: 'ds-3', category: 'dessert', name: '舒芙蕾松饼小屋', rating: 4.8, eta: 26, fee: 4, mealCat: 'Dessert', dishes: ['经典枫糖舒芙蕾', '草莓卡仕达松饼', '抹茶红豆舒芙蕾', '焦糖香蕉华夫', '香草冰拿铁'] },
+        { id: 'ds-4', category: 'dessert', name: '港式糖水铺', rating: 4.8, eta: 24, fee: 2, mealCat: 'Dessert', dishes: ['姜撞奶热碗', '芒果白雪黑糯米', '双皮奶红豆', '芝麻核桃糊', '椰汁芋头西米露'] },
+        { id: 'ds-5', category: 'dessert', name: '法式可丽露烘焙', rating: 4.7, eta: 25, fee: 3, mealCat: 'Dessert', dishes: ['香草朗姆可丽露', '柠檬蛋白霜塔', '树莓马卡龙礼盒', '榛子巧克力慕斯', '伯爵红茶玛德琳'] },
+
+        /* ---------------- 日料 (5家) ---------------- */
+        { id: 'jp-1', category: 'japanese', name: '月见拉面屋', rating: 4.9, eta: 27, fee: 4, mealCat: 'Seafood', dishes: ['豚骨叉烧拉面', '炙烤三文鱼丼', '炸猪排滑蛋饭', '日式煎饺 6 只', '玉子烧'] },
+        { id: 'jp-2', category: 'japanese', name: '筑地刺身手握馆', rating: 4.9, eta: 30, fee: 5, mealCat: 'Seafood', dishes: ['厚切三文鱼刺身', '炙烤鹅肝手握', '鳗鱼牛油果卷', '北极贝甜虾拼盘', '味增海鲜汤'] },
+        { id: 'jp-3', category: 'japanese', name: '咖喱与炸物食堂', rating: 4.8, eta: 24, fee: 3, mealCat: 'Chicken', dishes: ['黄金猪排咖喱饭', '唐扬炸鸡块', '滑蛋牛肉乌冬面', '章鱼小丸子', '可尔必思'] },
+        { id: 'jp-4', category: 'japanese', name: '寿喜烧一人食', rating: 4.8, eta: 28, fee: 4, mealCat: 'Beef', dishes: ['和牛寿喜烧单人锅', '照烧肥牛饭', '无菌蛋蘸料套组', '蟹籽土豆沙拉', '抹茶大福'] },
+        { id: 'jp-5', category: 'japanese', name: '炭火烧鸟小酒馆', rating: 4.7, eta: 29, fee: 4, mealCat: 'Chicken', dishes: ['京葱鸡腿肉串', '明太子鸡翅', '盐烤青花鱼', '烤饭团茶泡饭', '梅子苏打'] },
+
+        /* ---------------- 韩料 (5家) ---------------- */
+        { id: 'kr-1', category: 'korean', name: '首尔路口小食堂', rating: 4.8, eta: 26, fee: 3, mealCat: 'Pork', dishes: ['泡菜五花肉锅', '芝士火鸡面', '甜辣脆皮炸鸡', '金枪鱼海苔拌饭', '芝士玉米粒'] },
+        { id: 'kr-2', category: 'korean', name: '釜山部队火锅', rating: 4.9, eta: 29, fee: 4, mealCat: 'Beef', dishes: ['经典芝士部队锅', '肥牛辣白菜汤饭', '韩式大酱汤套餐', '泡菜海鲜饼', '米酒气泡饮'] },
+        { id: 'kr-3', category: 'korean', name: '梨泰院烤肉拌饭', rating: 4.8, eta: 25, fee: 3, mealCat: 'Beef', dishes: ['石锅黑椒牛肉拌饭', '炭烤猪五花盖饭', '蜂蜜蒜香炸鸡', '辣炒年糕鱼饼', '冷面'] },
+        { id: 'kr-4', category: 'korean', name: '明洞紫菜包饭屋', rating: 4.7, eta: 22, fee: 2, mealCat: 'Miscellaneous', dishes: ['芝士猪排紫菜卷', '辛拉面加溏心蛋', '甜辣鱼饼串', '炸酱面', '水蜜桃汁'] },
+        { id: 'kr-5', category: 'korean', name: '弘大参鸡汤专门店', rating: 4.9, eta: 30, fee: 4, mealCat: 'Chicken', dishes: ['原味人参童子鸡汤', '黑蒜养生鸡煲', '韩式烤鸡爪', '萝卜泡菜拼盘', '柚子蜂蜜茶'] },
+
+        /* ---------------- 西餐 (5家) ---------------- */
+        { id: 'ws-1', category: 'western', name: '小巷牛排馆 · Bistro', rating: 4.9, eta: 28, fee: 0, mealCat: 'Beef', dishes: ['炭烤澳洲西冷牛排', '黑松露菌菇意面', '慢炖红酒牛腩', '法式洋葱浓汤', '烤蒜香黄油法棍'] },
+        { id: 'ws-2', category: 'western', name: '圣马可手工意面屋', rating: 4.8, eta: 24, fee: 4, mealCat: 'Pasta', dishes: ['经典肉酱千层面', '培根蛋奶宽意面', '海鲜墨鱼汁意面', '玛格丽特窑烤披萨', '凯撒鸡胸沙拉'] },
+        { id: 'ws-3', category: 'western', name: '橡木桶汉堡实验室', rating: 4.8, eta: 22, fee: 3, mealCat: 'Beef', dishes: ['双层安格斯芝士堡', '焦糖洋葱和牛堡', '酥脆酪乳炸鸡堡', '黑松露帕玛森薯条', '奶油玉米浓汤'] },
+        { id: 'ws-4', category: 'western', name: '海岸线海鲜餐吧', rating: 4.9, eta: 30, fee: 5, mealCat: 'Seafood', dishes: ['黄油蒜香烤大虾', '英式炸鱼薯条', '白酒煮青口贝', '香烤海鲈鱼排', '龙虾浓汤配面包'] },
+        { id: 'ws-5', category: 'western', name: '日曜早午餐 · Brunch', rating: 4.7, eta: 20, fee: 0, mealCat: 'Breakfast', dishes: ['经典班尼迪克蛋', '牛油果水波蛋酸面包', '烟熏三文鱼贝果', '烤鸡肉凯撒能量碗', '番茄罗勒意面'] }
+    ];
+
+    let activeTab = 'order';
+    let activeSubCategoryId = null;
+    let currentStore = null;
+    let cart = {};
+    let cartDrawerOpen = false;
+    let checkoutMode = 'self';
+    let selectedCharId = '';
+
+    let mealPhotoCache = loadJSON(STORAGE_PHOTO_CACHE_KEY, {});
+    let ambientCache = loadJSON(STORAGE_AMBIENT_CACHE_KEY, {});
+    const pendingCatFetch = {};
+    const pendingAmbientFetch = {};
+
+    function loadJSON(key, fallback) {
+        try {
+            const raw = localStorage.getItem(key);
+            return raw ? JSON.parse(raw) : fallback;
+        } catch (e) {
+            return fallback;
+        }
     }
-  });
 
-  renderHomePanel();
-  ensureHomeRecommendations();
+    function saveJSON(key, val) {
+        try {
+            localStorage.setItem(key, JSON.stringify(val));
+        } catch (e) {}
+    }
+
+    function getOrders() {
+        return loadJSON(STORAGE_ORDERS_KEY, []);
+    }
+
+    function getCustomCovers() {
+        return loadJSON(STORAGE_COVERS_KEY, {});
+    }
+
+    function getCatName(catId) {
+        const found = CATEGORIES.find(c => c.id === catId);
+        return found ? found.name : '美食';
+    }
+
+    function fallbackAmbientUrl(store) {
+        return 'https://picsum.photos/seed/tk-' + encodeURIComponent(store.id) + '/800/420';
+    }
+
+    function getStoreCoverUrl(store) {
+        const custom = getCustomCovers();
+        if (custom[store.id]) return custom[store.id];
+        const list = ambientCache[store.category];
+        if (Array.isArray(list) && list.length > 0) {
+            const sameCat = STORE_BLUEPRINTS.filter(s => s.category === store.category);
+            const idx = Math.max(0, sameCat.findIndex(s => s.id === store.id));
+            return list[idx % list.length];
+        }
+        return fallbackAmbientUrl(store);
+    }
+
+    function buildStores() {
+        return STORE_BLUEPRINTS.map(bp => {
+            const photos = mealPhotoCache[bp.mealCat] || [];
+            const baseSeed = bp.id.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+            const items = bp.dishes.map((name, idx) => ({
+                id: bp.id + '-d' + idx,
+                name: name,
+                desc: '门店招牌 · 新鲜现做',
+                price: 15 + ((baseSeed + idx * 7) % 28),
+                img: photos.length ? photos[(baseSeed + idx) % photos.length] : ''
+            }));
+            return {
+                id: bp.id,
+                category: bp.category,
+                name: bp.name,
+                rating: bp.rating,
+                eta: bp.eta,
+                fee: bp.fee,
+                mealCat: bp.mealCat,
+                items: items
+            };
+        });
+    }
+
+    /* 拉取真实菜品实拍图（TheMealDB） */
+    async function ensureMealPhotos(mealCat) {
+        if (mealPhotoCache[mealCat] && mealPhotoCache[mealCat].length > 0) return;
+        if (pendingCatFetch[mealCat]) return pendingCatFetch[mealCat];
+
+        pendingCatFetch[mealCat] = (async () => {
+            try {
+                const res = await fetch('https://www.themealdb.com/api/json/v1/1/filter.php?c=' + encodeURIComponent(mealCat));
+                if (!res.ok) return;
+                const data = await res.json();
+                const meals = Array.isArray(data.meals) ? data.meals : [];
+                const urls = meals.map(m => m.strMealThumb).filter(Boolean).slice(0, 24);
+                if (urls.length > 0) {
+                    mealPhotoCache[mealCat] = urls;
+                    saveJSON(STORAGE_PHOTO_CACHE_KEY, mealPhotoCache);
+                    refreshVisibleImages();
+                }
+            } catch (e) {}
+        })();
+
+        return pendingCatFetch[mealCat];
+    }
+
+    /* 拉取真实非美食实景氛围图（Wikimedia Commons 公开接口） */
+    async function ensureAmbientPhotos(catId) {
+        const cached = ambientCache[catId];
+        if (cached && cached.ts && (Date.now() - cached.ts < 86400000) && Array.isArray(cached.urls) && cached.urls.length >= 5) {
+            return;
+        }
+        if (Array.isArray(cached) && cached.length >= 5) return;
+        if (pendingAmbientFetch[catId]) return pendingAmbientFetch[catId];
+
+        const query = AMBIENT_QUERY_MAP[catId] || 'cozy cafe interior';
+        pendingAmbientFetch[catId] = (async () => {
+            try {
+                const url = 'https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrlimit=18&gsrsearch='
+                    + encodeURIComponent(query + ' filetype:bitmap')
+                    + '&prop=imageinfo&iiprop=url&iiurlwidth=960&format=json&origin=*';
+                const res = await fetch(url);
+                if (!res.ok) return;
+                const data = await res.json();
+                const pages = data && data.query && data.query.pages ? Object.values(data.query.pages) : [];
+                const urls = pages
+                    .sort((a, b) => (a.index || 0) - (b.index || 0))
+                    .map(p => p.imageinfo && p.imageinfo[0] && (p.imageinfo[0].thumburl || p.imageinfo[0].url))
+                    .filter(u => u && /\.(jpe?g|png|webp)(\?|$)/i.test(u))
+                    .slice(0, 10);
+                if (urls.length > 0) {
+                    ambientCache[catId] = urls;
+                    saveJSON(STORAGE_AMBIENT_CACHE_KEY, ambientCache);
+                    refreshVisibleImages();
+                }
+            } catch (e) {}
+        })();
+
+        return pendingAmbientFetch[catId];
+    }
+
+    function preloadAllImages() {
+        const mealCats = [...new Set(STORE_BLUEPRINTS.map(b => b.mealCat))];
+        mealCats.forEach(c => ensureMealPhotos(c));
+        Object.keys(AMBIENT_QUERY_MAP).forEach(catId => ensureAmbientPhotos(catId));
+    }
+
+    function refreshVisibleImages() {
+        if (activeTab === 'order') renderHome();
+        if (activeSubCategoryId) renderCategorySubview();
+        if (currentStore) {
+            const stores = buildStores();
+            const updated = stores.find(s => s.id === currentStore.id);
+            if (updated) {
+                currentStore = updated;
+                renderStoreView();
+            }
+        }
+    }
+
+    function getChars() {
+        try {
+            if (window.PhoneArchive && typeof window.PhoneArchive.getChars === 'function') {
+                return window.PhoneArchive.getChars() || [];
+            }
+        } catch (e) {}
+        return [];
+    }
+
+    function escapeHtml(str) {
+        return String(str || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function mount() {
+        const root = document.getElementById('app-takeout');
+        if (!root || root.dataset.mounted === '1') return;
+        root.dataset.mounted = '1';
+
+        root.innerHTML = `
+            <div class="tk-app">
+                <div class="tk-topbar">
+                    <div class="tk-topbar-left">
+                        <button class="tk-back-btn" id="tkBackHomeBtn" data-close-app aria-label="返回桌面">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                        </button>
+                        <div class="tk-title" id="tkMainTitle">小团外卖</div>
+                    </div>
+                </div>
+
+                <div class="tk-scroll" id="tkMainScroll"></div>
+
+                <div class="tk-bottom-bar">
+                    <button class="tk-tab-btn active" data-tab="order">点外卖</button>
+                    <button class="tk-tab-btn" data-tab="orders">订单</button>
+                </div>
+
+                <!-- 分类全屏页 -->
+                <div class="tk-subview" id="tkCatView">
+                    <div class="tk-subview-head">
+                        <div class="tk-subview-left">
+                            <button class="tk-back-btn" id="tkCatBackBtn" aria-label="返回首页">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                            </button>
+                            <div class="tk-subview-title" id="tkCatTitle">分类</div>
+                        </div>
+                        <div class="tk-subview-count" id="tkCatCount">共 5 家店铺</div>
+                    </div>
+                    <div class="tk-subview-scroll" id="tkCatScroll"></div>
+                </div>
+
+                <!-- 店铺详情全屏页 -->
+                <div class="tk-store-view" id="tkStoreView">
+                    <div class="tk-store-header">
+                        <img class="tk-store-header-img" id="tkStoreCoverImg" src="" alt="" />
+                        <div class="tk-store-header-scrim"></div>
+                        <div class="tk-store-header-actions">
+                            <button class="tk-circle-btn" id="tkCloseStoreBtn" aria-label="关闭店铺">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                            </button>
+                            <button class="tk-circle-btn" id="tkUploadCoverBtn" title="自定义店铺封面" aria-label="上传封面">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                            </button>
+                        </div>
+                        <div class="tk-store-header-info">
+                            <div class="tk-store-header-name" id="tkStoreHeaderName"></div>
+                            <div class="tk-store-header-sub" id="tkStoreHeaderSub"></div>
+                        </div>
+                    </div>
+
+                    <div class="tk-dish-list" id="tkDishList"></div>
+
+                    <!-- 可展开购物车抽屉 -->
+                    <div class="tk-cart-drawer-mask" id="tkCartDrawerMask"></div>
+                    <div class="tk-cart-drawer" id="tkCartDrawer">
+                        <div class="tk-cart-drawer-head">
+                            <div class="tk-cart-drawer-title">已选菜品</div>
+                            <button class="tk-cart-clear-btn" id="tkClearCartBtn">清空</button>
+                        </div>
+                        <div class="tk-cart-drawer-list" id="tkCartDrawerList"></div>
+                        <div class="tk-cart-drawer-foot">
+                            <span id="tkCartDrawerFee"></span>
+                            <span id="tkCartDrawerSum"></span>
+                        </div>
+                    </div>
+
+                    <div class="tk-cart-bar" id="tkCartBar">
+                        <div class="tk-cart-bar-info" id="tkToggleCartBtn">
+                            <div class="tk-cart-icon-wrap">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+                                <span class="tk-cart-badge" id="tkCartBadge">0</span>
+                            </div>
+                            <div class="tk-cart-text-wrap">
+                                <span class="tk-cart-total" id="tkCartTotal">¥0</span>
+                                <span class="tk-cart-count" id="tkCartCount">已选 0 件</span>
+                            </div>
+                        </div>
+                        <button class="tk-cart-submit" id="tkGoCheckoutBtn">去下单</button>
+                    </div>
+                </div>
+
+                <!-- 结算弹窗 -->
+                <div class="tk-modal-mask" id="tkCheckoutModal">
+                    <div class="tk-modal">
+                        <div class="tk-modal-head">
+                            <div class="tk-modal-title">确认下单</div>
+                            <button class="tk-modal-close" id="tkCloseCheckoutBtn">×</button>
+                        </div>
+                        <div class="tk-field-label">点单方式</div>
+                        <div class="tk-mode-row" id="tkModeRow">
+                            <button class="tk-mode-btn active" data-mode="self">自己吃</button>
+                            <button class="tk-mode-btn" data-mode="feed">投喂 Char</button>
+                            <button class="tk-mode-btn" data-mode="pay">找 Char 代付</button>
+                        </div>
+                        <div id="tkCharWrap" style="display:none;">
+                            <div class="tk-field-label">选择 Char</div>
+                            <div class="tk-char-list" id="tkCharList"></div>
+                        </div>
+                        <div class="tk-field-label">订单备注</div>
+                        <input class="tk-input" id="tkOrderNote" placeholder="例如：少辣、放门口即可" />
+                        <button class="tk-primary-btn" id="tkSubmitOrderBtn">立即下单</button>
+                    </div>
+                </div>
+
+                <input type="file" id="tkCoverFileInput" accept="image/*" style="display:none;" />
+            </div>
+        `;
+
+        bindEvents();
+        renderHome();
+        preloadAllImages();
+    }
+
+    function bindEvents() {
+        document.querySelectorAll('#app-takeout .tk-tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                activeTab = btn.dataset.tab;
+                document.querySelectorAll('#app-takeout .tk-tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+                const backBtn = document.getElementById('tkBackHomeBtn');
+                const title = document.getElementById('tkMainTitle');
+                if (activeTab === 'order') {
+                    backBtn.classList.remove('is-hidden');
+                    title.textContent = '小团外卖';
+                    renderHome();
+                } else {
+                    backBtn.classList.add('is-hidden');
+                    title.textContent = '订单';
+                    renderOrders();
+                }
+            });
+        });
+
+        document.getElementById('tkCatBackBtn').addEventListener('click', () => {
+            activeSubCategoryId = null;
+            document.getElementById('tkCatView').classList.remove('open');
+        });
+
+        document.getElementById('tkCloseStoreBtn').addEventListener('click', () => {
+            cartDrawerOpen = false;
+            updateCartDrawerUI();
+            document.getElementById('tkStoreView').classList.remove('open');
+            currentStore = null;
+        });
+
+        document.getElementById('tkToggleCartBtn').addEventListener('click', () => {
+            const count = Object.values(cart).reduce((a, b) => a + b, 0);
+            if (count === 0) return;
+            cartDrawerOpen = !cartDrawerOpen;
+            updateCartDrawerUI();
+        });
+
+        document.getElementById('tkCartDrawerMask').addEventListener('click', () => {
+            cartDrawerOpen = false;
+            updateCartDrawerUI();
+        });
+
+        document.getElementById('tkClearCartBtn').addEventListener('click', () => {
+            cart = {};
+            cartDrawerOpen = false;
+            renderStoreView();
+        });
+
+        document.getElementById('tkUploadCoverBtn').addEventListener('click', () => {
+            document.getElementById('tkCoverFileInput').click();
+        });
+
+        document.getElementById('tkCoverFileInput').addEventListener('change', (e) => {
+            const file = e.target.files && e.target.files[0];
+            if (!file || !currentStore) return;
+            const reader = new FileReader();
+            reader.onload = () => {
+                const covers = getCustomCovers();
+                covers[currentStore.id] = reader.result;
+                saveJSON(STORAGE_COVERS_KEY, covers);
+                renderStoreView();
+                renderHome();
+                if (activeSubCategoryId) renderCategorySubview();
+            };
+            reader.readAsDataURL(file);
+            e.target.value = '';
+        });
+
+        document.getElementById('tkGoCheckoutBtn').addEventListener('click', openCheckoutModal);
+        document.getElementById('tkCloseCheckoutBtn').addEventListener('click', () => {
+            document.getElementById('tkCheckoutModal').classList.remove('open');
+        });
+
+        document.querySelectorAll('#tkModeRow .tk-mode-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                checkoutMode = btn.dataset.mode;
+                document.querySelectorAll('#tkModeRow .tk-mode-btn').forEach(b => b.classList.toggle('active', b === btn));
+                renderCharSelector();
+            });
+        });
+
+        document.getElementById('tkSubmitOrderBtn').addEventListener('click', submitOrder);
+    }
+
+    function renderStoreCardHTML(store) {
+        const feeText = store.fee === 0 ? '免配送费' : '配送费 ¥' + store.fee;
+        const coverUrl = getStoreCoverUrl(store);
+        const fallbackUrl = fallbackAmbientUrl(store);
+        const previewHtml = store.items.slice(0, 3).map(item => `
+            <div class="tk-preview-chip">
+                ${item.img ? `<img src="${escapeHtml(item.img)}" alt="" loading="lazy" />` : ''}
+                <span>${escapeHtml(item.name)}</span>
+            </div>
+        `).join('');
+
+        return `
+            <div class="tk-store-card" data-store-id="${escapeHtml(store.id)}">
+                <div class="tk-store-banner">
+                    <img class="tk-store-banner-img" src="${escapeHtml(coverUrl)}" onerror="if(this.dataset.fb!=='1'){this.dataset.fb='1';this.src='${escapeHtml(fallbackUrl)}';}" alt="" loading="lazy" />
+                    <div class="tk-store-banner-scrim"></div>
+                    <div class="tk-store-badge">${escapeHtml(getCatName(store.category))}</div>
+                </div>
+                <div class="tk-store-body">
+                    <div class="tk-store-row1">
+                        <div class="tk-store-name">${escapeHtml(store.name)}</div>
+                        <div class="tk-store-rating">★ ${store.rating}</div>
+                    </div>
+                    <div class="tk-store-meta">约 ${store.eta} 分钟送达 · ${feeText}</div>
+                    <div class="tk-store-preview">${previewHtml}</div>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderHome() {
+        const scroll = document.getElementById('tkMainScroll');
+        if (!scroll) return;
+        const stores = buildStores();
+        const recommended = [
+            stores.find(s => s.id === 'bf-1'),
+            stores.find(s => s.id === 'ln-1'),
+            stores.find(s => s.id === 'mt-1'),
+            stores.find(s => s.id === 'ws-1'),
+            stores.find(s => s.id === 'jp-1'),
+            stores.find(s => s.id === 'sp-1')
+        ].filter(Boolean);
+
+        const catHtml = CATEGORIES.map(c => `
+            <button class="tk-cat-item ${c.id === 'all' ? 'active' : ''}" data-cat="${c.id}">
+                <div class="tk-cat-icon">${c.icon}</div>
+                <div class="tk-cat-label">${c.name}</div>
+            </button>
+        `).join('');
+
+        const storeHtml = recommended.map(renderStoreCardHTML).join('');
+
+        scroll.innerHTML = `
+            <div class="tk-cat-card">
+                <div class="tk-cat-grid">${catHtml}</div>
+            </div>
+            <div class="tk-sec-head">
+                <div class="tk-sec-title">为你推荐</div>
+                <div class="tk-sec-sub">精选好店</div>
+            </div>
+            <div class="tk-store-list">${storeHtml}</div>
+        `;
+
+        scroll.querySelectorAll('.tk-cat-item').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const catId = btn.dataset.cat;
+                if (catId === 'all') return;
+                openCategorySubview(catId);
+            });
+        });
+
+        scroll.querySelectorAll('.tk-store-card').forEach(card => {
+            card.addEventListener('click', () => openStore(card.dataset.storeId));
+        });
+    }
+
+    function openCategorySubview(catId) {
+        activeSubCategoryId = catId;
+        ensureAmbientPhotos(catId);
+        document.getElementById('tkCatTitle').textContent = getCatName(catId);
+        renderCategorySubview();
+        document.getElementById('tkCatView').classList.add('open');
+    }
+
+    function renderCategorySubview() {
+        if (!activeSubCategoryId) return;
+        const stores = buildStores().filter(s => s.category === activeSubCategoryId);
+        document.getElementById('tkCatCount').textContent = '共 ' + stores.length + ' 家店铺';
+        const container = document.getElementById('tkCatScroll');
+        container.innerHTML = `<div class="tk-store-list">${stores.map(renderStoreCardHTML).join('')}</div>`;
+        container.querySelectorAll('.tk-store-card').forEach(card => {
+            card.addEventListener('click', () => openStore(card.dataset.storeId));
+        });
+    }
+
+    function openStore(storeId) {
+        const stores = buildStores();
+        const store = stores.find(s => s.id === storeId);
+        if (!store) return;
+        currentStore = store;
+        cart = {};
+        cartDrawerOpen = false;
+        ensureMealPhotos(store.mealCat);
+        ensureAmbientPhotos(store.category);
+        renderStoreView();
+        document.getElementById('tkStoreView').classList.add('open');
+    }
+
+    function renderStoreView() {
+        if (!currentStore) return;
+        const coverImg = document.getElementById('tkStoreCoverImg');
+        const coverUrl = getStoreCoverUrl(currentStore);
+        const fallbackUrl = fallbackAmbientUrl(currentStore);
+        coverImg.dataset.fb = '';
+        coverImg.onerror = function () {
+            if (this.dataset.fb !== '1') {
+                this.dataset.fb = '1';
+                this.src = fallbackUrl;
+            }
+        };
+        coverImg.src = coverUrl;
+
+        document.getElementById('tkStoreHeaderName').textContent = currentStore.name;
+        const feeText = currentStore.fee === 0 ? '免配送费' : '配送费 ¥' + currentStore.fee;
+        document.getElementById('tkStoreHeaderSub').textContent = `${getCatName(currentStore.category)} · 约 ${currentStore.eta} 分钟 · ${feeText}`;
+
+        const list = document.getElementById('tkDishList');
+        list.innerHTML = currentStore.items.map(item => {
+            const qty = cart[item.id] || 0;
+            return `
+                <div class="tk-dish-card">
+                    ${item.img ? `<img class="tk-dish-img" src="${escapeHtml(item.img)}" alt="" loading="lazy" />` : `<div class="tk-dish-img"></div>`}
+                    <div class="tk-dish-info">
+                        <div class="tk-dish-name">${escapeHtml(item.name)}</div>
+                        <div class="tk-dish-desc">${escapeHtml(item.desc)}</div>
+                        <div class="tk-dish-bottom">
+                            <div class="tk-dish-price">¥${item.price}</div>
+                            <div class="tk-qty-ctrl">
+                                ${qty > 0 ? `<button class="tk-qty-btn minus" data-id="${item.id}">-</button><span class="tk-qty-num">${qty}</span>` : ''}
+                                <button class="tk-qty-btn plus" data-id="${item.id}">+</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        list.querySelectorAll('.tk-qty-btn.plus').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const id = btn.dataset.id;
+                cart[id] = (cart[id] || 0) + 1;
+                renderStoreView();
+            });
+        });
+
+        list.querySelectorAll('.tk-qty-btn.minus').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const id = btn.dataset.id;
+                if (cart[id] > 1) cart[id] -= 1;
+                else delete cart[id];
+                renderStoreView();
+            });
+        });
+
+        updateCartBar();
+        updateCartDrawerUI();
+    }
+
+    function updateCartBar() {
+        if (!currentStore) return;
+        let total = 0;
+        let count = 0;
+        currentStore.items.forEach(item => {
+            const q = cart[item.id] || 0;
+            if (q > 0) {
+                total += item.price * q;
+                count += q;
+            }
+        });
+        const bar = document.getElementById('tkCartBar');
+        if (count > 0) {
+            bar.classList.add('show');
+            document.getElementById('tkCartBadge').textContent = String(count);
+            document.getElementById('tkCartTotal').textContent = '¥' + total;
+            document.getElementById('tkCartCount').innerHTML = `已选 ${count} 件 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="${cartDrawerOpen ? '6 9 12 15 18 9' : '18 15 12 9 6 15'}"/></svg>`;
+        } else {
+            bar.classList.remove('show');
+            cartDrawerOpen = false;
+        }
+    }
+
+    function updateCartDrawerUI() {
+        const mask = document.getElementById('tkCartDrawerMask');
+        const drawer = document.getElementById('tkCartDrawer');
+        if (!mask || !drawer || !currentStore) return;
+
+        const selected = currentStore.items.filter(item => (cart[item.id] || 0) > 0);
+        if (!cartDrawerOpen || selected.length === 0) {
+            cartDrawerOpen = false;
+            mask.classList.remove('open');
+            drawer.classList.remove('open');
+            updateCartBar();
+            return;
+        }
+
+        mask.classList.add('open');
+        drawer.classList.add('open');
+
+        let subtotal = 0;
+        const listEl = document.getElementById('tkCartDrawerList');
+        listEl.innerHTML = selected.map(item => {
+            const q = cart[item.id];
+            const lineTotal = item.price * q;
+            subtotal += lineTotal;
+            return `
+                <div class="tk-cart-drawer-item">
+                    ${item.img ? `<img class="tk-cart-drawer-thumb" src="${escapeHtml(item.img)}" alt="" />` : `<div class="tk-cart-drawer-thumb"></div>`}
+                    <div class="tk-cart-drawer-info">
+                        <div class="tk-cart-drawer-name">${escapeHtml(item.name)}</div>
+                        <div class="tk-cart-drawer-sub">¥${lineTotal}</div>
+                    </div>
+                    <div class="tk-qty-ctrl">
+                        <button class="tk-qty-btn minus" data-id="${item.id}">-</button>
+                        <span class="tk-qty-num">${q}</span>
+                        <button class="tk-qty-btn plus" data-id="${item.id}">+</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        listEl.querySelectorAll('.tk-qty-btn.plus').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const id = btn.dataset.id;
+                cart[id] = (cart[id] || 0) + 1;
+                renderStoreView();
+            });
+        });
+
+        listEl.querySelectorAll('.tk-qty-btn.minus').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const id = btn.dataset.id;
+                if (cart[id] > 1) cart[id] -= 1;
+                else delete cart[id];
+                renderStoreView();
+            });
+        });
+
+        document.getElementById('tkCartDrawerFee').textContent = currentStore.fee === 0 ? '免配送费' : '含配送费 ¥' + currentStore.fee;
+        document.getElementById('tkCartDrawerSum').textContent = '合计 ¥' + (subtotal + currentStore.fee);
+        updateCartBar();
+    }
+
+    function openCheckoutModal() {
+        cartDrawerOpen = false;
+        updateCartDrawerUI();
+        renderCharSelector();
+        document.getElementById('tkCheckoutModal').classList.add('open');
+    }
+
+    function renderCharSelector() {
+        const wrap = document.getElementById('tkCharWrap');
+        const list = document.getElementById('tkCharList');
+        if (checkoutMode === 'self') {
+            wrap.style.display = 'none';
+            return;
+        }
+        wrap.style.display = 'block';
+        const chars = getChars();
+        if (chars.length === 0) {
+            list.innerHTML = '<div style="font-size:12px;color:#8e8e93;">暂无角色，请先在档案里创建 Char</div>';
+            selectedCharId = '';
+            return;
+        }
+        if (!selectedCharId || !chars.some(c => c.id === selectedCharId)) {
+            selectedCharId = chars[0].id;
+        }
+        list.innerHTML = chars.map(c => `
+            <button class="tk-char-chip ${c.id === selectedCharId ? 'active' : ''}" data-char-id="${escapeHtml(c.id)}">${escapeHtml(c.name || '未命名')}</button>
+        `).join('');
+        list.querySelectorAll('.tk-char-chip').forEach(btn => {
+            btn.addEventListener('click', () => {
+                selectedCharId = btn.dataset.charId;
+                renderCharSelector();
+            });
+        });
+    }
+
+    function submitOrder() {
+        if (!currentStore) return;
+        const items = [];
+        let total = currentStore.fee;
+        currentStore.items.forEach(item => {
+            const q = cart[item.id] || 0;
+            if (q > 0) {
+                items.push({ name: item.name, qty: q, price: item.price });
+                total += item.price * q;
+            }
+        });
+        if (items.length === 0) return;
+
+        const chars = getChars();
+        const targetChar = chars.find(c => c.id === selectedCharId);
+        const modeLabel = checkoutMode === 'self'
+            ? '自己吃'
+            : (checkoutMode === 'feed'
+                ? `投喂 ${targetChar ? targetChar.name : 'Char'}`
+                : `找 ${targetChar ? targetChar.name : 'Char'} 代付`);
+
+        const orders = getOrders();
+        orders.unshift({
+            id: 'ord-' + Date.now(),
+            storeName: currentStore.name,
+            items: items,
+            total: total,
+            modeLabel: modeLabel,
+            note: document.getElementById('tkOrderNote').value.trim(),
+            time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+            status: '骑手配送中'
+        });
+        saveJSON(STORAGE_ORDERS_KEY, orders);
+
+        document.getElementById('tkCheckoutModal').classList.remove('open');
+        document.getElementById('tkStoreView').classList.remove('open');
+        document.getElementById('tkCatView').classList.remove('open');
+        activeSubCategoryId = null;
+        currentStore = null;
+        cart = {};
+        cartDrawerOpen = false;
+        document.getElementById('tkOrderNote').value = '';
+
+        const ordersTabBtn = document.querySelector('#app-takeout .tk-tab-btn[data-tab="orders"]');
+        if (ordersTabBtn) ordersTabBtn.click();
+    }
+
+    function renderOrders() {
+        const scroll = document.getElementById('tkMainScroll');
+        if (!scroll) return;
+        const orders = getOrders();
+        if (orders.length === 0) {
+            scroll.innerHTML = '<div class="tk-empty">还没有外卖订单，去挑一家喜欢的店吧</div>';
+            return;
+        }
+        scroll.innerHTML = orders.map(ord => `
+            <div class="tk-order-card">
+                <div class="tk-order-top">
+                    <div class="tk-order-store">${escapeHtml(ord.storeName)}</div>
+                    <div class="tk-order-status">${escapeHtml(ord.status)}</div>
+                </div>
+                <div class="tk-order-items">
+                    ${ord.items.map(i => `${escapeHtml(i.name)} × ${i.qty}`).join('、')}
+                    ${ord.note ? `<div style="color:#8e8e93;margin-top:4px;">备注：${escapeHtml(ord.note)}</div>` : ''}
+                </div>
+                <div class="tk-order-foot">
+                    <span>${escapeHtml(ord.modeLabel)} · ${escapeHtml(ord.time)}</span>
+                    <span class="tk-order-price">¥${ord.total}</span>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', mount);
+    } else {
+        mount();
+    }
 })();
