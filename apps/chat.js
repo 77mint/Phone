@@ -1,7 +1,8 @@
 /* =========================================================
    Chat 主页 & 聊天窗口 (apps/chat.js)
    - 100% 同步「档案」：所有联系人与群聊成员均严格来自 PhoneArchive
-   - 微信小圆角头像 + 名字对齐头像上缘/预览对齐头像下缘 + 可点进聊天窗口
+   - 微信小圆角头像 + 名字对齐头像上缘/预览对齐下缘 + 可点进聊天窗口
+   - 适配 iOS visualViewport，原生键盘弹起不遮挡输入框
    ========================================================= */
 
 (function () {
@@ -139,6 +140,43 @@
             return `<div class="${boxCls}"><img src="${escapeHtml(av)}" onerror="this.parentNode.textContent='${escapeHtml(fallbackChar)}'" alt="" /></div>`;
         }
         return `<div class="${boxCls}">${escapeHtml(fallbackChar)}</div>`;
+    }
+
+    function syncRoomViewport() {
+        const room = document.getElementById('ctRoomView');
+        const app = document.querySelector('#app-chat .ct-app');
+        if (!room || !app || !room.classList.contains('open')) return;
+
+        const vv = window.visualViewport;
+        if (!vv) return;
+
+        const appRect = app.getBoundingClientRect();
+        if (!appRect.height || !app.offsetHeight) return;
+        const scale = appRect.height / app.offsetHeight;
+
+        const visibleTop = Math.max(appRect.top, vv.offsetTop);
+        const visibleBottom = Math.min(appRect.bottom, vv.offsetTop + vv.height);
+
+        const topInset = Math.max(0, (visibleTop - appRect.top) / scale);
+        const bottomInset = Math.max(0, (appRect.bottom - visibleBottom) / scale);
+
+        const kbOpen = bottomInset > 40;
+        room.style.top = topInset + 'px';
+        room.style.bottom = bottomInset + 'px';
+        room.classList.toggle('is-kb-open', kbOpen);
+
+        if (kbOpen) {
+            const box = document.getElementById('ctRoomMessages');
+            if (box) box.scrollTop = box.scrollHeight;
+        }
+    }
+
+    function resetRoomViewport() {
+        const room = document.getElementById('ctRoomView');
+        if (!room) return;
+        room.style.top = '0px';
+        room.style.bottom = '0px';
+        room.classList.remove('is-kb-open');
     }
 
     function mount() {
@@ -309,15 +347,39 @@
         document.getElementById('ctCreateGroupBtn').addEventListener('click', createGroupChat);
 
         document.getElementById('ctRoomBackBtn').addEventListener('click', () => {
+            const inp = document.getElementById('ctRoomInput');
+            if (inp) inp.blur();
+            resetRoomViewport();
             document.getElementById('ctRoomView').classList.remove('open');
             currentThreadId = null;
             renderMessagesTab();
         });
 
+        const roomInput = document.getElementById('ctRoomInput');
         document.getElementById('ctRoomSendBtn').addEventListener('click', sendRoomMessage);
-        document.getElementById('ctRoomInput').addEventListener('keydown', (e) => {
+        roomInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') sendRoomMessage();
         });
+
+        roomInput.addEventListener('focus', () => {
+            setTimeout(() => {
+                window.scrollTo(0, 0);
+                syncRoomViewport();
+            }, 60);
+            setTimeout(syncRoomViewport, 280);
+        });
+
+        roomInput.addEventListener('blur', () => {
+            setTimeout(() => {
+                window.scrollTo(0, 0);
+                syncRoomViewport();
+            }, 80);
+        });
+
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', syncRoomViewport);
+            window.visualViewport.addEventListener('scroll', syncRoomViewport);
+        }
 
         window.addEventListener('phone-archive-updated', () => {
             renderActiveTab();
@@ -404,8 +466,10 @@
         const chars = getArchiveChars();
         const charObj = t.type === 'dm' ? chars.find(c => c.id === t.charId) : null;
         document.getElementById('ctRoomTitle').textContent = charObj ? getCharDisplayName(charObj) : (t.name || '聊天');
+        resetRoomViewport();
         renderRoomMessages();
         document.getElementById('ctRoomView').classList.add('open');
+        syncRoomViewport();
     }
 
     function renderRoomMessages() {
@@ -422,13 +486,19 @@
             return;
         }
 
+        let lastShownTime = '';
         box.innerHTML = msgs.map(m => {
             const isMe = m.sender === 'me';
             const cObj = isMe ? null : (chars.find(c => c.id === m.charId) || defaultChar);
             const avHtml = isMe
                 ? '<div class="ct-msg-avatar">我</div>'
                 : renderAvatarHtml(cObj, false, 'ct-msg-avatar');
-            return `
+            let timeHtml = '';
+            if (m.time && m.time !== '在线' && m.time !== lastShownTime) {
+                lastShownTime = m.time;
+                timeHtml = `<div class="ct-msg-time">${escapeHtml(m.time)}</div>`;
+            }
+            return `${timeHtml}
                 <div class="ct-msg-row ${isMe ? 'me' : ''}">
                     ${avHtml}
                     <div class="ct-msg-bubble">${escapeHtml(m.text)}</div>
