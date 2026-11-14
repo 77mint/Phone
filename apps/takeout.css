@@ -1,6 +1,6 @@
 /* =========================================================
    小团外卖 (apps/takeout.css)
-   纯白卡片 + 浅灰底色 + 对角高光液态玻璃返回键与底栏
+   纯白卡片 + 浅灰底色 + 对角高光液态玻璃返回键与底栏 + 全局字号联动
    ========================================================= */
 
 #app-takeout {
@@ -92,7 +92,7 @@
 }
 
 .tk-title {
-    font-size: 20px;
+    font-size: calc(var(--app-font-size, 15px) + 5px);
     font-weight: 700;
     letter-spacing: -0.3px;
     color: #111111;
@@ -162,7 +162,7 @@
 }
 
 .tk-cat-label {
-    font-size: 11px;
+    font-size: calc(var(--app-font-size, 15px) - 4px);
     font-weight: 600;
     color: #3a3a3c;
     line-height: 1.2;
@@ -182,13 +182,13 @@
 }
 
 .tk-sec-title {
-    font-size: 17px;
+    font-size: calc(var(--app-font-size, 15px) + 2px);
     font-weight: 700;
     color: #111111;
 }
 
 .tk-sec-sub {
-    font-size: 12px;
+    font-size: calc(var(--app-font-size, 15px) - 3px);
     color: #8e8e93;
 }
 
@@ -245,7 +245,7 @@
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     color: #1c1c1e;
-    font-size: 11px;
+    font-size: calc(var(--app-font-size, 15px) - 4px);
     font-weight: 600;
 }
 
@@ -261,7 +261,7 @@
 }
 
 .tk-store-name {
-    font-size: 16px;
+    font-size: calc(var(--app-font-size, 15px) + 1px);
     font-weight: 700;
     color: #111111;
     overflow: hidden;
@@ -270,7 +270,7 @@
 }
 
 .tk-store-rating {
-    font-size: 12px;
+    font-size: calc(var(--app-font-size, 15px) - 3px);
     font-weight: 700;
     color: #ff7a00;
     flex-shrink: 0;
@@ -278,7 +278,7 @@
 
 .tk-store-meta {
     margin-top: 4px;
-    font-size: 12px;
+    font-size: calc(var(--app-font-size, 15px) - 3px);
     color: #8e8e93;
 }
 
@@ -301,7 +301,7 @@
     padding: 4px 8px 4px 4px;
     border-radius: 10px;
     background: #f2f2f7;
-    font-size: 11px;
+    font-size: calc(var(--app-font-size, 15px) - 4px);
     color: #3a3a3c;
     font-weight: 500;
 }
@@ -366,7 +366,7 @@
     background: transparent;
     padding: 9px 0;
     border-radius: 999px;
-    font-size: 14px;
+    font-size: calc(var(--app-font-size, 15px) - 1px);
     font-weight: 500;
     color: #666666;
     cursor: pointer;
@@ -419,13 +419,13 @@
 }
 
 .tk-subview-title {
-    font-size: 19px;
+    font-size: calc(var(--app-font-size, 15px) + 4px);
     font-weight: 700;
     color: #111111;
 }
 
 .tk-subview-count {
-    font-size: 12px;
+    font-size: calc(var(--app-font-size, 15px) - 3px);
     color: #8e8e93;
     font-weight: 500;
 }
@@ -516,14 +516,14 @@
 }
 
 .tk-store-header-name {
-    font-size: 20px;
+    font-size: calc(var(--app-font-size, 15px) + 5px);
     font-weight: 700;
     text-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
 }
 
 .tk-store-header-sub {
     margin-top: 3px;
-    font-size: 12px;
+    font-size: calc(var(--app-font-size, 15px) - 3px);
     opacity: 0.94;
 }
 
@@ -566,14 +566,14 @@
 }
 
 .tk-dish-name {
-    font-size: 15px;
+    font-size: var(--app-font-size, 15px);
     font-weight: 700;
     color: #111111;
     margin-bottom: 3px;
 }
 
 .tk-dish-desc {
-    font-size: 12px;
+    font-size: calc(var(--app-font-size, 15px) - 3px);
     color: #8e8e93;
     margin-bottom: 8px;
     white-space: nowrap;
@@ -588,7 +588,7 @@
 }
 
 .tk-dish-price {
-    font-size: 16px;
+    font-size: calc(var(--app-font-size, 15px) + 1px);
     font-weight: 700;
     color: #ff3b30;
 }
@@ -623,7 +623,7 @@
 }
 
 .tk-qty-num {
-    font-size: 13px;
+    font-size: calc(var(--app-font-size, 15px) - 2px);
     font-weight: 700;
     min-width: 14px;
     text-align: center;
@@ -671,7 +671,7 @@
 }
 
 .tk-cart-drawer-title {
-    font-size: 15px;
+    font-size: var(--app-font-size, 15px);
     font-weight: 700;
     color: #111111;
 }
@@ -680,7 +680,7 @@
     border: none;
     background: transparent;
     color: #8e8e93;
-    font-size: 12px;
+    font-size: calc(var(--app-font-size, 15px) - 3px);
     font-weight: 600;
     cursor: pointer;
     padding: 4px 6px;
@@ -721,7 +721,7 @@
 }
 
 .tk-cart-drawer-name {
-    font-size: 14px;
+    font-size: calc(var(--app-font-size, 15px) - 1px);
     font-weight: 600;
     color: #111111;
     white-space: nowrap;
@@ -730,7 +730,7 @@
 }
 
 .tk-cart-drawer-sub {
-    font-size: 12px;
+    font-size: calc(var(--app-font-size, 15px) - 3px);
     color: #ff3b30;
     font-weight: 700;
     margin-top: 2px;
@@ -739,7 +739,7 @@
 .tk-cart-drawer-foot {
     padding-top: 8px;
     border-top: 1px solid #f2f2f7;
-    font-size: 12px;
+    font-size: calc(var(--app-font-size, 15px) - 3px);
     color: #8e8e93;
     display: flex;
     justify-content: space-between;
@@ -814,12 +814,12 @@
 }
 
 .tk-cart-total {
-    font-size: 17px;
+    font-size: calc(var(--app-font-size, 15px) + 2px);
     font-weight: 700;
 }
 
 .tk-cart-count {
-    font-size: 12px;
+    font-size: calc(var(--app-font-size, 15px) - 3px);
     color: rgba(255, 255, 255, 0.78);
     display: inline-flex;
     align-items: center;
@@ -832,7 +832,7 @@
     color: #111111;
     border-radius: 999px;
     padding: 9px 18px;
-    font-size: 13px;
+    font-size: calc(var(--app-font-size, 15px) - 2px);
     font-weight: 700;
     cursor: pointer;
     flex-shrink: 0;
@@ -856,19 +856,19 @@
 }
 
 .tk-order-store {
-    font-size: 15px;
+    font-size: var(--app-font-size, 15px);
     font-weight: 700;
 }
 
 .tk-order-status {
-    font-size: 12px;
+    font-size: calc(var(--app-font-size, 15px) - 3px);
     font-weight: 600;
     color: #34c759;
 }
 
 .tk-order-items {
     padding: 10px 0;
-    font-size: 13px;
+    font-size: calc(var(--app-font-size, 15px) - 2px);
     color: #3a3a3c;
     line-height: 1.55;
 }
@@ -877,12 +877,12 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 12px;
+    font-size: calc(var(--app-font-size, 15px) - 3px);
     color: #8e8e93;
 }
 
 .tk-order-price {
-    font-size: 15px;
+    font-size: var(--app-font-size, 15px);
     font-weight: 700;
     color: #111111;
 }
@@ -891,7 +891,7 @@
     text-align: center;
     padding: 64px 24px;
     color: #8e8e93;
-    font-size: 14px;
+    font-size: calc(var(--app-font-size, 15px) - 1px);
 }
 
 /* 弹窗 */
@@ -929,7 +929,7 @@
 }
 
 .tk-modal-title {
-    font-size: 17px;
+    font-size: calc(var(--app-font-size, 15px) + 2px);
     font-weight: 700;
 }
 
@@ -945,7 +945,7 @@
 }
 
 .tk-field-label {
-    font-size: 12px;
+    font-size: calc(var(--app-font-size, 15px) - 3px);
     font-weight: 600;
     color: #6c6c70;
     margin: 12px 0 6px;
@@ -958,7 +958,7 @@
     background: #f2f2f7;
     border-radius: 14px;
     padding: 11px 12px;
-    font-size: 14px;
+    font-size: calc(var(--app-font-size, 15px) - 1px);
     color: #111111;
     outline: none;
     font-family: inherit;
@@ -977,7 +977,7 @@
     color: #3a3a3c;
     border-radius: 14px;
     padding: 9px 6px;
-    font-size: 12px;
+    font-size: calc(var(--app-font-size, 15px) - 3px);
     font-weight: 600;
     cursor: pointer;
 }
@@ -1001,7 +1001,7 @@
     border-radius: 999px;
     border: 1.5px solid #e5e5ea;
     background: #ffffff;
-    font-size: 12px;
+    font-size: calc(var(--app-font-size, 15px) - 3px);
     font-weight: 600;
     cursor: pointer;
 }
@@ -1020,7 +1020,7 @@
     color: #ffffff;
     border-radius: 16px;
     padding: 13px;
-    font-size: 15px;
+    font-size: var(--app-font-size, 15px);
     font-weight: 700;
     cursor: pointer;
 }
