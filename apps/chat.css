@@ -1,10 +1,10 @@
 /* =========================================================
    Chat 主页 (apps/chat.css)
-   纯白卡片 + 浅灰底色 + 对角高光液态玻璃返回键与四格底栏
+   全宽平铺列表（无小卡片框）+ 对角高光液态玻璃返回键与四格底栏
    ========================================================= */
 
 #app-chat {
-    background: #f2f2f7;
+    background: #ffffff;
     color: #111111;
     font-family: var(--app-font, -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif);
     font-size: var(--app-font-size, 15px);
@@ -17,7 +17,7 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    background: #f2f2f7;
+    background: #ffffff;
 }
 
 /* 顶部栏 */
@@ -28,7 +28,7 @@
     align-items: center;
     justify-content: space-between;
     padding: calc(var(--safe-top, 44px) + 8px) 16px 10px;
-    background: rgba(242, 242, 247, 0.88);
+    background: rgba(255, 255, 255, 0.92);
     backdrop-filter: blur(18px);
     -webkit-backdrop-filter: blur(18px);
     z-index: 15;
@@ -143,7 +143,13 @@
     flex: 1;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    padding: 4px 16px 110px;
+    padding: 2px 0 110px;
+    background: #ffffff;
+}
+
+.ct-scroll.is-gray {
+    background: #f2f2f7;
+    padding: 6px 16px 110px;
 }
 
 .ct-scroll::-webkit-scrollbar {
@@ -151,15 +157,18 @@
 }
 
 /* 搜索框 */
-.ct-search-wrap {
+.ct-search-bar {
+    padding: 4px 16px 10px;
     background: #ffffff;
-    border-radius: 16px;
-    padding: 9px 12px;
+}
+
+.ct-search-wrap {
+    background: #f2f2f7;
+    border-radius: 14px;
+    padding: 8px 12px;
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 12px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
     color: #8e8e93;
 }
 
@@ -173,36 +182,43 @@
     font-family: inherit;
 }
 
-/* 列表卡片 */
-.ct-card {
+/* 全宽平铺列表（无小卡片框） */
+.ct-flat-list {
     background: #ffffff;
-    border-radius: 22px;
-    overflow: hidden;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
-    margin-bottom: 14px;
 }
 
 .ct-row {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 12px 14px;
-    border-bottom: 0.5px solid rgba(0, 0, 0, 0.06);
+    padding: 12px 16px;
     cursor: pointer;
+    background: #ffffff;
 }
 
-.ct-row:last-child {
-    border-bottom: none;
+.ct-row::after {
+    content: "";
+    position: absolute;
+    left: 76px;
+    right: 0;
+    bottom: 0;
+    height: 0.5px;
+    background: rgba(0, 0, 0, 0.08);
+}
+
+.ct-row:last-child::after {
+    display: none;
 }
 
 .ct-row:active {
-    background: #f8f8fa;
+    background: #f5f5f7;
 }
 
 .ct-avatar {
-    width: 46px;
-    height: 46px;
-    border-radius: 14px;
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
     background: #f2f2f7;
     color: #111111;
     display: flex;
@@ -234,7 +250,7 @@
 }
 
 .ct-row-name {
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 600;
     color: #111111;
     white-space: nowrap;
@@ -250,7 +266,7 @@
 
 .ct-row-sub {
     margin-top: 3px;
-    font-size: 12px;
+    font-size: 13px;
     color: #8e8e93;
     white-space: nowrap;
     overflow: hidden;
@@ -258,6 +274,18 @@
 }
 
 /* 朋友圈 & 我的 占位卡片 */
+.ct-card {
+    background: #ffffff;
+    border-radius: 22px;
+    overflow: hidden;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+    margin-bottom: 14px;
+}
+
+.ct-card .ct-row::after {
+    left: 16px;
+}
+
 .ct-me-card {
     background: #ffffff;
     border-radius: 24px;
@@ -517,6 +545,25 @@
     font-weight: 700;
     cursor: pointer;
     flex-shrink: 0;
+}
+
+/* 联系人档案弹窗 */
+.ct-profile-head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding-bottom: 14px;
+    border-bottom: 0.5px solid rgba(0, 0, 0, 0.08);
+    margin-bottom: 12px;
+}
+
+.ct-profile-body {
+    font-size: 13px;
+    line-height: 1.65;
+    color: #3a3a3c;
+    white-space: pre-wrap;
+    overflow-y: auto;
+    max-height: 240px;
 }
 
 .ct-toast {
