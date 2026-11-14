@@ -588,7 +588,7 @@
     for (var i = 0; i < all.length; i++) {
       var b = all[i];
       for (var shift = 6; shift >= 0; shift -= 2) {
-        if ((chanIdx & 3) === 3) chanIdx++; // 跳过 Alpha 通道
+        if ((chanIdx & 3) === 3) chanIdx++;
         data[chanIdx] = (data[chanIdx] & 0xFC) | ((b >> shift) & 3);
         chanIdx++;
       }
@@ -787,7 +787,7 @@
     if (navigator.share && navigator.canShare && lastExportBlob) {
       var shareFile = new File([lastExportBlob], 'phone-icons.png', { type: 'image/png' });
       if (navigator.canShare({ files: [shareFile] })) {
-        navigator.share({ files: [shareFile], title: '小手机图标包' }).catch(function () {});
+        navigator.share({ files: [shareFile] }).catch(function () {});
         return;
       }
     }
