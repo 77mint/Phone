@@ -4,6 +4,30 @@
 
   var CHARS_KEY = 'phone_archive_chars';
   var GROUPS_KEY = 'phone_archive_groups';
+  var BUILTIN_SEEDED_KEY = 'phone_archive_builtin_seeded';
+  var BUILTIN_ID = 'assistant-shuixiaojiu';
+  var BUILTIN_DEFAULT_AVATAR = 'icons/IMG_0288.jpeg';
+
+  var BUILTIN_CHAR = {
+    id: BUILTIN_ID,
+    nickname: '水小九',
+    bio: '耐心在线｜前端 · 美化 · AIRP · 酒馆 · 小手机',
+    handle: '@shuixiaojiu.09',
+    password: '',
+    group: 'Default',
+    name: '水小九',
+    age: '',
+    gender: '女',
+    persona: [
+      '你是内置在「小手机」Chat 里的专属小助手「水小九」。',
+      '性格：极有耐心、温柔细腻、说话自然好懂、不居高临下，从不嫌弃提问细碎。',
+      '专长：精通前端（HTML/CSS/JS）、小手机与液态玻璃 UI 美化、AIRP 交互玩法、SillyTavern（酒馆）角色卡/世界书/预设/正则/插件配置，以及各类报错排查。',
+      '互动习惯：面对复杂技术问题时，能用最通俗的白话拆成一二三步陪用户解决；面对创意和美化需求时，审美在线、注重细节并尊重用户个人偏好。'
+    ].join('\n'),
+    npcs: [],
+    isBuiltin: true,
+    updatedAt: Date.now()
+  };
 
   var charAvatarCache = {};
   var npcAvatarCache = {};
@@ -65,6 +89,27 @@
 
   function saveChars(list) {
     localStorage.setItem(CHARS_KEY, JSON.stringify(list));
+    try {
+      window.dispatchEvent(new CustomEvent('phone-archive-updated'));
+    } catch (e) {}
+  }
+
+  function ensureBuiltinSeeded() {
+    if (localStorage.getItem(BUILTIN_SEEDED_KEY) === '1') return;
+    var list = getChars();
+    if (!list.some(function (c) { return c.id === BUILTIN_ID; })) {
+      list.unshift(JSON.parse(JSON.stringify(BUILTIN_CHAR)));
+      saveChars(list);
+    }
+    localStorage.setItem(BUILTIN_SEEDED_KEY, '1');
+  }
+
+  ensureBuiltinSeeded();
+
+  function getCharAvatar(id) {
+    if (charAvatarCache[id]) return charAvatarCache[id];
+    if (id === BUILTIN_ID) return BUILTIN_DEFAULT_AVATAR;
+    return '';
   }
 
   window.PhoneArchive = {
@@ -72,7 +117,8 @@
     getGroups: getGroups,
     getCharById: function (id) {
       return getChars().find(function (c) { return c.id === id; }) || null;
-    }
+    },
+    getCharAvatar: getCharAvatar
   };
 
   function escapeHtml(str) {
@@ -289,13 +335,13 @@
   function buildPngWithChara(pngBuf, jsonStr) {
     var src = new Uint8Array(pngBuf);
     var b64 = utf8ToB64(jsonStr);
-    var keyBytes = [99, 104, 97, 114, 97, 0]; // "chara\0"
+    var keyBytes = [99, 104, 97, 114, 97, 0];
     var textBytes = new Uint8Array(keyBytes.length + b64.length);
     for (var i = 0; i < keyBytes.length; i++) textBytes[i] = keyBytes[i];
     for (var j = 0; j < b64.length; j++) textBytes[keyBytes.length + j] = b64.charCodeAt(j);
 
     var typeAndData = new Uint8Array(4 + textBytes.length);
-    typeAndData[0] = 116; typeAndData[1] = 69; typeAndData[2] = 88; typeAndData[3] = 116; // tEXt
+    typeAndData[0] = 116; typeAndData[1] = 69; typeAndData[2] = 88; typeAndData[3] = 116;
     typeAndData.set(textBytes, 4);
 
     var chunk = new Uint8Array(12 + textBytes.length);
@@ -415,7 +461,7 @@
       exportedAt: new Date().toISOString(),
       char: {
         id: editingCharId || ('char_' + Date.now()),
-        avatar: tempCharAvatar || '',
+        avatar: tempCharAvatar || getCharAvatar(editingCharId) || '',
         nickname: document.getElementById('arCharNickname').value.trim(),
         bio: document.getElementById('arCharBio').value.trim(),
         handle: document.getElementById('arCharHandle').value.trim(),
@@ -580,6 +626,9 @@
     if (avUrl) {
       charAvatarCache[newId] = avUrl;
       PhoneDB.set('archive_char_avatar_' + newId, avUrl);
+      try {
+        window.dispatchEvent(new CustomEvent('phone-archive-updated'));
+      } catch (e) {}
     }
 
     netCharId = newId;
@@ -613,7 +662,7 @@
     }
 
     box.innerHTML = filtered.map(function (c) {
-      var av = charAvatarCache[c.id] || '';
+      var av = getCharAvatar(c.id);
       var avCls = 'ar-avatar' + (av ? ' has-img' : '');
       var avStyle = av ? ' style="background-image:url(\'' + av + '\')"' : '';
       var displayName = c.name || c.nickname || '未命名';
@@ -661,7 +710,7 @@
       : '';
 
     var centerName = activeChar.name || activeChar.nickname || '主角';
-    var centerAv = charAvatarCache[activeChar.id] || '';
+    var centerAv = getCharAvatar(activeChar.id);
     var centerCircleStyle = centerAv ? 'background-image:url(\'' + centerAv + '\');' : '';
 
     var linesSvg = '';
@@ -818,6 +867,9 @@
     Promise.all(tasks).then(function () {
       renderCharsList();
       renderNetwork();
+      try {
+        window.dispatchEvent(new CustomEvent('phone-archive-updated'));
+      } catch (e) {}
     });
   }
 
@@ -849,7 +901,7 @@
   var editorEl = document.getElementById('arEditor');
   function openEditor(charObj) {
     editingCharId = charObj ? charObj.id : '';
-    tempCharAvatar = charObj ? (charAvatarCache[charObj.id] || '') : '';
+    tempCharAvatar = charObj ? getCharAvatar(charObj.id) : '';
     tempGender = (charObj && charObj.gender) ? charObj.gender : '女';
     tempGroup = (charObj && charObj.group) ? charObj.group : 'Default';
     tempNpcs = (charObj && Array.isArray(charObj.npcs)) ? JSON.parse(JSON.stringify(charObj.npcs)) : [];
@@ -1129,12 +1181,13 @@
     var idx = list.findIndex(function (c) { return c.id === id; });
     if (idx !== -1) list[idx] = obj;
     else list.unshift(obj);
-    saveChars(list);
 
-    if (tempCharAvatar) {
+    if (tempCharAvatar && tempCharAvatar !== BUILTIN_DEFAULT_AVATAR) {
       charAvatarCache[id] = tempCharAvatar;
       PhoneDB.set('archive_char_avatar_' + id, tempCharAvatar);
     }
+    saveChars(list);
+
     netCharId = id;
     selectedNpcId = '';
     editorEl.classList.remove('open');
@@ -1146,9 +1199,9 @@
   document.getElementById('arDeleteCharBtn').addEventListener('click', function () {
     if (!editingCharId) return;
     var list = getChars().filter(function (c) { return c.id !== editingCharId; });
-    saveChars(list);
     delete charAvatarCache[editingCharId];
     PhoneDB.del('archive_char_avatar_' + editingCharId);
+    saveChars(list);
     editorEl.classList.remove('open');
     renderCharsList();
     renderNetwork();
