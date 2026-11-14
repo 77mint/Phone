@@ -1,7 +1,7 @@
 /* =========================================================
    Chat 主页 & 聊天窗口 (apps/chat.js)
    - 100% 同步「档案」：所有联系人与群聊成员均严格来自 PhoneArchive
-   - 微信小圆角头像 + 名字对齐头像上缘/预览对齐下缘 + 可点进聊天窗口
+   - 微信小圆角头像 + 名字对齐头像上缘/预览对齐头像下缘 + 可点进聊天窗口
    - 适配 iOS visualViewport，原生键盘弹起不遮挡输入框
    ========================================================= */
 
@@ -150,24 +150,24 @@
         const vv = window.visualViewport;
         if (!vv) return;
 
+        window.scrollTo(0, 0);
+
         const appRect = app.getBoundingClientRect();
         if (!appRect.height || !app.offsetHeight) return;
         const scale = appRect.height / app.offsetHeight;
 
-        const visibleTop = Math.max(appRect.top, vv.offsetTop);
-        const visibleBottom = Math.min(appRect.bottom, vv.offsetTop + vv.height);
+        const kbHeight = window.innerHeight - vv.height;
+        if (kbHeight > 80) {
+            const availH = Math.max(220, (vv.height - Math.max(0, appRect.top)) / scale);
+            room.style.top = '0px';
+            room.style.bottom = 'auto';
+            room.style.height = availH + 'px';
+            room.classList.add('is-kb-open');
 
-        const topInset = Math.max(0, (visibleTop - appRect.top) / scale);
-        const bottomInset = Math.max(0, (appRect.bottom - visibleBottom) / scale);
-
-        const kbOpen = bottomInset > 40;
-        room.style.top = topInset + 'px';
-        room.style.bottom = bottomInset + 'px';
-        room.classList.toggle('is-kb-open', kbOpen);
-
-        if (kbOpen) {
             const box = document.getElementById('ctRoomMessages');
             if (box) box.scrollTop = box.scrollHeight;
+        } else {
+            resetRoomViewport();
         }
     }
 
@@ -176,6 +176,7 @@
         if (!room) return;
         room.style.top = '0px';
         room.style.bottom = '0px';
+        room.style.height = '';
         room.classList.remove('is-kb-open');
     }
 
@@ -230,8 +231,16 @@
                     </div>
                     <div class="ct-room-messages" id="ctRoomMessages"></div>
                     <div class="ct-room-input-bar">
+                        <button class="ct-room-icon-btn" id="ctRoomVoiceBtn" aria-label="语音">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                        </button>
                         <input class="ct-room-input" id="ctRoomInput" placeholder="发消息..." />
-                        <button class="ct-room-send" id="ctRoomSendBtn">发送</button>
+                        <button class="ct-room-icon-btn" id="ctRoomPlusBtn" aria-label="更多">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                        </button>
+                        <button class="ct-room-send-icon" id="ctRoomSendBtn" aria-label="发送">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                        </button>
                     </div>
                 </div>
 
@@ -357,23 +366,20 @@
 
         const roomInput = document.getElementById('ctRoomInput');
         document.getElementById('ctRoomSendBtn').addEventListener('click', sendRoomMessage);
+        document.getElementById('ctRoomVoiceBtn').addEventListener('click', () => showToast('语音功能待接入'));
+        document.getElementById('ctRoomPlusBtn').addEventListener('click', () => showToast('更多功能待接入'));
+
         roomInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') sendRoomMessage();
         });
 
         roomInput.addEventListener('focus', () => {
-            setTimeout(() => {
-                window.scrollTo(0, 0);
-                syncRoomViewport();
-            }, 60);
-            setTimeout(syncRoomViewport, 280);
+            setTimeout(syncRoomViewport, 60);
+            setTimeout(syncRoomViewport, 300);
         });
 
         roomInput.addEventListener('blur', () => {
-            setTimeout(() => {
-                window.scrollTo(0, 0);
-                syncRoomViewport();
-            }, 80);
+            setTimeout(syncRoomViewport, 80);
         });
 
         if (window.visualViewport) {
